@@ -14,6 +14,7 @@
 - **Backup-Apps** (shortcuts `apps-export` and `apps-import`): saves the installed apps list and reinstalls it after formatting.
 - **Configure-Windows**: optional classic right-click menu on Windows 11.
 - **Configure-Firefox**: removes the "Add to taskbar" and Picture-in-Picture buttons from the address bar, and asks whether to keep page translation.
+- **Get-Wallpapers** (shortcut `wallpapers`): pick wallpapers from a list and download them, with a preview gallery in `docs/wallpapers.md` kept up to date by `tools/Update-WallpaperGallery.ps1`.
 
 ## v1.0.0 — 2026-10-10
 

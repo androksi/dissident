@@ -77,6 +77,7 @@
       "apps-export": "Before formatting: saves the list of your installed apps to a file. Save it on OneDrive, Google Drive or a USB drive.",
       "apps-import": "After formatting: finds that file and installs the apps back. Apps already installed are skipped.",
       cleanup: "Frees disk space: temporary files, Windows Update downloads, error reports and more. Shows how much each item takes and asks before deleting each one.",
+      wallpapers: "Lists the TidyWin wallpapers, lets you check the ones you want and downloads them to Pictures\\Wallpapers. Can also set one as the desktop background.",
       "windows-check": "Checks whether a Windows update brought back anything the windows command changed (telemetry, removed apps, OneDrive, policies) and offers to reapply only that.",
       copied: "copied",
       options: "What each option does",
@@ -102,6 +103,7 @@
       "apps-export": "Antes de formatar: salva a lista dos seus apps instalados num arquivo. Guarde no OneDrive, Google Drive ou pendrive.",
       "apps-import": "Depois de formatar: acha esse arquivo e instala os apps de volta. Os que já estão instalados são pulados.",
       cleanup: "Libera espaço no disco: arquivos temporários, downloads do Windows Update, relatórios de erro e mais. Mostra quanto cada item ocupa e pergunta antes de apagar cada um.",
+      wallpapers: "Lista os wallpapers do TidyWin, você marca os que quer e eles são baixados para Imagens\\Wallpapers. Também pode definir um como plano de fundo.",
       "windows-check": "Confere se alguma atualização do Windows trouxe de volta algo que o comando windows mudou (telemetria, apps removidos, OneDrive, políticas) e oferece reaplicar só isso.",
       copied: "copiado",
       options: "O que cada opção faz",
@@ -445,6 +447,20 @@
         "Shows the result of each step and whether you need to restart. Takes 10 to 30 minutes in total.",
         "Mostra o resultado de cada etapa e se precisa reiniciar. Leva de 10 a 30 minutos no total."),
     ])],
+    wallpapers: [G("", "", [
+      I("Preview", "Prévia", "ask", false,
+        "Opens the gallery on GitHub in the browser so you can see the wallpapers before choosing.",
+        "Abre a galeria no GitHub no navegador para você ver os wallpapers antes de escolher."),
+      I("Which ones", "Quais", "auto", null,
+        "Checklist with name, resolution and size. Nothing is downloaded until you confirm.",
+        "Lista para marcar com nome, resolução e tamanho. Nada é baixado até você confirmar."),
+      I("Where to save", "Onde salvar", "choice", { en: "Pictures\\Wallpapers", pt: "Imagens\\Wallpapers" },
+        "Pictures\\Wallpapers, Pictures, Downloads or a folder you type. Files that already exist are skipped.",
+        "Imagens\\Wallpapers, Imagens, Downloads ou uma pasta que você digita. Arquivos que já existem são pulados."),
+      I("Set as background", "Definir como plano de fundo", "choice", { en: "don't change", pt: "não mudar" },
+        "Pick one of the downloaded wallpapers to set as the desktop background (Fill), or leave it as is. Nothing else changes.",
+        "Escolha um dos wallpapers baixados para virar o plano de fundo (Preencher), ou deixe como está. Nada mais muda."),
+    ])],
     "apps-export": [G("", "", [
       I("Where to save", "Onde salvar", "choice", { en: "OneDrive, if you have it", pt: "OneDrive, se tiver" },
         "Desktop, Documents, Downloads, OneDrive or a folder you type. The file is tidywin-apps-<PC>-<date>.json.",
@@ -547,7 +563,7 @@
 
   const lists = {
     apply: ["windows", "apps", "chrome", "brave", "firefox", "dev"],
-    check: ["windows-check", "cleanup", "repair", "apps-export", "apps-import"],
+    check: ["windows-check", "cleanup", "repair", "apps-export", "apps-import", "wallpapers"],
     undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert"],
   };
 

@@ -18,6 +18,11 @@ mkdir -p "$out"
 cp -r scripts "$out/scripts"
 sed "s|__SHORT__|$short|g" web/index.html > "$out/index.html"
 
+# Wallpapers: the images plus a list the wallpapers script reads (previews stay in the repo only)
+mkdir -p "$out/assets/wallpapers" wallpapers   # not "$out/wallpapers": that name is the shortcut
+find wallpapers -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -exec cp {} "$out/assets/wallpapers/" \;
+python3 web/wallpapers-index.py wallpapers > "$out/assets/wallpapers/index.json"
+
 # shortcut <name> <script> [argument]
 shortcut() {
     local name=$1 script=$2 args=${3:-}
@@ -47,9 +52,10 @@ shortcut firefox        scripts/browsers/Configure-Firefox.ps1
 shortcut firefox-revert scripts/browsers/Configure-Firefox.ps1 -Revert
 shortcut dev            scripts/dev/Configure-Dev.ps1
 shortcut dev-revert     scripts/dev/Configure-Dev.ps1            -Revert
+shortcut wallpapers     scripts/wallpapers/Get-Wallpapers.ps1
 
 # No placeholder may be left over
-if grep -rl '__[A-Z]*__' "$out" --exclude-dir=scripts; then
+if grep -rl '__[A-Z]*__' "$out" --exclude-dir=scripts --exclude-dir=assets; then
     echo "unreplaced placeholder in the files above" >&2
     exit 1
 fi

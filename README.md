@@ -44,6 +44,7 @@ irm androksi.github.io/tidywin/cleanup | iex
 irm androksi.github.io/tidywin/repair | iex
 irm androksi.github.io/tidywin/apps-export | iex
 irm androksi.github.io/tidywin/apps-import | iex
+irm androksi.github.io/tidywin/wallpapers | iex
 ```
 
 ### How to open PowerShell
@@ -67,6 +68,7 @@ The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Each scr
 | `cleanup` | Frees disk space: temporary files, Windows Update downloads, error reports and more. Asks before each item. |
 | `repair` | Checks and repairs system files and the disk with Windows' own tools (DISM, sfc, disk check). |
 | `apps-export` / `apps-import` | Saves the list of installed apps before formatting and installs them back afterwards. |
+| `wallpapers` | Pick wallpapers from a list and download them. [Preview](docs/wallpapers.md). |
 
 Windows Defender, Windows Firewall, Windows Update and Safe Browsing are left untouched. Every script can be run more than once.
 
@@ -95,6 +97,7 @@ Run as Administrator. Browser scripts accept `-Revert`.
 - [App list](docs/apps.md)
 - [Browser policies](docs/browsers.md)
 - [Developer setup](docs/dev.md)
+- [Wallpapers](docs/wallpapers.md)
 - [Changelog](CHANGELOG.md)
 - [Report an issue](https://github.com/androksi/tidywin/issues)
 
