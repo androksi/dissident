@@ -78,6 +78,7 @@ function Set-Telemetry {
     Set-Policy ''               'DisableTelemetry'           1 'Telemetria: off'
     Set-Policy ''               'DisableFirefoxStudies'      1 'Estudos e experimentos remotos: off'
     Set-Policy ''               'DisableDefaultBrowserAgent' 1 'Agente de navegador padrão (tarefa): off'
+    Set-Policy ''               'DontCheckDefaultBrowser'    1 'Aviso "não é o navegador padrão": off'
 }
 
 function Set-SponsoredAndRecommendations {

@@ -43,7 +43,7 @@ Para desfazer: o mesmo script com `-Revert`.
 
 | Funcionalidade | O que faz |
 |---|---|
-| Telemetria | Desliga telemetria, estudos e o agente de navegador padrão. |
+| Telemetria | Desliga telemetria, estudos, o agente de navegador padrão e o aviso "não é o navegador padrão". |
 | Patrocinados e recomendações | Remove patrocinados e recomendações da nova aba e da barra de endereço. |
 | IA | Desliga os recursos de IA. A tradução local continua. |
 | Extensões | Instala uBlock Origin e Bitwarden. |
