@@ -30,16 +30,9 @@ $ErrorActionPreference = 'Continue'
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
-# Yes/no question. Enter = default.
+# Yes/no question shown as a "Sim / Não" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    $hint = if ($Default) { 'S/n' } else { 's/N' }
-    while ($true) {
-        $answer = "$(Read-Host "  $Question [$hint]")".Trim().ToLower()
-        if ($answer -eq '')                      { return $Default }
-        if ($answer -in 's', 'sim', 'y', 'yes')  { return $true }
-        if ($answer -in 'n', 'nao', 'não', 'no') { return $false }
-        Write-Host '  Responda s ou n.' -ForegroundColor DarkYellow
-    }
+    return (Choose $Question @('Sim', 'Não') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.

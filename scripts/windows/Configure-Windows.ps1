@@ -47,20 +47,14 @@ function Set-Reg {
 # Step title in the terminal.
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
-# Yes/no question. Enter = default. With -NoPrompt, returns the default right away.
+# Yes/no question shown as a "Sim / Não" menu (same as Choose). The default comes selected.
+# With -NoPrompt, Choose returns the default right away.
 function Ask([string]$Question, [bool]$Default) {
-    if ($NoPrompt) { return $Default }
-    $hint = if ($Default) { 'S/n' } else { 's/N' }
-    while ($true) {
-        $answer = "$(Read-Host "  $Question [$hint]")".Trim().ToLower()
-        if ($answer -eq '')                      { return $Default }
-        if ($answer -in 's', 'sim', 'y', 'yes')  { return $true }
-        if ($answer -in 'n', 'nao', 'não', 'no') { return $false }
-        Write-Host '  Responda s ou n.' -ForegroundColor DarkYellow
-    }
+    return (Choose $Question @('Sim', 'Não') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
+# The "use the arrows" hint is shown only on the first menu.
 function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
     if ($NoPrompt) { return $Default }
     Write-Host "  $Question"
@@ -76,7 +70,10 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
             Write-Host "  Digite um número de 1 a $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
-    Write-Host '  (use as setas ↑ ↓ e Enter)' -ForegroundColor DarkGray
+    if (-not $script:ArrowHintShown) {
+        Write-Host '  (use as setas ↑ ↓ e Enter)' -ForegroundColor DarkGray
+        $script:ArrowHintShown = $true
+    }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
     $top = [Console]::CursorTop - $Options.Count
     $selected = $Default
@@ -783,7 +780,7 @@ Write-Host "`nConfigure-Windows — $osLabel" -ForegroundColor Green
 if ($cv.EditionID -match 'Core') {
     Write-Host '  Windows Home: algumas políticas valem só no Pro; o resto funciona normalmente.' -ForegroundColor DarkYellow
 }
-if (-not $NoPrompt) { Write-Host '  Responda com s ou n. Enter aceita o padrão (a letra maiúscula).' }
+if (-not $NoPrompt) { Write-Host '  Escolha com as setas e Enter. A resposta padrão já vem selecionada.' }
 
 $opt = [ordered]@{}
 

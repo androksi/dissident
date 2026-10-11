@@ -70,16 +70,54 @@ function Write-Fail([string]$Description, [string]$Name, $ErrorRecord) {
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
-# Yes/no question. Enter = default.
-function Ask([string]$Question, [bool]$Default) {
-    $hint = if ($Default) { 'S/n' } else { 's/N' }
-    while ($true) {
-        $answer = "$(Read-Host "  $Question [$hint]")".Trim().ToLower()
-        if ($answer -eq '')                      { return $Default }
-        if ($answer -in 's', 'sim', 'y', 'yes')  { return $true }
-        if ($answer -in 'n', 'nao', 'não', 'no') { return $false }
-        Write-Host '  Responda s ou n.' -ForegroundColor DarkYellow
+# Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
+# The "use the arrows" hint is shown only on the first menu.
+function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
+    if ($NoPrompt) { return $Default }
+    Write-Host "  $Question"
+    $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
+    if (-not $arrows) {
+        # No real console (e.g. PowerShell ISE): numbered menu instead
+        for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
+        while ($true) {
+            $answer = "$(Read-Host "  Número [$($Default + 1)]")".Trim()
+            if ($answer -eq '') { return $Default }
+            $n = 0
+            if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
+            Write-Host "  Digite um número de 1 a $($Options.Count)." -ForegroundColor DarkYellow
+        }
     }
+    if (-not $script:ArrowHintShown) {
+        Write-Host '  (use as setas ↑ ↓ e Enter)' -ForegroundColor DarkGray
+        $script:ArrowHintShown = $true
+    }
+    foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
+    $top = [Console]::CursorTop - $Options.Count
+    $selected = $Default
+    [Console]::CursorVisible = $false
+    try {
+        while ($true) {
+            for ($i = 0; $i -lt $Options.Count; $i++) {
+                [Console]::SetCursorPosition(0, $top + $i)
+                $marker = if ($i -eq $selected) { '  > ' } else { '    ' }
+                $line = ($marker + $Options[$i]).PadRight([Console]::WindowWidth - 1)
+                if ($i -eq $selected) { Write-Host $line -ForegroundColor Cyan -NoNewline } else { Write-Host $line -NoNewline }
+            }
+            $key = [Console]::ReadKey($true).Key
+            if     ($key -eq 'UpArrow')   { $selected = ($selected - 1 + $Options.Count) % $Options.Count }
+            elseif ($key -eq 'DownArrow') { $selected = ($selected + 1) % $Options.Count }
+            elseif ($key -eq 'Enter')     { break }
+        }
+    } finally {
+        [Console]::SetCursorPosition(0, $top + $Options.Count)
+        [Console]::CursorVisible = $true
+    }
+    return $selected
+}
+
+# Yes/no question shown as a "Sim / Não" menu (same as Choose). The default comes selected.
+function Ask([string]$Question, [bool]$Default) {
+    return (Choose $Question @('Sim', 'Não') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 #endregion
@@ -167,7 +205,7 @@ if (-not $installed) {
 
 # --- Questions
 Write-Host "`nConfigure-Chrome" -ForegroundColor Green
-Write-Host '  Duas escolhas (Enter aceita o padrão):'
+Write-Host '  Duas escolhas (setas e Enter; o padrão já vem selecionado):'
 $noSearchSuggestions = Ask 'Desativar as sugestões de pesquisa enquanto digita? (o que você digita na barra vai ao Google em tempo real)' $false
 $noPrefetch          = Ask 'Desativar o pré-carregamento de páginas? (sites ficam sabendo de links que você nem abriu; abrir páginas fica um pouco mais lento)' $true
 
