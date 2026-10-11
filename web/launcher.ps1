@@ -1,4 +1,4 @@
-# tidywin - shortcut "__NAME__"
+# TidyWin - shortcut "__NAME__"
 #   irm __BASE__/__NAME__ | iex
 #
 # Template: web/launcher.ps1. The Pages workflow replaces the __...__ placeholders and publishes
@@ -15,21 +15,21 @@
     $ProgressPreference    = 'SilentlyContinue'    # the progress bar makes downloads slow on PowerShell 5.1
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-    $elevated = [bool](Get-Variable -Name TidywinElevated -ValueOnly -ErrorAction SilentlyContinue)
+    $elevated = [bool](Get-Variable -Name TidyWinElevated -ValueOnly -ErrorAction SilentlyContinue)
     function Wait-Close { if ($elevated) { Read-Host "`nEnter para fechar" | Out-Null } }
 
     # --- Administrator: if not, open an elevated window that runs this same shortcut
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Write-Host 'tidywin: pedindo permissao de administrador...' -ForegroundColor DarkYellow
-        $cmd = "`$TidywinElevated = `$true; irm '$Base/$Name' | iex"
+        Write-Host 'TidyWin: pedindo permissao de administrador...' -ForegroundColor DarkYellow
+        $cmd = "`$TidyWinElevated = `$true; irm '$Base/$Name' | iex"
         $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
         try {
             Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList @(
                 '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded)
         } catch {
-            Write-Host 'tidywin: permissao negada. Nada foi feito.' -ForegroundColor Red
+            Write-Host 'TidyWin: permissao negada. Nada foi feito.' -ForegroundColor Red
         }
         return
     }
@@ -39,10 +39,10 @@
     $file = Join-Path $temp (Split-Path $Script -Leaf)
     try {
         New-Item -ItemType Directory -Path $temp -Force | Out-Null
-        Write-Host "tidywin: baixando $Script" -ForegroundColor DarkGray
+        Write-Host "TidyWin: baixando $Script" -ForegroundColor DarkGray
         Invoke-WebRequest -Uri "$Base/$Script" -OutFile $file -UseBasicParsing
     } catch {
-        Write-Host "tidywin: falha ao baixar $Base/$Script" -ForegroundColor Red
+        Write-Host "TidyWin: falha ao baixar $Base/$Script" -ForegroundColor Red
         Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
         Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
         Wait-Close

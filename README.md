@@ -1,6 +1,6 @@
-# Tidywin — Windows Cleanup and Setup Utility
+# TidyWin Windows Utility
 
-Tidywin **removes** telemetry and preinstalled apps from Windows 10 and 11, **installs** apps with WinGet and **configures** Chrome, Brave and Firefox for privacy.
+TidyWin **removes** telemetry and preinstalled apps from Windows 10 and 11, **installs** apps with WinGet and **configures** Chrome, Brave and Firefox for privacy.
 
 [![Lint](https://img.shields.io/github/actions/workflow/status/androksi/tidywin/lint.yml?branch=main&label=lint&style=for-the-badge)](https://github.com/androksi/tidywin/actions/workflows/lint.yml)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=for-the-badge)](#requirements)
@@ -8,12 +8,12 @@ Tidywin **removes** telemetry and preinstalled apps from Windows 10 and 11, **in
 
 ---
 
-![Tidywin running in Windows PowerShell](assets/banner.svg)
+![TidyWin running in Windows PowerShell](assets/banner.svg)
 
 ## Quick Start
 
 > [!IMPORTANT]
-> Tidywin makes system-wide changes and needs Administrator rights. It requests them automatically.
+> TidyWin makes system-wide changes and needs Administrator rights. It requests them automatically.
 
 Open PowerShell and run one of the commands:
 
