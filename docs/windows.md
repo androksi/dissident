@@ -72,6 +72,26 @@ To use only the defaults, with no questions: `-NoPrompt`.
 
 Compares the PC with the answers saved the last time you ran `Configure-Windows` (in `%ProgramData%\TidyWin`), shows what came back after a Windows update and asks whether to reapply only that. Personalization is not checked.
 
+## Cleanup
+
+```powershell
+.\scripts\windows\Clean-Windows.ps1
+```
+
+Measures each item, asks before deleting each one and shows how much space was freed.
+
+| Item | Default | What it deletes |
+|---|---|---|
+| Your temporary files | Yes | The %TEMP% folder. |
+| Windows temporary files | Yes | C:\Windows\Temp. |
+| Windows Update downloads | Yes | Updates already installed. Skipped while an update is installing or waiting for a restart. |
+| Delivery Optimization cache | Yes | Update copies kept to share with other PCs. |
+| Error reports and memory dumps | Yes | App crash reports and blue screen dumps. |
+| Thumbnail and icon cache | No | Rebuilt by Windows; File Explorer restarts. |
+| Recycle Bin | No | Everything in it, on every drive. |
+| Old Windows components | No | Old system files left by updates (DISM). Can take minutes. Skipped while an update is pending. |
+| Windows.old | No | The previous Windows installation, if present. No going back after it. |
+
 ## Revert
 
 ```powershell

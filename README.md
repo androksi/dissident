@@ -34,10 +34,11 @@ irm androksi.github.io/tidywin/brave-revert | iex
 irm androksi.github.io/tidywin/firefox-revert | iex
 ```
 
-### Check after a Windows update
+### Maintenance
 
 ```powershell
 irm androksi.github.io/tidywin/windows-check | iex
+irm androksi.github.io/tidywin/cleanup | iex
 ```
 
 ### How to open PowerShell
@@ -53,6 +54,7 @@ The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Prompts 
 |---|---|
 | `windows` | Telemetry, preinstalled apps, OneDrive, Edge, taskbar, File Explorer and DNS. Creates a restore point first. |
 | `windows-check` | Checks whether a Windows update brought anything back and offers to reapply it. |
+| `cleanup` | Frees disk space: temporary files, Windows Update downloads, error reports and more. Asks before each item. |
 | `apps` | Pick and install from 100 apps with WinGet. |
 | `chrome` | Turns off telemetry and AI features and blocks third-party cookies. |
 | `brave` | Turns off Wallet, VPN, Rewards, Leo, News and telemetry. |
