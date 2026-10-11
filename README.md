@@ -1,40 +1,57 @@
-<div align="center">
+# Tidywin
 
-<img src="assets/logo.svg" width="80" alt="">
+Tidywin **removes** telemetry and preinstalled apps from Windows 10 and 11, **installs** apps with WinGet and **configures** Chrome, Brave and Firefox for privacy.
 
-# tidywin
+[![Lint](https://img.shields.io/github/actions/workflow/status/androksi/tidywin/lint.yml?branch=main&label=lint&style=for-the-badge)](https://github.com/androksi/tidywin/actions/workflows/lint.yml)
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=for-the-badge)](#requirements)
+[![License](https://img.shields.io/github/license/androksi/tidywin?style=for-the-badge)](LICENSE)
 
-Removes telemetry and preinstalled apps from Windows 10 and 11, installs apps with WinGet<br>and applies privacy policies to Chrome, Brave and Firefox.
+---
 
-[![Lint](https://github.com/androksi/tidywin/actions/workflows/lint.yml/badge.svg)](https://github.com/androksi/tidywin/actions/workflows/lint.yml)
-![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
-![PowerShell 5.1](https://img.shields.io/badge/PowerShell-5.1-5391FE)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+![Tidywin running in Windows PowerShell](assets/banner.svg)
 
-<br>
+## Quick Start
 
-<img src="assets/banner.svg" width="820" alt="tidywin running in Windows PowerShell">
+> [!IMPORTANT]
+> Tidywin makes system-wide changes and needs Administrator rights. It requests them automatically.
 
-</div>
-
-## Usage
-
-Run in PowerShell. Administrator rights are requested automatically.
+Open PowerShell and run one of the commands:
 
 ```powershell
-irm androksi.github.io/tidywin/<name> | iex
+irm androksi.github.io/tidywin/windows | iex
+irm androksi.github.io/tidywin/apps | iex
+irm androksi.github.io/tidywin/chrome | iex
+irm androksi.github.io/tidywin/brave | iex
+irm androksi.github.io/tidywin/firefox | iex
 ```
 
-| Name | What it does | Undo |
-|---|---|---|
-| `windows` | Telemetry, preinstalled apps, OneDrive, Edge, taskbar, File Explorer, DNS | `windows-revert` |
-| `apps` | Pick and install from 100 apps with WinGet | — |
-| `chrome` | Telemetry, AI features, third-party cookies | `chrome-revert` |
-| `brave` | Wallet, VPN, Rewards, Leo, News, telemetry | `brave-revert` |
-| `firefox` | Telemetry, sponsored content, AI; installs uBlock Origin and Bitwarden | `firefox-revert` |
+### Undo
 
-The script is downloaded to `%TEMP%\tidywin` and deleted after it runs.
-The scripts' prompts and messages are in Brazilian Portuguese.
+```powershell
+irm androksi.github.io/tidywin/windows-revert | iex
+irm androksi.github.io/tidywin/chrome-revert | iex
+irm androksi.github.io/tidywin/brave-revert | iex
+irm androksi.github.io/tidywin/firefox-revert | iex
+```
+
+### How to open PowerShell
+
+- Right-click the Start button and choose **Terminal**.
+- Or press <kbd>Win</kbd> + <kbd>R</kbd>, type `powershell` and press <kbd>Enter</kbd>.
+
+The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Prompts and messages are in Brazilian Portuguese.
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `windows` | Telemetry, preinstalled apps, OneDrive, Edge, taskbar, File Explorer and DNS. Creates a restore point first. |
+| `apps` | Pick and install from 100 apps with WinGet. |
+| `chrome` | Turns off telemetry and AI features and blocks third-party cookies. |
+| `brave` | Turns off Wallet, VPN, Rewards, Leo, News and telemetry. |
+| `firefox` | Turns off telemetry, sponsored content and AI. Installs uBlock Origin and Bitwarden. |
+
+Windows Defender, Windows Firewall, Windows Update and Safe Browsing are left untouched. Every script can be run more than once.
 
 <details>
 <summary>Run from a local copy</summary>
@@ -50,18 +67,18 @@ Run as Administrator. Browser scripts accept `-Revert`.
 
 </details>
 
-## Documentation
+## Requirements
 
-- [Windows](docs/windows.md): every option of `Configure-Windows` and what the revert script undoes
-- [Apps](docs/apps.md): full app list, keys and how to uninstall
-- [Browsers](docs/browsers.md): policies applied to Chrome, Brave and Firefox
+- Windows 10 or 11
+- Windows PowerShell 5.1 (included with Windows)
 
-## Notes
+## Resources
 
-- `Configure-Windows` creates a restore point before making changes.
-- Windows Defender, Windows Firewall, Windows Update and Safe Browsing are left untouched.
-- Every script can be run more than once.
-- Requires Windows 10 or 11 with Windows PowerShell 5.1.
+- [Windows options](docs/windows.md)
+- [App list](docs/apps.md)
+- [Browser policies](docs/browsers.md)
+- [Changelog](CHANGELOG.md)
+- [Report an issue](https://github.com/androksi/tidywin/issues)
 
 ## License
 
