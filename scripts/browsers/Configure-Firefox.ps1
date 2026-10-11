@@ -14,6 +14,7 @@
     Works on Windows 10 and 11. Safe to run more than once.
 
     Passwords: turns off Firefox's own password manager, so only Bitwarden is used.
+    Three questions: search suggestions, page preloading and HTTPS-Only mode (Enter = default).
 
     Does NOT touch: site sign-ins (Google included), tracking protection (stays on the default,
     which already isolates cookies per site), page translation (runs on your PC) and updates.
@@ -56,6 +57,18 @@ function Set-Policy([string]$SubKey, [string]$Name, [object]$Value, [string]$Des
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
+# Yes/no question. Enter = default.
+function Ask([string]$Question, [bool]$Default) {
+    $hint = if ($Default) { 'S/n' } else { 's/N' }
+    while ($true) {
+        $answer = "$(Read-Host "  $Question [$hint]")".Trim().ToLower()
+        if ($answer -eq '')                      { return $Default }
+        if ($answer -in 's', 'sim', 'y', 'yes')  { return $true }
+        if ($answer -in 'n', 'nao', 'não', 'no') { return $false }
+        Write-Host '  Responda s ou n.' -ForegroundColor DarkYellow
+    }
+}
+
 #endregion
 
 
@@ -78,6 +91,9 @@ function Set-SponsoredAndRecommendations {
     Set-Policy 'UserMessaging'  'FeatureRecommendations'     0 'Recomendação de recursos: off'
     Set-Policy 'UserMessaging'  'MoreFromMozilla'            0 '"Mais da Mozilla" nas configurações: off'
     Set-Policy 'UserMessaging'  'SkipOnboarding'             1 'Telas de boas-vindas: off'
+    Set-Policy 'UserMessaging'  'UrlbarInterventions'        0 'Dicas na barra de endereço: off'
+    Set-Policy 'UserMessaging'  'FirefoxLabs'                0 'Convites para recursos experimentais: off'
+    Set-Policy ''               'NoDefaultBookmarks'         1 'Favoritos de fábrica em perfis novos: off'
 }
 
 # Firefox 149+ (AIControls) and older versions (GenerativeAI). Page translation stays:
@@ -115,6 +131,26 @@ function Set-BitwardenOnly {
     }
     Set-Policy ''               'PasswordManagerEnabled'     0 'Gerenciador de senhas do Firefox: off'
     Set-Policy ''               'OfferToSaveLogins'          0 'Oferecer para salvar senhas: off'
+    Set-Policy ''               'AutofillAddressEnabled'     0 'Salvar/preencher endereços: off'
+    Set-Policy ''               'AutofillCreditCardEnabled'  0 'Salvar/preencher cartões: off'
+}
+
+# The three optional choices asked at the start.
+function Set-OptionalPrivacy([bool]$NoSearchSuggestions, [bool]$NoPrefetch, [bool]$HttpsOnly) {
+    if ($NoSearchSuggestions) { Set-Policy '' 'SearchSuggestEnabled' 0 'Sugestões de pesquisa: off' }
+    if ($NoPrefetch)          { Set-Policy '' 'NetworkPrediction'    0 'Pré-carregamento de páginas: off' }
+    if ($HttpsOnly)           { Set-Policy '' 'HttpsOnlyMode' 'enabled' 'Modo somente HTTPS: ligado' 'String' }
+}
+
+# Firefox can turn on "Open Firefox automatically when your computer starts" by itself on new profiles.
+# There is no policy for it: it is a Run entry named "Mozilla-Firefox-<hash>" for the current user.
+function Remove-LaunchOnLogin {
+    $run = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
+    $entries = @((Get-Item $run).Property | Where-Object { $_ -like 'Mozilla-Firefox-*' })
+    foreach ($name in $entries) { Remove-ItemProperty -Path $run -Name $name -ErrorAction SilentlyContinue }
+    Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
+    Write-Host ('{0,-46}' -f 'Iniciar com o Windows: off') -NoNewline
+    Write-Host $(if ($entries) { "removido: $($entries -join ', ')" } else { 'nenhuma entrada encontrada' }) -ForegroundColor DarkGray
 }
 
 #endregion
@@ -156,12 +192,20 @@ if (-not $installed) {
 
 Write-Host "`nConfigure-Firefox" -ForegroundColor Green
 
+# --- Questions
+Write-Host '  Três escolhas (Enter aceita o padrão):'
+$noSearchSuggestions = Ask 'Desativar as sugestões de pesquisa enquanto digita? (o que você digita vai ao buscador em tempo real)' $false
+$noPrefetch          = Ask 'Desativar o pré-carregamento de páginas? (sites ficam sabendo de links que você nem abriu)' $true
+$httpsOnly           = Ask 'Ligar o modo somente HTTPS? (avisa antes de abrir sites sem conexão segura)' $true
+
 # --- Apply
 Write-Step 'Telemetria';                   Set-Telemetry
 Write-Step 'Patrocinados e recomendações'; Set-SponsoredAndRecommendations
 Write-Step 'Inteligência artificial';      Set-AI
 Write-Step 'Extensões';                    Set-Extensions
 Write-Step 'Senhas (só o Bitwarden)';      Set-BitwardenOnly
+Write-Step 'Escolhas de privacidade';      Set-OptionalPrivacy $noSearchSuggestions $noPrefetch $httpsOnly
+Write-Step 'Inicialização com o Windows';  Remove-LaunchOnLogin
 
 # --- Done
 if ($script:Failures) { Write-Host "`n$($script:Failures) política(s) falharam — veja as linhas [ERRO] acima." -ForegroundColor Yellow }

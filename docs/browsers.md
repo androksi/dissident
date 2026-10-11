@@ -47,4 +47,9 @@ Para desfazer: o mesmo script com `-Revert`.
 | Patrocinados e recomendações | Remove patrocinados e recomendações da nova aba e da barra de endereço. |
 | IA | Desliga os recursos de IA. A tradução local continua. |
 | Extensões | Instala uBlock Origin e Bitwarden. |
-| Só Bitwarden | Desliga o gerenciador de senhas do Firefox (avisa se houver senhas salvas). |
+| Só Bitwarden | Desliga o gerenciador de senhas do Firefox e o preenchimento de endereços e cartões (avisa se houver senhas salvas). |
+| Sem avisos | Tira as dicas da barra de endereço, os convites para recursos experimentais e os favoritos de fábrica. |
+| Sugestões de pesquisa | Desliga o envio do que você digita ao buscador em tempo real (pergunta). |
+| Pré-carregamento | Desliga o pré-carregamento de páginas (pergunta). |
+| Somente HTTPS | Avisa antes de abrir sites sem conexão segura (pergunta). |
+| Iniciar com o Windows | Remove a entrada que faz o Firefox abrir ao entrar no Windows. |
