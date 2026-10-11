@@ -16,7 +16,7 @@ Para desfazer: o mesmo script com `-Revert`.
 |---|---|
 | Recursos do Brave | Desliga Wallet, VPN, Recompensas, Leo, News, Talk, Playlist, Wayback, Tor e Speedreader. |
 | Telemetria | Desliga P3A, ping diário e Web Discovery. |
-| Políticas do Chromium | Desliga relatórios, pesquisas, guias promocionais, segundo plano e lista de compras. |
+| Políticas do Chromium | Desliga relatórios, pesquisas, guias promocionais, segundo plano, lista de compras e o aviso "não é o navegador padrão". |
 | Apps, senhas e cartões | Bloqueia instalar sites como app, gerenciador de senhas e cartões salvos. |
 | Transmitir para TV | Manter (cria a regra no firewall) ou desligar. Nos dois casos, sem aviso do firewall. |
 
@@ -33,7 +33,7 @@ Para desfazer: o mesmo script com `-Revert`.
 | Pré-carregamento | Desliga o pré-carregamento de páginas (pergunta). |
 | IA | Desliga Gemini, Modo IA e todos os recursos de IA. |
 | Cookies | Bloqueia cookies de terceiros, liberando os domínios do Google. |
-| Extras | Bloqueia sincronização, segundo plano e lista de compras. Navegação Segura no modo Padrão. |
+| Extras | Bloqueia sincronização, segundo plano, lista de compras e o aviso "não é o navegador padrão". Navegação Segura no modo Padrão. |
 
 ## Firefox
 

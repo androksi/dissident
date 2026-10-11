@@ -129,6 +129,7 @@ function Set-Extras {
     Set-Policy 'SafeBrowsingProtectionLevel'             1 'Navegação Segura: modo Padrão'
     Set-Policy 'BackgroundModeEnabled'                   0 'Rodar em segundo plano ao fechar: off'
     Set-Policy 'ShoppingListEnabled'                     0 'Lista de compras/preços: off'
+    Set-Policy 'DefaultBrowserSettingEnabled'            0 'Aviso "não é o navegador padrão": off'
 }
 
 #endregion

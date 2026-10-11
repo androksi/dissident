@@ -119,6 +119,7 @@ function Set-ChromiumPolicies {
     Set-Policy 'PromotionalTabsEnabled'                  0 'Guias promocionais/boas-vindas: off'
     Set-Policy 'BackgroundModeEnabled'                   0 'Rodar em segundo plano ao fechar: off'
     Set-Policy 'ShoppingListEnabled'                     0 'Lista de compras: off'
+    Set-Policy 'DefaultBrowserSettingEnabled'            0 'Aviso "não é o navegador padrão": off'
 }
 
 # Installing sites as apps (the "monitor with arrow" icon in the address bar), password saving
