@@ -51,6 +51,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | No folder discovery | Large folders open faster. Resets custom folder views. |
 | No Home/Gallery | Removes Home and Gallery from File Explorer, which then opens in "This PC". |
 | Classic menu | Windows 11: the full right-click menu, without "Show more options". |
+| No Snap | Turns off "Snap windows": no snapping to the screen edges and no Snap layouts. Default no. |
 | Thin border | Shrinks the invisible window resize area. |
 
 ## Everyday use
@@ -116,5 +117,5 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, DNS, Game DVR, Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
+| Revert | Undoes telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
 | Not reverted | Removed apps (Xbox included; reinstall from the Microsoft Store), OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

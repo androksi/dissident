@@ -677,6 +677,21 @@ function Set-ThinBorder {
     Write-Host (T '  border thinned (takes effect after signing out and back in)' '  borda afinada (vale depois de sair da conta e entrar de novo)')
 }
 
+# Snap windows off (Settings → System → Multitasking): no snapping to screen edges, no Snap layouts.
+# Saved in the registry and applied right away through the same Windows call Settings uses.
+function Disable-SnapWindows {
+    Set-Reg 'HKCU:\Control Panel\Desktop' 'WindowArrangementActive' '0' 'String'
+    if (-not ('CfgWin.Snap' -as [type])) {
+        Add-Type -Namespace CfgWin -Name Snap -MemberDefinition @'
+[DllImport("user32.dll", SetLastError = true)]
+public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, System.IntPtr pvParam, uint fWinIni);
+'@
+    }
+    # SPI_SETWINARRANGEMENT = 0x0083; SPIF_UPDATEINIFILE | SPIF_SENDCHANGE = 3
+    [void][CfgWin.Snap]::SystemParametersInfo(0x0083, 0, [IntPtr]::Zero, 3)
+    Write-Host (T '  Snap windows: off' '  Ajustar janelas: desligado')
+}
+
 # Taskbar icon alignment (Windows 11 only): TaskbarAl 0 = left, 1 = center (Windows default).
 function Set-TaskbarAlignment([bool]$Left) {
     $value = if ($Left) { 0 } else { 1 }
@@ -1113,6 +1128,7 @@ $opt.ShowHidden     = Ask (T 'Show hidden files and folders in File Explorer (.g
 $opt.NoFolderSniff  = Ask (T 'Turn off automatic folder type discovery (large folders open faster; resets custom folder views)?' 'Desligar a descoberta automática de tipo de pasta (pastas grandes abrem mais rápido; zera as visualizações personalizadas)?') $true
 $opt.HideHomeGallery = if ($isWin11) { Ask (T 'Remove "Home" and "Gallery" from the File Explorer sidebar (it then opens in "This PC")?' 'Remover "Início" e "Galeria" da barra lateral do Explorador (ele passa a abrir em "Este Computador")?') $false } else { $false }
 $opt.ClassicMenu    = if ($isWin11) { Ask (T 'Use the classic right-click menu (full, without clicking "Show more options")?' 'Usar o menu clássico do botão direito (completo, sem precisar clicar em "Mostrar mais opções")?') $false } else { $false }
+$opt.NoSnap         = Ask (T 'Turn off "Snap windows" (windows no longer snap to the screen edges or into layouts)?' 'Desligar o "Ajustar janelas" (as janelas deixam de se encaixar nas bordas da tela e em layouts)?') $false
 $opt.ThinBorder     = Ask (T 'Thin the window resize border (avoids resizing by accident)?' 'Afinar a borda de redimensionamento das janelas (evita redimensionar sem querer)?') $false
 
 # --- Everyday use
@@ -1162,7 +1178,7 @@ $labels = @{
     Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais'); NoXbox = (T 'No Xbox' 'Sem Xbox')
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
     Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados')
-    ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
+    ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); NoSnap = (T 'No Snap' 'Sem Ajustar janelas'); ThinBorder = (T 'Thin border' 'Borda fina')
     LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
     NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
     NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); NoRecall = (T 'No Recall' 'Sem Recall'); NoEdgeShortcut = (T 'No Edge shortcut' 'Sem atalho do Edge'); NumLock = 'Num Lock'; NoFastStartup = (T 'No Fast Startup' 'Sem inicialização rápida'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
@@ -1250,6 +1266,7 @@ if ($opt.NoFolderSniff) { Invoke-Step (T 'File Explorer: automatic folder discov
 if ($opt.HideHomeGallery) { Invoke-Step (T 'File Explorer: removing Home and Gallery' 'Explorador: removendo Início e Galeria') { Hide-HomeAndGallery } }
 if ($opt.UnpinMusic) { Invoke-Step (T 'Quick access: Music' 'Acesso rápido: Músicas') { Unpin-QuickAccessMusic } }
 if ($opt.ClassicMenu) { Invoke-Step (T 'Classic context menu' 'Menu de contexto clássico') { Enable-ClassicContextMenu } }
+if ($opt.NoSnap) { Invoke-Step (T 'Snap windows' 'Ajustar janelas') { Disable-SnapWindows } }
 if ($opt.ThinBorder) { Invoke-Step (T 'Window resize border' 'Borda de redimensionamento das janelas') { Set-ThinBorder } }
 
 # --- Everyday use

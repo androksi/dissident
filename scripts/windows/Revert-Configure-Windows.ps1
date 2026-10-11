@@ -176,6 +176,15 @@ function Restore-Border {
     }
 }
 
+# Snap windows back on (Windows default). Takes effect after signing out and back in.
+function Restore-SnapWindows {
+    $d = 'HKCU:\Control Panel\Desktop'
+    if ((Get-ItemProperty $d -Name WindowArrangementActive -ErrorAction SilentlyContinue).WindowArrangementActive -eq '0') {
+        Set-ItemProperty $d -Name WindowArrangementActive -Value '1'
+        Write-Host (T '  Snap windows: on (after signing out and back in)' '  Ajustar janelas: ligado (depois de sair da conta e entrar de novo)')
+    }
+}
+
 # Automatic DNS (from the router) and no DNS over HTTPS, on every physical adapter.
 function Restore-DNS {
     $base = 'HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\InterfaceSpecificParameters'
@@ -252,6 +261,7 @@ Write-Step (T 'Re-enabling scheduled tasks' 'Reativando tarefas agendadas'); Res
 Write-Step (T 'Removing policies' 'Removendo políticas'); Remove-WindowsPolicies
 Write-Step (T 'Windows suggestions back to default' 'Sugestões do Windows de volta ao padrão'); Restore-Suggestions
 Write-Step (T 'Window border back to default' 'Borda das janelas de volta ao padrão'); Restore-Border
+Write-Step (T 'Snap windows back on' 'Ajustar janelas de volta'); Restore-SnapWindows
 Write-Step (T 'DNS back to automatic (from the router)' 'DNS de volta ao automático (do roteador)'); Restore-DNS
 Write-Step (T 'Home and Gallery back in File Explorer' 'Início e Galeria de volta no Explorador'); Restore-HomeAndGallery
 Write-Step (T 'Folders, devices, startup and blue screen back to default' 'Pastas, periféricos, inicialização e tela azul no padrão'); Restore-ExplorerAndDeviceDefaults
