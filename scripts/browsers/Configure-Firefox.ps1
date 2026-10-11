@@ -176,6 +176,52 @@ function Set-AddressBarButtons([bool]$KeepTranslations) {
     Set-Policy '' 'Preferences' @($json) ($prefs.Values -join '; ') 'MultiString'
 }
 
+# Reader View icon ("book" in the address bar). Its preference (reader.parse-on-load.enabled) is not
+# accepted by the "Preferences" policy, so it goes through Firefox AutoConfig: two small files in the
+# Firefox folder, kept across updates. If another AutoConfig already exists there, it is left alone.
+function Get-FirefoxDir {
+    $exe = @(
+        "$env:ProgramFiles\Mozilla Firefox\firefox.exe",
+        "${env:ProgramFiles(x86)}\Mozilla Firefox\firefox.exe",
+        "$env:LOCALAPPDATA\Mozilla Firefox\firefox.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($exe) { Split-Path $exe }
+}
+
+function Get-AutoConfigPaths([string]$Dir) {
+    @{ Loader = Join-Path $Dir 'defaults\pref\autoconfig.js'; Config = Join-Path $Dir 'tidywin.cfg' }
+}
+
+function Set-ReaderViewButton([string]$Dir) {
+    if (-not $Dir) { Write-Host (T '  [skipped] Firefox not installed: install it and run this again.' '  [pulado] Firefox não instalado: instale e rode de novo.') -ForegroundColor DarkYellow; return }
+    $p = Get-AutoConfigPaths $Dir
+    if ((Test-Path $p.Loader) -and -not (Select-String -Path $p.Loader -Pattern 'tidywin.cfg' -SimpleMatch -Quiet)) {
+        Write-Host (T "  [skipped] Another AutoConfig already exists ($($p.Loader)); not touched." "  [pulado] Já existe outro AutoConfig ($($p.Loader)); não foi mexido.") -ForegroundColor DarkYellow
+        return
+    }
+    try {
+        New-Item -ItemType Directory -Force -Path (Split-Path $p.Loader) | Out-Null
+        $loader = "// TidyWin: loads tidywin.cfg from the Firefox folder`r`npref(`"general.config.filename`", `"tidywin.cfg`");`r`npref(`"general.config.obscure_value`", 0);`r`n"
+        $config = "// TidyWin AutoConfig (Firefox skips this first line)`r`nlockPref(`"reader.parse-on-load.enabled`", false);`r`n"
+        [IO.File]::WriteAllText($p.Loader, $loader, [Text.Encoding]::ASCII)
+        [IO.File]::WriteAllText($p.Config, $config, [Text.Encoding]::ASCII)
+        Write-Host (T '  [ok] Reader View icon: off' '  [ok] Ícone do modo leitura: off') -ForegroundColor Green
+    } catch {
+        $script:Failures++
+        Write-Host (T "  [ERROR] Reader View icon: $($_.Exception.Message)" "  [ERRO] Ícone do modo leitura: $($_.Exception.Message)") -ForegroundColor Red
+    }
+}
+
+# Removes only TidyWin's AutoConfig (the loader is checked first).
+function Remove-ReaderViewButton([string]$Dir) {
+    if (-not $Dir) { return }
+    $p = Get-AutoConfigPaths $Dir
+    if ((Test-Path $p.Loader) -and (Select-String -Path $p.Loader -Pattern 'tidywin.cfg' -SimpleMatch -Quiet)) {
+        Remove-Item $p.Loader, $p.Config -Force -ErrorAction SilentlyContinue
+        Write-Host (T '  [removed] AutoConfig (Reader View icon is back)' '  [removida] AutoConfig (o ícone do modo leitura voltou)') -ForegroundColor DarkGray
+    }
+}
+
 # Installed automatically from Mozilla's official store and kept up to date.
 # "normal_installed" = you can disable them, but they can't be removed. Also allowed in private windows.
 function Set-Extensions {
@@ -222,6 +268,7 @@ function Set-OptionalPrivacy([bool]$NoSearchSuggestions, [bool]$NoPrefetch, [boo
 
 function Remove-Policies {
     Write-Step (T 'Removing Firefox policies' 'Removendo as políticas do Firefox')
+    Remove-ReaderViewButton (Get-FirefoxDir)
     if (Test-Path $F) {
         Get-ChildItem $F -Recurse | ForEach-Object {
             $sub = $_.Name -replace '^.*\\Mozilla\\Firefox\\?', ''
@@ -243,29 +290,27 @@ function Remove-Policies {
 
 if ($Revert) { Remove-Policies; return }
 
-$installed = @(
-    "$env:ProgramFiles\Mozilla Firefox\firefox.exe",
-    "${env:ProgramFiles(x86)}\Mozilla Firefox\firefox.exe",
-    "$env:LOCALAPPDATA\Mozilla Firefox\firefox.exe"
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $installed) {
+$ffDir = Get-FirefoxDir
+if (-not $ffDir) {
     Write-Host (T 'Firefox not found. The policies will be applied anyway and take effect when you install it.' 'Firefox não encontrado. As políticas serão aplicadas mesmo assim e valem quando você instalar.') -ForegroundColor DarkYellow
 }
 
 Write-Host "`nConfigure-Firefox" -ForegroundColor Green
 
 # --- Questions
-Write-Host (T '  Four choices (arrows and Enter; the default is already selected):' '  Quatro escolhas (setas e Enter; o padrão já vem selecionado):')
+Write-Host (T '  Five choices (arrows and Enter; the default is already selected):' '  Cinco escolhas (setas e Enter; o padrão já vem selecionado):')
 $noSearchSuggestions = Ask (T 'Turn off search suggestions while typing? (what you type goes to the search engine in real time)' 'Desativar as sugestões de pesquisa enquanto digita? (o que você digita vai ao buscador em tempo real)') $false
 $noPrefetch          = Ask (T 'Turn off page preloading? (sites learn about links you never opened)' 'Desativar o pré-carregamento de páginas? (sites ficam sabendo de links que você nem abriu)') $true
 $httpsOnly           = Ask (T 'Turn on HTTPS-Only Mode? (warns before opening sites without a secure connection)' 'Ligar o modo somente HTTPS? (avisa antes de abrir sites sem conexão segura)') $true
 $keepTranslations    = Ask (T 'Keep page translation? (runs on your PC; if turned off, the translate icon disappears from the address bar)' 'Manter a tradução de páginas? (roda no seu PC; se desligar, o ícone de traduzir some da barra de endereço)') $true
+$noReaderView        = Ask (T 'Remove the Reader View icon from the address bar? (the "book" that shows up on articles)' 'Remover o ícone do modo leitura da barra de endereço? (o "livro" que aparece em artigos)') $false
 
 # --- Apply
 Write-Step (T 'Telemetry' 'Telemetria');                   Set-Telemetry
 Write-Step (T 'Sponsored content and recommendations' 'Patrocinados e recomendações'); Set-SponsoredAndRecommendations
 Write-Step (T 'Artificial intelligence' 'Inteligência artificial');      Set-AI $keepTranslations
 Write-Step (T 'Address bar buttons' 'Botões da barra de endereço');  Set-AddressBarButtons $keepTranslations
+if ($noReaderView) { Set-ReaderViewButton $ffDir } else { Remove-ReaderViewButton $ffDir }
 Write-Step (T 'Extensions' 'Extensões');                    Set-Extensions
 Write-Step (T 'Passwords (Bitwarden only)' 'Senhas (só o Bitwarden)');      Set-BitwardenOnly
 Write-Step (T 'Privacy choices' 'Escolhas de privacidade');      Set-OptionalPrivacy $noSearchSuggestions $noPrefetch $httpsOnly

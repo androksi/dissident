@@ -361,6 +361,9 @@
         I("Page translation", "Tradução de páginas", "ask", true,
           "Yes keeps translation, which runs on your PC; its icon keeps showing in the address bar on pages in other languages. No turns translation off and the icon goes away. Firefox has no way to hide only the icon.",
           "Sim mantém a tradução, que roda no seu PC; o ícone dela continua aparecendo na barra de endereço em páginas de outro idioma. Não desliga a tradução e o ícone some. O Firefox não tem como esconder só o ícone."),
+        I("Reader View icon", "Ícone do modo leitura", "ask", false,
+          "If yes, removes the \u201cbook\u201d icon that shows up in the address bar on articles. Done with two small files in the Firefox folder (AutoConfig), since policies can't do it; they survive updates and firefox-revert removes them. Skipped if another AutoConfig already exists.",
+          "Se sim, tira o ícone de \u201clivro\u201d que aparece na barra de endereço em artigos. Feito com dois arquivinhos na pasta do Firefox (AutoConfig), porque as políticas não conseguem; continuam depois das atualizações e o firefox-revert apaga. Pulado se já existir outro AutoConfig."),
       ]),
       G("Always applied", "Sempre aplicado", [
         I("Telemetry", "Telemetria", "auto", null,
@@ -557,8 +560,8 @@
       "Removes every Brave policy set by TidyWin and the Cast to TV firewall rule. Close and reopen Brave.",
       "Remove todas as políticas do Brave aplicadas pelo TidyWin e a regra de firewall do Transmitir para TV. Feche e abra o Brave.")])],
     "firefox-revert": [G("", "", [I("Policies", "Políticas", "auto", null,
-      "Removes every Firefox policy set by TidyWin. If uBlock Origin or Bitwarden are still there and you don't want them, remove them in about:addons.",
-      "Remove todas as políticas do Firefox aplicadas pelo TidyWin. Se o uBlock Origin ou o Bitwarden continuarem lá e você não quiser, remova em about:addons.")])],
+      "Removes every Firefox policy set by TidyWin, and its AutoConfig files if the Reader View icon was removed. If uBlock Origin or Bitwarden are still there and you don't want them, remove them in about:addons.",
+      "Remove todas as políticas do Firefox aplicadas pelo TidyWin e, se o ícone do modo leitura foi tirado, os arquivos do AutoConfig. Se o uBlock Origin ou o Bitwarden continuarem lá e você não quiser, remova em about:addons.")])],
   };
 
   const lists = {

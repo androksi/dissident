@@ -54,3 +54,4 @@ To undo: run the same script with `-Revert`.
 | HTTPS-Only | Warns before opening sites without a secure connection (asks). |
 | Address bar buttons | Removes the "Add to taskbar" and Picture-in-Picture buttons. Picture-in-Picture itself keeps working. |
 | Translation | Keep page translation (its icon stays in the address bar) or turn it off (the icon goes away) (asks). |
+| Reader View icon | Removes the Reader View icon from the address bar (asks, default no). Uses AutoConfig (`defaults\pref\autoconfig.js` and `tidywin.cfg` in the Firefox folder), because policies cannot change it. Skipped if another AutoConfig exists; removed by `-Revert`. |
