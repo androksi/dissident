@@ -10,8 +10,8 @@ Scripts para um Windows que trabalha pra você — sem telemetria, sem lixo, sem
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0d1117?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-0d1117?style=flat-square)
-<!-- Badge do lint: em repositório privado ele só aparece para quem tem acesso. Troque USUARIO e descomente se quiser:
-![Lint](https://github.com/USUARIO/dissident/actions/workflows/lint.yml/badge.svg) -->
+![Licença](https://img.shields.io/badge/licen%C3%A7a-GPL--3.0-0d1117?style=flat-square)
+[![Lint](https://github.com/androksi/dissident/actions/workflows/lint.yml/badge.svg)](https://github.com/androksi/dissident/actions/workflows/lint.yml)
 
 </div>
 
@@ -69,6 +69,11 @@ Antes de mudar qualquer coisa, o `Configure-Windows` cria um **ponto de restaura
 - Windows PowerShell 5.1 (já vem no Windows), executado como Administrador
 - `Configure-Apps`: WinGet (o próprio script oferece instalar, se faltar)
 
-## Uso
+## Aviso
 
-Repositório privado, para uso pessoal.
+Estes scripts mudam configurações do sistema e removem apps. Leia o que cada um faz antes de rodar.
+Use por sua conta e risco: não há garantia de nenhum tipo (veja a licença).
+
+## Licença
+
+[GPL-3.0](LICENSE). Você pode usar, modificar e redistribuir; se distribuir uma versão modificada, ela também precisa ser GPL-3.0 com o código aberto.

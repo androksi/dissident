@@ -1,5 +1,9 @@
 # Changelog
 
+## Não lançado
+
+- Repositório público, sob a licença GPL-3.0.
+
 ## v1.0.0 — 2026-10-10
 
 Primeira versão.
