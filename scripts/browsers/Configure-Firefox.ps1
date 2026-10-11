@@ -142,16 +142,6 @@ function Set-OptionalPrivacy([bool]$NoSearchSuggestions, [bool]$NoPrefetch, [boo
     if ($HttpsOnly)           { Set-Policy '' 'HttpsOnlyMode' 'enabled' 'Modo somente HTTPS: ligado' 'String' }
 }
 
-# Firefox can turn on "Open Firefox automatically when your computer starts" by itself on new profiles.
-# There is no policy for it: it is a Run entry named "Mozilla-Firefox-<hash>" for the current user.
-function Remove-LaunchOnLogin {
-    $run = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
-    $entries = @((Get-Item $run).Property | Where-Object { $_ -like 'Mozilla-Firefox-*' })
-    foreach ($name in $entries) { Remove-ItemProperty -Path $run -Name $name -ErrorAction SilentlyContinue }
-    Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
-    Write-Host ('{0,-46}' -f 'Iniciar com o Windows: off') -NoNewline
-    Write-Host $(if ($entries) { "removido: $($entries -join ', ')" } else { 'nenhuma entrada encontrada' }) -ForegroundColor DarkGray
-}
 
 #endregion
 
@@ -205,7 +195,6 @@ Write-Step 'Inteligência artificial';      Set-AI
 Write-Step 'Extensões';                    Set-Extensions
 Write-Step 'Senhas (só o Bitwarden)';      Set-BitwardenOnly
 Write-Step 'Escolhas de privacidade';      Set-OptionalPrivacy $noSearchSuggestions $noPrefetch $httpsOnly
-Write-Step 'Inicialização com o Windows';  Remove-LaunchOnLogin
 
 # --- Done
 if ($script:Failures) { Write-Host "`n$($script:Failures) política(s) falharam — veja as linhas [ERRO] acima." -ForegroundColor Yellow }

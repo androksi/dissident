@@ -52,4 +52,3 @@ Para desfazer: o mesmo script com `-Revert`.
 | Sugestões de pesquisa | Desliga o envio do que você digita ao buscador em tempo real (pergunta). |
 | Pré-carregamento | Desliga o pré-carregamento de páginas (pergunta). |
 | Somente HTTPS | Avisa antes de abrir sites sem conexão segura (pergunta). |
-| Iniciar com o Windows | Remove a entrada que faz o Firefox abrir ao entrar no Windows. |
