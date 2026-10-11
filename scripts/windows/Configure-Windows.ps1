@@ -449,6 +449,14 @@ function Disable-DeviceMetadata {
     Write-Host (T '  manufacturer apps and icons for devices: no longer downloaded (drivers still are)' '  apps e ícones de fabricante para periféricos: não são mais baixados (drivers continuam)')
 }
 
+# WPBT (Windows Platform Binary Table): lets the PC's firmware hand Windows a program to run at every
+# boot. Manufacturers use it to reinstall their apps (Armoury Crate, Vantage...) even after a clean install.
+# This stops Windows from running it; the firmware itself is not touched.
+function Disable-Wpbt {
+    Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' 1
+    Write-Host (T '  WPBT: Windows no longer runs programs provided by the firmware (after restarting)' '  WPBT: o Windows não executa mais programas fornecidos pelo firmware (depois de reiniciar)')
+}
+
 # Hides the "Account protection" and "Device security" areas of Windows Security (official policy).
 # With a local account they only show "Sign in with a Microsoft account" warnings. Nothing is turned off:
 # TPM, Secure Boot, Memory integrity and Windows Hello keep working as they are.
@@ -930,6 +938,7 @@ function Invoke-Check {
         @{ Name = (T 'Windows Security' 'Segurança do Windows');          On = $o.Security;     Test = { Test-Security };    Fix = { Set-WindowsSecurity } }
         @{ Name = (T 'C: folders' 'Pastas do C:');                  On = $o.RootFolders;  Test = { Test-RootFolders }; Fix = { Clear-SystemDriveRoot } }
         @{ Name = (T 'Manufacturer apps' 'Apps de fabricante');            On = $o.NoDeviceApps; Test = { Test-Value 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 (T 'manufacturer app downloads' 'download de apps de fabricante') }; Fix = { Disable-DeviceMetadata } }
+        @{ Name = 'WPBT';                                                    On = $o.NoWpbt;       Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' 1 (T 'firmware programs (WPBT) allowed' 'programas do firmware (WPBT) permitidos') }; Fix = { Disable-Wpbt } }
         @{ Name = (T 'Hidden account areas' 'Áreas de conta escondidas');     On = $o.HideAreas;    Test = { Test-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection' 'UILockdown' 1 (T 'Account protection visible' 'Proteção de contas visível') }; Fix = { Hide-SecurityAccountAreas } }
         @{ Name = (T 'Long paths' 'Caminhos longos');               On = $o.LongPaths;    Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1 (T 'off' 'desligado') }; Fix = { Enable-LongPaths } }
         @{ Name = (T 'Detailed blue screen' 'Tela azul detalhada');           On = $o.VerboseBsod;  Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1 (T 'off' 'desligada') }; Fix = { Enable-VerboseBsod } }
@@ -993,6 +1002,7 @@ $opt.Edge         = Ask (T 'Apply Edge policies (no telemetry, background mode, 
 $opt.Security     = Ask (T 'Windows Security: block potentially unwanted apps and hide unimportant notifications?' 'Segurança do Windows: bloquear apps indesejados e esconder avisos sem importância?') $true
 $opt.RootFolders  = Ask (T 'Hide the inetpub folder and delete PerfLogs (in the root of C:)?' 'Esconder a pasta inetpub e apagar a PerfLogs (na raiz do C:)?') $true
 $opt.NoDeviceApps = Ask (T 'Do not download manufacturer apps and icons when connecting devices (Razer, Logitech...; drivers still come)?' 'Não baixar apps e ícones de fabricante ao conectar periféricos (Razer, Logitech...; drivers continuam vindo)?') $false
+$opt.NoWpbt       = Ask (T 'Block programs the motherboard firmware installs on its own (WPBT: Armoury Crate, Vantage...)? Can stop a driver or utility from installing by itself after formatting.' 'Bloquear programas que o firmware da placa-mãe instala sozinho (WPBT: Armoury Crate, Vantage...)? Pode impedir que um driver ou utilitário se instale sozinho após formatar.') $false
 $opt.HideAreas    = Ask (T 'Hide "Account protection" and "Device security" from Windows Security (they only ask you to sign in with a Microsoft account)?' 'Esconder "Proteção de contas" e "Segurança do dispositivo" da Segurança do Windows (só avisam para entrar com conta Microsoft)?') $isLocalAccount
 
 # --- Personalization
@@ -1069,7 +1079,7 @@ $labels = @{
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
     LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
     NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
-    NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
+    NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
     NoFolderSniff = (T 'No folder discovery' 'Sem descoberta pasta'); VerboseBsod = (T 'Detailed blue screen' 'Tela azul detalhada')
 }
 if (-not $NoPrompt) {
@@ -1122,6 +1132,7 @@ if ($opt.Edge)     { Invoke-Step (T 'Edge: no telemetry, background mode, sideba
 if ($opt.Security) { Invoke-Step (T 'Windows Security' 'Segurança do Windows')                                        { Set-WindowsSecurity } }
 if ($opt.RootFolders) { Invoke-Step (T 'Folders in the drive root (inetpub and PerfLogs)' 'Pastas na raiz do disco (inetpub e PerfLogs)')          { Clear-SystemDriveRoot } }
 if ($opt.NoDeviceApps) { Invoke-Step (T 'Manufacturer apps for devices' 'Apps de fabricante para periféricos')                   { Disable-DeviceMetadata } }
+if ($opt.NoWpbt)       { Invoke-Step (T 'Firmware programs (WPBT)' 'Programas do firmware (WPBT)')                   { Disable-Wpbt } }
 if ($opt.HideAreas) { Invoke-Step (T 'Windows Security: hiding Microsoft account areas' 'Segurança do Windows: escondendo áreas de conta Microsoft')  { Hide-SecurityAccountAreas } }
 
 # --- Personalization

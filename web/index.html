@@ -165,6 +165,9 @@
         I("Device manufacturer apps", "Apps de fabricante de periféricos", "ask", false,
           "Stops Windows from downloading manufacturer apps and icons when you plug in a device (Razer, Logitech and others). Drivers keep coming from Windows Update.",
           "Impede o Windows de baixar apps e ícones do fabricante quando você conecta um periférico (Razer, Logitech e outros). Os drivers continuam vindo pelo Windows Update."),
+        I("Firmware programs (WPBT)", "Programas do firmware (WPBT)", "ask", false,
+          "The motherboard firmware can hand Windows a program to run at every boot. Manufacturers use it to reinstall their apps (Armoury Crate, Lenovo Vantage and others) even after formatting. If yes, Windows stops running it (after a restart); the firmware is not touched. Some PCs use it to install a network driver or utility after formatting, and work laptops for anti-theft.",
+          "O firmware da placa-mãe pode entregar ao Windows um programa para rodar a cada inicialização. Fabricantes usam isso para reinstalar os apps deles (Armoury Crate, Lenovo Vantage e outros) mesmo depois de formatar. Se sim, o Windows deixa de executar esse programa (depois de reiniciar); o firmware não é mexido. Alguns PCs usam isso para instalar o driver de rede ou um utilitário após formatar, e notebooks de empresa para antirroubo."),
         I("Hide account areas", "Esconder áreas de conta", "ask", "local",
           "Hides “Account protection” and “Device security” in Windows Security, which only ask you to sign in with a Microsoft account. Nothing is turned off: TPM, Secure Boot, memory integrity and Windows Hello keep working.",
           "Esconde “Proteção de contas” e “Segurança do dispositivo” da Segurança do Windows, que só pedem para entrar com conta Microsoft. Nada é desligado: TPM, Inicialização Segura, integridade de memória e Windows Hello continuam funcionando."),
@@ -264,8 +267,8 @@
           "Goes back to the router's DNS on every adapter, without encryption.",
           "Volta para o DNS do roteador em todos os adaptadores, sem criptografia."),
         I("File Explorer and others", "Explorador e outros", "auto", null,
-          "Brings back Home and Gallery, Music in Quick access, the new right-click menu, folder type discovery, the default window border, manufacturer apps for devices, the simple blue screen and the visible inetpub folder.",
-          "Traz de volta Início e Galeria, Músicas no Acesso rápido, o menu novo do botão direito, a descoberta de tipo de pasta, a borda padrão das janelas, os apps de fabricante para periféricos, a tela azul simples e a pasta inetpub visível."),
+          "Brings back Home and Gallery, Music in Quick access, the new right-click menu, folder type discovery, the default window border, manufacturer apps for devices, firmware programs (WPBT), the simple blue screen and the visible inetpub folder.",
+          "Traz de volta Início e Galeria, Músicas no Acesso rápido, o menu novo do botão direito, a descoberta de tipo de pasta, a borda padrão das janelas, os apps de fabricante para periféricos, os programas do firmware (WPBT), a tela azul simples e a pasta inetpub visível."),
       ]),
       G("Not undone", "Não é desfeito", [
         I("Removed apps and OneDrive", "Apps removidos e OneDrive", "auto", null,
@@ -389,8 +392,8 @@
 
     "windows-check": [G("", "", [
       I("What is checked", "O que é conferido", "auto", null,
-        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, OneDrive, Edge policies, Windows Security, C: drive folders, manufacturer apps, account areas, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
-        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, OneDrive, políticas do Edge, Segurança do Windows, pastas do C:, apps de fabricante, áreas de conta, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
+        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, OneDrive, Edge policies, Windows Security, C: drive folders, manufacturer apps, WPBT, account areas, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
+        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, OneDrive, políticas do Edge, Segurança do Windows, pastas do C:, apps de fabricante, WPBT, áreas de conta, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
       I("Reapply", "Reaplicar", "ask", true,
         "Shows each item as OK or as back, with what changed. Then asks whether to reapply only the items that came back. Answering no changes nothing.",
         "Mostra cada item como OK ou como voltou, com o que mudou. Depois pergunta se quer reaplicar só os itens que voltaram. Respondendo não, nada é alterado."),

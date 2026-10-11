@@ -197,11 +197,12 @@ function Restore-HomeAndGallery {
     Write-Host (T '  Home, Gallery, Music in Quick access and the new right-click menu are back (some show up after restarting)' '  Início, Galeria, Músicas no Acesso rápido e o menu novo do botão direito de volta (alguns aparecem depois de reiniciar)')
 }
 
-# Folder type discovery, manufacturer apps for devices and verbose blue screen back to the Windows default.
+# Folder type discovery, manufacturer apps for devices, WPBT and verbose blue screen back to the Windows default.
 function Restore-ExplorerAndDeviceDefaults {
     Remove-Item 'HKCU:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\AllFolders' -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork'
     Remove-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters'
+    Remove-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution'
 }
 
 # Shows the inetpub folder again (PerfLogs is not recreated: Windows does it when it needs the folder).

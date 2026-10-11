@@ -28,6 +28,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Windows Security | Turns on blocking of potentially unwanted apps and downloads, and hides unimportant notifications. |
 | C: folders | Hides `inetpub` and deletes `PerfLogs`. |
 | Device apps | Doesn't download manufacturer apps and icons when devices are connected (drivers still come). |
+| WPBT | Stops Windows from running programs the motherboard firmware provides at boot (how Armoury Crate, Vantage and similar come back after formatting). Default no: some PCs use it for a network driver or anti-theft. |
 | Hide areas | Hides "Account protection" and "Device security" in Windows Security (Microsoft account nags). |
 
 ## Personalization
@@ -110,5 +111,5 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
+| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, WPBT, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
 | Not reverted | Removed apps, OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |
