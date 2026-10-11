@@ -45,6 +45,8 @@ shortcut brave          scripts/browsers/Configure-Brave.ps1
 shortcut brave-revert   scripts/browsers/Configure-Brave.ps1   -Revert
 shortcut firefox        scripts/browsers/Configure-Firefox.ps1
 shortcut firefox-revert scripts/browsers/Configure-Firefox.ps1 -Revert
+shortcut dev            scripts/dev/Configure-Dev.ps1
+shortcut dev-revert     scripts/dev/Configure-Dev.ps1            -Revert
 
 # No placeholder may be left over
 if grep -rl '__[A-Z]*__' "$out" --exclude-dir=scripts; then

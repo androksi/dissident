@@ -8,6 +8,7 @@
 - Documentation in English.
 - **Configure-Windows**: saves your answers and adds `-Check` (shortcut `windows-check`) to find and reapply what a Windows update brought back.
 - **Clean-Windows** (shortcut `cleanup`): frees disk space item by item and shows how much was freed.
+- **Configure-Dev** (shortcuts `dev` and `dev-revert`): editors, Git, SSH key for GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL.
 - **Repair-Windows** (shortcut `repair`): DISM, sfc and an online disk check, with a restore point first.
 - **Backup-Apps** (shortcuts `apps-export` and `apps-import`): saves the installed apps list and reinstalls it after formatting.
 - **Configure-Windows**: optional classic right-click menu on Windows 11.

@@ -23,6 +23,7 @@ irm androksi.github.io/tidywin/apps | iex
 irm androksi.github.io/tidywin/chrome | iex
 irm androksi.github.io/tidywin/brave | iex
 irm androksi.github.io/tidywin/firefox | iex
+irm androksi.github.io/tidywin/dev | iex
 ```
 
 ### Undo
@@ -32,6 +33,7 @@ irm androksi.github.io/tidywin/windows-revert | iex
 irm androksi.github.io/tidywin/chrome-revert | iex
 irm androksi.github.io/tidywin/brave-revert | iex
 irm androksi.github.io/tidywin/firefox-revert | iex
+irm androksi.github.io/tidywin/dev-revert | iex
 ```
 
 ### Maintenance
@@ -56,14 +58,15 @@ The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Prompts 
 | Command | What it does |
 |---|---|
 | `windows` | Telemetry, preinstalled apps, OneDrive, Edge, taskbar, File Explorer and DNS. Creates a restore point first. |
-| `windows-check` | Checks whether a Windows update brought anything back and offers to reapply it. |
-| `cleanup` | Frees disk space: temporary files, Windows Update downloads, error reports and more. Asks before each item. |
-| `repair` | Checks and repairs system files and the disk with Windows' own tools (DISM, sfc, disk check). |
-| `apps-export` / `apps-import` | Saves the list of installed apps before formatting and installs them back afterwards. |
 | `apps` | Pick and install from 100 apps with WinGet. |
 | `chrome` | Turns off telemetry and AI features and blocks third-party cookies. |
 | `brave` | Turns off Wallet, VPN, Rewards, Leo, News and telemetry. |
 | `firefox` | Turns off telemetry, sponsored content and AI. Installs uBlock Origin and Bitwarden. |
+| `dev` | Editors, Git, SSH key for GitHub, signed commits, Windows Terminal with a Nerd Font, languages and WSL. |
+| `windows-check` | Checks whether a Windows update brought anything back and offers to reapply it. |
+| `cleanup` | Frees disk space: temporary files, Windows Update downloads, error reports and more. Asks before each item. |
+| `repair` | Checks and repairs system files and the disk with Windows' own tools (DISM, sfc, disk check). |
+| `apps-export` / `apps-import` | Saves the list of installed apps before formatting and installs them back afterwards. |
 
 Windows Defender, Windows Firewall, Windows Update and Safe Browsing are left untouched. Every script can be run more than once.
 
@@ -91,6 +94,7 @@ Run as Administrator. Browser scripts accept `-Revert`.
 - [Windows options](docs/windows.md)
 - [App list](docs/apps.md)
 - [Browser policies](docs/browsers.md)
+- [Developer setup](docs/dev.md)
 - [Changelog](CHANGELOG.md)
 - [Report an issue](https://github.com/androksi/tidywin/issues)
 
