@@ -197,12 +197,22 @@ function Restore-HomeAndGallery {
     Write-Host (T '  Home, Gallery, Music in Quick access and the new right-click menu are back (some show up after restarting)' '  Início, Galeria, Músicas no Acesso rápido e o menu novo do botão direito de volta (alguns aparecem depois de reiniciar)')
 }
 
-# Folder type discovery, manufacturer apps for devices, WPBT and verbose blue screen back to the Windows default.
+# Folder type discovery, manufacturer apps for devices, WPBT, Fast Startup, Num Lock and verbose blue screen back to the Windows default.
 function Restore-ExplorerAndDeviceDefaults {
     Remove-Item 'HKCU:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\AllFolders' -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork'
     Remove-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters'
     Remove-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution'
+    # Fast Startup back on (Windows default)
+    $power = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
+    if ((Get-ItemProperty $power -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled -eq 0) {
+        Set-ItemProperty $power -Name HiberbootEnabled -Value 1 -Type DWord
+    }
+    # Num Lock at startup back off (only bit 2; the other bits are kept)
+    foreach ($k in 'Registry::HKEY_USERS\.DEFAULT\Control Panel\Keyboard', 'HKCU:\Control Panel\Keyboard') {
+        $n = [int64]0; [void][int64]::TryParse([string](Get-ItemProperty $k -Name InitialKeyboardIndicators -ErrorAction SilentlyContinue).InitialKeyboardIndicators, [ref]$n)
+        if ($n -band 2) { Set-ItemProperty $k -Name InitialKeyboardIndicators -Value ([string]($n -band -bnot [int64]2)) -Type String }
+    }
 }
 
 # Shows the inetpub folder again (PerfLogs is not recreated: Windows does it when it needs the folder).
@@ -217,6 +227,8 @@ function Show-Inetpub {
 
 function Remove-EdgePolicies {
     Remove-Item 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Recurse -Force -ErrorAction SilentlyContinue
+    # Desktop shortcut policy (the shortcut itself is not recreated; Edge adds it again on its next update)
+    Remove-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate' @('CreateDesktopShortcutDefault', 'CreateDesktopShortcut{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}')
 }
 
 # Answers saved by Configure-Windows for -Check.
@@ -236,7 +248,7 @@ Write-Step (T 'Windows suggestions back to default' 'Sugestões do Windows de vo
 Write-Step (T 'Window border back to default' 'Borda das janelas de volta ao padrão'); Restore-Border
 Write-Step (T 'DNS back to automatic (from the router)' 'DNS de volta ao automático (do roteador)'); Restore-DNS
 Write-Step (T 'Home and Gallery back in File Explorer' 'Início e Galeria de volta no Explorador'); Restore-HomeAndGallery
-Write-Step (T 'Folders, devices and blue screen back to default' 'Pastas, periféricos e tela azul no padrão'); Restore-ExplorerAndDeviceDefaults
+Write-Step (T 'Folders, devices, startup and blue screen back to default' 'Pastas, periféricos, inicialização e tela azul no padrão'); Restore-ExplorerAndDeviceDefaults
 Write-Step (T 'inetpub folder visible again' 'Pasta inetpub visível de novo'); Show-Inetpub
 Write-Step (T 'Removing Edge policies' 'Removendo políticas do Edge'); Remove-EdgePolicies
 Write-Step (T 'Deleting the saved answers (TidyWin)' 'Apagando as respostas salvas (TidyWin)'); Remove-SavedAnswers

@@ -387,6 +387,22 @@ function Remove-OneDrive {
 
 # --- Edge ------------------------------------------------------------------
 
+# Edge desktop shortcut: deletes it (your desktop and the shared one) and, through the official Edge
+# Update policy, stops Edge installs and updates from creating it again.
+function Get-EdgeShortcuts {
+    foreach ($folder in 'CommonDesktopDirectory', 'Desktop') {
+        $dir = [Environment]::GetFolderPath($folder)
+        if ($dir) { Join-Path $dir 'Microsoft Edge.lnk' }
+    }
+}
+function Remove-EdgeDesktopShortcut {
+    $U = 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate'
+    Set-Reg $U 'CreateDesktopShortcutDefault' 0
+    Set-Reg $U 'CreateDesktopShortcut{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}' 0   # Edge (Stable)
+    Get-EdgeShortcuts | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }
+    Write-Host (T '  Edge desktop shortcut: deleted, and Edge updates no longer create it' '  atalho do Edge na Área de Trabalho: apagado, e as atualizações do Edge não criam mais')
+}
+
 function Set-EdgePolicies {
     $E = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
     Set-Reg $E 'StartupBoostEnabled' 0
@@ -726,6 +742,24 @@ function Disable-StickyKeysShortcut {
     Write-Host (T '  Sticky Keys shortcut (5x Shift): off' '  atalho das Teclas de Aderência (5x Shift): desligado')
 }
 
+# Num Lock on when Windows starts: on the sign-in screen (.DEFAULT) and for your user.
+# Only bit 2 (Num Lock) is turned on; the other bits of the value are kept.
+$NumLockKeys = @('Registry::HKEY_USERS\.DEFAULT\Control Panel\Keyboard', 'HKCU:\Control Panel\Keyboard')
+function Enable-NumLockAtStartup {
+    foreach ($k in $NumLockKeys) {
+        $n = [int64]0; [void][int64]::TryParse([string](Get-RegValue $k 'InitialKeyboardIndicators'), [ref]$n)
+        Set-Reg $k 'InitialKeyboardIndicators' ([string]($n -bor 2)) 'String'
+    }
+    Write-Host (T '  Num Lock: on when Windows starts' '  Num Lock: ligado ao iniciar o Windows')
+}
+
+# Fast Startup makes "Shut down" a partial hibernation. Off = a real shutdown every time: drivers and
+# updates load fresh and dual boot works. Startup gets a few seconds slower. Restart is not affected.
+function Disable-FastStartup {
+    Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' 0
+    Write-Host (T '  Fast Startup: off ("Shut down" now really shuts down)' '  Inicialização rápida: desligada ("Desligar" agora desliga de verdade)')
+}
+
 # Blue screen (BSoD) also shows the technical parameters of the error, which helps to look up the cause.
 function Enable-VerboseBsod {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1
@@ -884,7 +918,20 @@ function Test-Edge {
     foreach ($n in 'StartupBoostEnabled', 'BackgroundModeEnabled', 'HubsSidebarEnabled', 'DiagnosticData', 'EdgeShoppingAssistantEnabled') {
         if ((Get-RegValue $E $n) -ne 0) { $bad += $n }
     }
+    if ((Get-RegValue $E 'HideFirstRunExperience') -ne 1) { $bad += 'HideFirstRunExperience' }
     $bad
+}
+
+function Test-EdgeShortcut {
+    $bad = @()
+    if (@(Get-EdgeShortcuts | Where-Object { Test-Path -LiteralPath $_ }).Count) { $bad += (T 'shortcut is back on the desktop' 'atalho voltou para a Área de Trabalho') }
+    if ((Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate' 'CreateDesktopShortcutDefault') -ne 0) { $bad += (T 'policy that stops the shortcut' 'política que impede o atalho') }
+    $bad
+}
+
+function Test-NumLock {
+    $n = [int64]0; [void][int64]::TryParse([string](Get-RegValue $NumLockKeys[0] 'InitialKeyboardIndicators'), [ref]$n)
+    if (-not ($n -band 2)) { T 'off when Windows starts' 'desligado ao iniciar' }
 }
 
 function Test-Security {
@@ -935,6 +982,7 @@ function Invoke-Check {
         @{ Name = (T 'Removed apps' 'Apps removidos');                On = $o.Apps;         Test = { $script:returnedApps = Get-ReturnedApps $appList; $script:returnedApps }; Fix = { Remove-Apps $script:returnedApps } }
         @{ Name = 'OneDrive';                      On = $o.OneDrive;     Test = { Test-OneDrive };    Fix = { Remove-OneDrive } }
         @{ Name = (T 'Edge policies' 'Políticas do Edge');             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
+        @{ Name = (T 'Edge shortcut' 'Atalho do Edge');                On = $o.NoEdgeShortcut; Test = { Test-EdgeShortcut }; Fix = { Remove-EdgeDesktopShortcut } }
         @{ Name = (T 'Windows Security' 'Segurança do Windows');          On = $o.Security;     Test = { Test-Security };    Fix = { Set-WindowsSecurity } }
         @{ Name = (T 'C: folders' 'Pastas do C:');                  On = $o.RootFolders;  Test = { Test-RootFolders }; Fix = { Clear-SystemDriveRoot } }
         @{ Name = (T 'Manufacturer apps' 'Apps de fabricante');            On = $o.NoDeviceApps; Test = { Test-Value 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 (T 'manufacturer app downloads' 'download de apps de fabricante') }; Fix = { Disable-DeviceMetadata } }
@@ -942,6 +990,8 @@ function Invoke-Check {
         @{ Name = (T 'Hidden account areas' 'Áreas de conta escondidas');     On = $o.HideAreas;    Test = { Test-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection' 'UILockdown' 1 (T 'Account protection visible' 'Proteção de contas visível') }; Fix = { Hide-SecurityAccountAreas } }
         @{ Name = (T 'Long paths' 'Caminhos longos');               On = $o.LongPaths;    Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1 (T 'off' 'desligado') }; Fix = { Enable-LongPaths } }
         @{ Name = (T 'Detailed blue screen' 'Tela azul detalhada');           On = $o.VerboseBsod;  Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1 (T 'off' 'desligada') }; Fix = { Enable-VerboseBsod } }
+        @{ Name = 'Num Lock';                                                On = $o.NumLock;      Test = { Test-NumLock }; Fix = { Enable-NumLockAtStartup } }
+        @{ Name = (T 'Fast Startup' 'Inicialização rápida');             On = $o.NoFastStartup; Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' 0 (T 'on again' 'ligada de novo') }; Fix = { Disable-FastStartup } }
         @{ Name = 'DNS';                           On = [bool]@($state.DnsV4).Count; Test = { Test-DNS @($state.DnsV4) }; Fix = { Set-DNS @($state.DnsV4) @($state.DnsV6 | Where-Object { $_ }) } }
     )
 
@@ -999,6 +1049,7 @@ if ($foldersInOneDrive) {
 }
 $opt.OneDrive     = Ask (T 'Remove OneDrive?' 'Remover o OneDrive?') (-not $foldersInOneDrive)
 $opt.Edge         = Ask (T 'Apply Edge policies (no telemetry, background mode, sidebar or shopping)?' 'Aplicar políticas do Edge (sem telemetria, segundo plano, barra lateral, compras)?') $true
+$opt.NoEdgeShortcut = Ask (T 'Delete the Edge shortcut from the desktop (and stop Edge updates from creating it again)?' 'Apagar o atalho do Edge da Área de Trabalho (e impedir que as atualizações do Edge criem de novo)?') $true
 $opt.Security     = Ask (T 'Windows Security: block potentially unwanted apps and hide unimportant notifications?' 'Segurança do Windows: bloquear apps indesejados e esconder avisos sem importância?') $true
 $opt.RootFolders  = Ask (T 'Hide the inetpub folder and delete PerfLogs (in the root of C:)?' 'Esconder a pasta inetpub e apagar a PerfLogs (na raiz do C:)?') $true
 $opt.NoDeviceApps = Ask (T 'Do not download manufacturer apps and icons when connecting devices (Razer, Logitech...; drivers still come)?' 'Não baixar apps e ícones de fabricante ao conectar periféricos (Razer, Logitech...; drivers continuam vindo)?') $false
@@ -1039,6 +1090,8 @@ $opt.Sudo             = if ($hasSudo)    { Ask (T 'Enable sudo in the terminal (
 $opt.ClipboardHistory = Ask (T 'Turn on clipboard history (Win+V)?' 'Ativar o histórico da área de transferência (Win+V)?') $true
 $opt.NoMouseAccel     = Ask (T 'Turn off "Enhance pointer precision" (mouse acceleration)?' 'Desligar a "precisão do ponteiro aprimorada" (aceleração do mouse)?') $false
 $opt.NoStickyKeys     = Ask (T 'Turn off the Sticky Keys shortcut (prompt when pressing Shift 5 times)?' 'Desligar o atalho das Teclas de Aderência (aviso ao apertar Shift 5 vezes)?') $true
+$opt.NumLock          = Ask (T 'Turn Num Lock on when Windows starts (also on the sign-in screen)?' 'Ligar o Num Lock ao iniciar o Windows (também na tela de login)?') $true
+$opt.NoFastStartup    = Ask (T 'Turn off Fast Startup? ("Shut down" really shuts down; startup takes a few seconds longer)' 'Desligar a Inicialização rápida? ("Desligar" desliga de verdade; o PC demora alguns segundos a mais para ligar)') $false
 $opt.MaxVolume        = Ask (T 'Set the Windows volume to 100% (on the speakers/headphones in use now)?' 'Deixar o volume do Windows em 100% (no alto-falante/fone em uso agora)?') $true
 $opt.VerboseBsod      = Ask (T 'Show technical details on the blue screen if the PC crashes (helps find the cause)?' 'Mostrar detalhes técnicos na tela azul, se o PC travar (ajuda a descobrir a causa)?') $true
 
@@ -1079,7 +1132,7 @@ $labels = @{
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
     LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
     NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
-    NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
+    NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); NoEdgeShortcut = (T 'No Edge shortcut' 'Sem atalho do Edge'); NumLock = 'Num Lock'; NoFastStartup = (T 'No Fast Startup' 'Sem inicialização rápida'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
     NoFolderSniff = (T 'No folder discovery' 'Sem descoberta pasta'); VerboseBsod = (T 'Detailed blue screen' 'Tela azul detalhada')
 }
 if (-not $NoPrompt) {
@@ -1129,6 +1182,7 @@ if ($opt.Apps) {
 }
 if ($opt.OneDrive) { Invoke-Step (T 'Removing OneDrive' 'Removendo OneDrive')                                          { Remove-OneDrive } }
 if ($opt.Edge)     { Invoke-Step (T 'Edge: no telemetry, background mode, sidebar or shopping' 'Edge: sem telemetria, segundo plano, barra lateral e compras') { Set-EdgePolicies } }
+if ($opt.NoEdgeShortcut) { Invoke-Step (T 'Edge desktop shortcut' 'Atalho do Edge na Área de Trabalho') { Remove-EdgeDesktopShortcut } }
 if ($opt.Security) { Invoke-Step (T 'Windows Security' 'Segurança do Windows')                                        { Set-WindowsSecurity } }
 if ($opt.RootFolders) { Invoke-Step (T 'Folders in the drive root (inetpub and PerfLogs)' 'Pastas na raiz do disco (inetpub e PerfLogs)')          { Clear-SystemDriveRoot } }
 if ($opt.NoDeviceApps) { Invoke-Step (T 'Manufacturer apps for devices' 'Apps de fabricante para periféricos')                   { Disable-DeviceMetadata } }
@@ -1173,6 +1227,8 @@ if ($opt.LongPaths -or $opt.EndTask -or $opt.Sudo -or $opt.ClipboardHistory -or 
     }
 }
 if ($opt.MaxVolume) { Invoke-Step (T 'Windows volume at 100%' 'Volume do Windows em 100%') { Set-MaxVolume } }
+if ($opt.NumLock)       { Invoke-Step 'Num Lock' { Enable-NumLockAtStartup } }
+if ($opt.NoFastStartup) { Invoke-Step (T 'Fast Startup' 'Inicialização rápida') { Disable-FastStartup } }
 if ($opt.VerboseBsod) { Invoke-Step (T 'Detailed blue screen' 'Tela azul detalhada') { Enable-VerboseBsod } }
 
 # --- Network

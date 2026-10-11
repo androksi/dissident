@@ -25,6 +25,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Optional apps | Also removes Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote. |
 | OneDrive | Uninstalls OneDrive and keeps it from coming back. |
 | Edge | Edge policies: no telemetry, background mode, sidebar, Copilot or shopping. |
+| Edge shortcut | Deletes the Edge desktop shortcut and stops Edge updates from creating it again. |
 | Windows Security | Turns on blocking of potentially unwanted apps and downloads, and hides unimportant notifications. |
 | C: folders | Hides `inetpub` and deletes `PerfLogs`. |
 | Device apps | Doesn't download manufacturer apps and icons when devices are connected (drivers still come). |
@@ -59,6 +60,8 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Win+V history | Turns on clipboard history. |
 | No acceleration | Turns off mouse acceleration. |
 | No Sticky Keys | Turns off the Sticky Keys shortcut (Shift 5 times). |
+| Num Lock | Num Lock on when Windows starts, sign-in screen included. |
+| No Fast Startup | "Shut down" really shuts down instead of hibernating part of Windows. Startup is a few seconds slower. Default no. |
 | Volume 100% | Sets the current audio device volume to 100%. |
 | Verbose blue screen | Shows the technical error details on the blue screen. |
 
@@ -111,5 +114,5 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, WPBT, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
+| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
 | Not reverted | Removed apps, OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

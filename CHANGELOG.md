@@ -12,7 +12,7 @@
 - **Configure-Dev** (shortcuts `dev` and `dev-revert`): editors, Git, SSH key for GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL.
 - **Repair-Windows** (shortcut `repair`): DISM, sfc and an online disk check, with a restore point first.
 - **Backup-Apps** (shortcuts `apps-export` and `apps-import`): saves the installed apps list and reinstalls it after formatting.
-- **Configure-Windows**: optional classic right-click menu on Windows 11, and an option to block programs installed by the firmware (WPBT).
+- **Configure-Windows**: optional classic right-click menu on Windows 11, an option to block programs installed by the firmware (WPBT), and options for the Edge desktop shortcut, Num Lock at startup and Fast Startup.
 - **Configure-Firefox**: removes the "Add to taskbar" and Picture-in-Picture buttons from the address bar, asks whether to keep page translation and, optionally, removes the Reader View icon.
 - **Get-Wallpapers** (shortcut `wallpapers`): pick wallpapers from a list and download them, with a preview gallery in `docs/wallpapers.md` kept up to date by `tools/Update-WallpaperGallery.ps1`.
 
