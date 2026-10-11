@@ -17,6 +17,7 @@ Meant to run after Windows, drivers, apps and browsers are set up. Every questio
 | SSH key | Yes | Creates `~\.ssh\id_ed25519` (an existing key is reused, never replaced), with an optional passphrase. |
 | ssh-agent | With the key | Windows ssh-agent service on, key added, Git set to use Windows' OpenSSH. |
 | Send to GitHub | GitHub CLI | Through `gh`, by pasting on the site, or not now. Then tests `ssh -T git@github.com`. |
+| Remove old keys | Yes | With GitHub CLI: deletes from GitHub older keys this script sent from the same PC name ("<PC> (TidyWin)"). Other keys are never touched. |
 | Signed commits | Yes | Commits and tags signed with the SSH key ("Verified" on GitHub). |
 | Windows Terminal | Yes | Installs if missing; default terminal on Windows 11 22H2+. |
 | PowerShell 7 | Yes | Installs if missing and makes it the Terminal's default profile. |

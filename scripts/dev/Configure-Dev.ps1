@@ -331,7 +331,7 @@ function Set-GitUseWindowsSsh {
 
 # Signs in to GitHub CLI (in the browser) with permission to add SSH keys, then adds the key for
 # authentication and, if chosen, for signing. A key that is already there counts as done.
-function Publish-KeyWithGh([bool]$Signing) {
+function Publish-KeyWithGh([bool]$Signing, [bool]$RemoveOld) {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'o GitHub CLI não está instalado' }
     $scopes = 'admin:public_key' + $(if ($Signing) { ',admin:ssh_signing_key' } else { '' })
     & gh auth status --hostname github.com 2>$null | Out-Null
@@ -352,6 +352,28 @@ function Publish-KeyWithGh([bool]$Signing) {
         elseif ("$out" -match 'already') { Write-Skip "chave já estava no GitHub ($type)" }
         else { throw "gh ssh-key add ($type): $out" }
     }
+    if ($RemoveOld) { Remove-OldGitHubKeys $title $Signing }
+}
+
+# Keys this script added from this same PC before (same title) that are not the current key: after
+# formatting, the old key file is gone and they only take up space. Keys with any other title are never touched.
+function Remove-OldGitHubKeys([string]$Title, [bool]$Signing) {
+    $current = ((Get-Content $PubPath -Raw).Trim() -split '\s+')[0..1] -join ' '     # "ssh-ed25519 AAAA..." without the comment
+    $endpoints = @('user/keys') + $(if ($Signing) { @('user/ssh_signing_keys') } else { @() })
+    $removed = 0
+    foreach ($endpoint in $endpoints) {
+        $lines = & gh api $endpoint --paginate --jq '.[]' 2>$null          # one JSON object per line, across pages
+        if ($LASTEXITCODE -ne 0) { Write-Warn "não foi possível listar as chaves em $endpoint"; continue }
+        $old = @($lines | Where-Object { $_ } | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object {
+            $_.title -eq $Title -and ((($_.key -split '\s+')[0..1]) -join ' ') -ne $current
+        })
+        foreach ($k in $old) {
+            & gh api -X DELETE "$endpoint/$($k.id)" 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { $removed++; Write-Ok "chave antiga removida do GitHub ($($k.title), criada em $(([datetime]$k.created_at).ToString('dd/MM/yyyy')))" }
+            else { Write-Warn "não foi possível remover a chave antiga $($k.id)" }
+        }
+    }
+    if (-not $removed) { Write-Skip 'nenhuma chave antiga deste PC no GitHub' }
 }
 
 # Without GitHub CLI: copies the public key and opens the page to paste it.
@@ -572,6 +594,7 @@ if ($opt.Ssh) {
         @('manual', 'none')[(Choose 'Enviar a chave para o GitHub:' @('Eu colo no site (copia a chave e abre a página)', 'Não enviar agora') 0)]
     }
 }
+$opt.RemoveOld = if ($opt.Upload -eq 'gh') { Ask "Apagar do GitHub as chaves antigas deste PC (as que o TidyWin enviou com o nome `"$env:COMPUTERNAME (TidyWin)`")?" $true } else { $false }
 $opt.Signing = if ($opt.Ssh -and $opt.Git -and $opt.Email) { Ask 'Assinar commits com a chave SSH (selo "Verified" no GitHub)?' $true } else { $false }
 
 # --- Terminal
@@ -619,7 +642,7 @@ $lines = [ordered]@{
     'git pull rebase'    = & $yes $opt.PullRebase
     'GitHub CLI'         = $(if ($opt.InstallGh) { 'instalar' } elseif ($opt.Gh) { 'já instalado' } else { 'não' })
     'Chave SSH'          = $(if (-not $opt.Ssh) { 'não' } elseif ($hasKey) { 'usar a existente' } elseif ($opt.Passphrase) { 'criar, com senha' } else { 'criar, sem senha' })
-    'Enviar ao GitHub'   = @{ gh = 'pelo GitHub CLI'; manual = 'colar no site'; none = 'não' }[$opt.Upload]
+    'Enviar ao GitHub'   = @{ gh = 'pelo GitHub CLI'; manual = 'colar no site'; none = 'não' }[$opt.Upload] + $(if ($opt.RemoveOld) { ', apagando as antigas deste PC' } else { '' })
     'Commits assinados'  = & $yes $opt.Signing
     'Windows Terminal'   = $(if ($opt.InstallWt) { 'instalar' } elseif ($opt.Wt) { 'já instalado' } else { 'não' })
     'Terminal padrão'    = & $yes $opt.DefaultTerminal
@@ -650,7 +673,7 @@ if ($opt.Ssh) {
     if ($opt.Git) { Invoke-Step 'Git usando o SSH do Windows' { Set-GitUseWindowsSsh } }
     if ($script:keyReady) {
         switch ($opt.Upload) {
-            'gh'     { Invoke-Step 'Enviando a chave ao GitHub' { Publish-KeyWithGh $opt.Signing } }
+            'gh'     { Invoke-Step 'Enviando a chave ao GitHub' { Publish-KeyWithGh $opt.Signing $opt.RemoveOld } }
             'manual' { Invoke-Step 'Enviando a chave ao GitHub' { Show-KeyForManualUpload $opt.Signing } }
         }
         if ($opt.Upload -ne 'none') { Invoke-Step 'Testando a conexão com o GitHub' { Test-GitHubSsh } }
