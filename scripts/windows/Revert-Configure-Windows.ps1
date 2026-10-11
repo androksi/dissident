@@ -135,6 +135,10 @@ function Remove-WindowsPolicies {
     Remove-Reg 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableTailoredExperiencesWithDiagnosticData'
     Remove-Reg "$P\Windows Search" 'DisableWebSearch','ConnectedSearchUseWeb','EnableDynamicContentInWSB','AllowCortana'
     Remove-Reg 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions'
+    # Game DVR (the Xbox apps themselves come back from the Microsoft Store)
+    Remove-Reg "$P\GameDVR" 'AllowGameDVR'
+    Remove-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR' 'AppCaptureEnabled'
+    if (Test-Path 'HKCU:\System\GameConfigStore') { Set-ItemProperty 'HKCU:\System\GameConfigStore' -Name GameDVR_Enabled -Value 1 -Type DWord }
     # Recall
     Remove-Reg "$P\WindowsAI" 'AllowRecallEnablement','DisableAIDataAnalysis'
     # Widgets / News and interests

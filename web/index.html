@@ -150,6 +150,9 @@
         I("Remove optional apps", "Remover apps opcionais", "ask", false,
           "Only asked if you chose to remove preinstalled apps. Also removes Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote for Windows 10.",
           "Só é perguntado se você escolheu remover os apps pré-instalados. Remove também Vincular ao Celular, Sticky Notes, Gravador de Som, Relógio, Assistência Rápida, Media Player e OneNote para Windows 10."),
+        I("Remove the Xbox apps", "Remover os apps do Xbox", "ask", false,
+          "Removes the Xbox app, Xbox Game Bar (Win+G), Xbox sign-in for games and Gaming Services, and turns off game recording (Game DVR) so Windows doesn't ask for the removed Game Bar. Microsoft Store and Game Pass games and games with Xbox sign-in (Minecraft, Forza, Halo) stop working; Steam, Epic, Riot and Game Mode are not affected. The apps come back from the Microsoft Store.",
+          "Remove o app Xbox, a Xbox Game Bar (Win+G), o login Xbox dos jogos e o Gaming Services, e desliga a gravação de jogos (Game DVR) para o Windows não pedir a Game Bar removida. Jogos da Microsoft Store e do Game Pass e jogos com login Xbox (Minecraft, Forza, Halo) param de funcionar; Steam, Epic, Riot e o Modo de Jogo não são afetados. Os apps voltam pela Microsoft Store."),
         I("Remove OneDrive", "Remover o OneDrive", "ask", true,
           "Closes and uninstalls OneDrive, removes it from startup and blocks it by policy so it doesn't come back. If your Desktop, Documents or Pictures are inside OneDrive, the default becomes no and it warns you to turn off folder backup first.",
           "Fecha e desinstala o OneDrive, tira ele da inicialização e bloqueia por política para não voltar. Se sua Área de Trabalho, Documentos ou Imagens estiverem dentro do OneDrive, o padrão vira não e ele avisa para desligar o backup de pastas antes."),
@@ -404,8 +407,8 @@
 
     "windows-check": [G("", "", [
       I("What is checked", "O que é conferido", "auto", null,
-        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
-        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, OneDrive, políticas do Edge, Segurança do Windows, Recall, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
+        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, Xbox apps, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
+        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, apps do Xbox, OneDrive, políticas do Edge, Segurança do Windows, Recall, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
       I("Reapply", "Reaplicar", "ask", true,
         "Shows each item as OK or as back, with what changed. Then asks whether to reapply only the items that came back. Answering no changes nothing.",
         "Mostra cada item como OK ou como voltou, com o que mudou. Depois pergunta se quer reaplicar só os itens que voltaram. Respondendo não, nada é alterado."),

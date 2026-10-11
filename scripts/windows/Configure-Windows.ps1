@@ -348,6 +348,18 @@ $OptionalApps = @(
 # Removes the apps for all users plus the provisioned package (so they don't return in new profiles).
 # Deprovisions FIRST: Remove-AppxPackage -AllUsers deletes the package files.
 # Note: no $p here — PowerShell is case-insensitive and it would collide with $P.
+# Everything Xbox. Separate question (default no): Store/Game Pass games and games that sign in with
+# Xbox (Minecraft, Forza, Halo...) need these. Steam, Epic, Riot and Game Mode don't.
+$XboxApps = @(
+    'Microsoft.GamingApp',                     # Xbox app
+    'Microsoft.XboxApp',                       # Xbox Console Companion (Windows 10)
+    'Microsoft.XboxGamingOverlay',             # Xbox Game Bar (Win+G)
+    'Microsoft.XboxGameOverlay',
+    'Microsoft.XboxSpeechToTextOverlay',
+    'Microsoft.XboxIdentityProvider',          # Xbox sign-in inside games
+    'Microsoft.Xbox.TCUI',
+    'Microsoft.GamingServices'                 # Store / Game Pass games
+)
 function Remove-Apps([string[]]$List) {
     $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
     foreach ($app in $List) {
@@ -368,6 +380,15 @@ function Remove-Apps([string[]]$List) {
             }
         }
     }
+}
+
+# Game DVR (background game recording) off. Without it, Windows doesn't try to open the removed
+# Game Bar ("You'll need a new app to open this ms-gamingoverlay link").
+function Disable-GameDvr {
+    Set-Reg 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' 0
+    Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR' 'AppCaptureEnabled' 0
+    Set-Reg "$P\GameDVR" 'AllowGameDVR' 0
+    Write-Host (T '  game recording (Game DVR): off' '  gravação de jogos (Game DVR): desligada')
 }
 
 # --- OneDrive --------------------------------------------------------------
@@ -988,6 +1009,7 @@ function Invoke-Check {
         @{ Name = (T 'Telemetry' 'Telemetria');                    On = $o.Telemetry;    Test = { Test-Telemetry };   Fix = { Disable-TelemetryServices; Disable-TelemetryTasks; Set-TelemetryPolicies; Disable-Widgets } }
         @{ Name = (T 'Suggestions and ads' 'Sugestões e anúncios');          On = $o.Suggestions;  Test = { Test-Suggestions }; Fix = { Disable-Suggestions } }
         @{ Name = (T 'Removed apps' 'Apps removidos');                On = $o.Apps;         Test = { $script:returnedApps = Get-ReturnedApps $appList; $script:returnedApps }; Fix = { Remove-Apps $script:returnedApps } }
+        @{ Name = 'Xbox';                                                    On = $o.NoXbox;       Test = { $script:returnedXbox = Get-ReturnedApps $XboxApps; $script:returnedXbox; if ((Get-RegValue "$P\GameDVR" 'AllowGameDVR') -ne 0) { 'Game DVR' } }; Fix = { if ($script:returnedXbox) { Remove-Apps $script:returnedXbox }; Disable-GameDvr } }
         @{ Name = 'OneDrive';                      On = $o.OneDrive;     Test = { Test-OneDrive };    Fix = { Remove-OneDrive } }
         @{ Name = (T 'Edge policies' 'Políticas do Edge');             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
         @{ Name = (T 'Edge shortcut' 'Atalho do Edge');                On = $o.NoEdgeShortcut; Test = { Test-EdgeShortcut }; Fix = { Remove-EdgeDesktopShortcut } }
@@ -1052,6 +1074,7 @@ $opt.Telemetry    = Ask (T 'Disable telemetry (service, tasks and policies)?' 'D
 $opt.Suggestions  = Ask (T 'Disable suggestions, ads and silent app installs?' 'Desativar sugestões, anúncios e instalação silenciosa de apps?') $true
 $opt.Apps         = Ask (T 'Remove junk apps (Clipchamp, Bing, Solitaire, Teams, new Outlook...)?' 'Remover apps inúteis (Clipchamp, Bing, Solitaire, Teams, Outlook novo...)?') $true
 $opt.OptionalApps = if ($opt.Apps) { Ask (T 'Also remove Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote?' 'Remover também Vincular ao Celular, Sticky Notes, Gravador, Relógio, Assistência Rápida, Media Player e OneNote?') $false } else { $false }
+$opt.NoXbox       = Ask (T 'Remove the Xbox apps (Xbox app, Game Bar, Xbox sign-in and Gaming Services)? Store/Game Pass games and games that use Xbox sign-in (Minecraft, Forza...) stop working. Steam, Epic and Riot are not affected.' 'Remover os apps do Xbox (app Xbox, Game Bar, login Xbox e Gaming Services)? Jogos da Store/Game Pass e jogos com login Xbox (Minecraft, Forza...) param de funcionar. Steam, Epic e Riot não são afetados.') $false
 if ($foldersInOneDrive) {
     Write-Host (T "  WARNING: these folders are inside OneDrive: $($foldersInOneDrive -join ', ')" "  ATENÇÃO: estas pastas estão dentro do OneDrive: $($foldersInOneDrive -join ', ')") -ForegroundColor Yellow
     Write-Host (T '  Turn off folder backup in OneDrive before removing it.' '  Desligue o backup de pastas no OneDrive antes de removê-lo.') -ForegroundColor Yellow
@@ -1136,7 +1159,7 @@ $opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' }
 # --- Summary and confirmation
 # Labels shown on screen for each option (in the chosen language, like the questions).
 $labels = @{
-    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais')
+    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais'); NoXbox = (T 'No Xbox' 'Sem Xbox')
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
     Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados')
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
@@ -1189,6 +1212,9 @@ if ($opt.Suggestions) { Invoke-Step (T 'Suggestions, ads and silent app installs
 if ($opt.Apps) {
     $appList = if ($opt.OptionalApps) { $JunkApps + $OptionalApps } else { $JunkApps }
     Invoke-Step (T 'Removing apps (all users + provisioned package)' 'Removendo apps (todos os usuários + pacote provisionado)') { Remove-Apps $appList }
+}
+if ($opt.NoXbox) {
+    Invoke-Step (T 'Removing the Xbox apps' 'Removendo os apps do Xbox') { Remove-Apps $XboxApps; Disable-GameDvr }
 }
 if ($opt.OneDrive) { Invoke-Step (T 'Removing OneDrive' 'Removendo OneDrive')                                          { Remove-OneDrive } }
 if ($opt.Edge)     { Invoke-Step (T 'Edge: no telemetry, background mode, sidebar or shopping' 'Edge: sem telemetria, segundo plano, barra lateral e compras') { Set-EdgePolicies } }
