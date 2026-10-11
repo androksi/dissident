@@ -12,7 +12,16 @@ end_of_line = crlf
 indent_style = space
 indent_size = 4
 
-[*.{md,yml,svg}]
+# Pages launcher: runs through "irm | iex", and a BOM breaks iex. No BOM (the file is ASCII only).
+[web/launcher.ps1]
+charset = utf-8
+
+[*.sh]
+end_of_line = lf
+indent_style = space
+indent_size = 4
+
+[*.{md,yml,svg,html}]
 charset = utf-8
 indent_style = space
 indent_size = 2

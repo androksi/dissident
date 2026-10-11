@@ -1,10 +1,10 @@
-[← voltar ao README](../README.md)
+[← back to README](../README.md)
 
-# Navegadores
+# Browsers
 
-Os três usam as políticas oficiais de cada navegador: valem para todos os perfis, mesmo se o navegador for instalado depois. Feche e abra o navegador para aplicar (ele vai mostrar "Gerenciado pela organização" — é o normal com políticas). Confira em `brave://policy`, `chrome://policy` ou `about:policies`.
+All three use each browser's official policies: they apply to every profile, even if the browser is installed later. Close and reopen the browser to apply them (it will show "Managed by your organization" — that's normal with policies). Check them at `brave://policy`, `chrome://policy` or `about:policies`.
 
-Para desfazer: o mesmo script com `-Revert`.
+To undo: run the same script with `-Revert`.
 
 ## Brave
 
@@ -12,13 +12,13 @@ Para desfazer: o mesmo script com `-Revert`.
 .\scripts\browsers\Configure-Brave.ps1
 ```
 
-| Funcionalidade | O que faz |
+| Feature | What it does |
 |---|---|
-| Recursos do Brave | Desliga Wallet, VPN, Recompensas, Leo, News, Talk, Playlist, Wayback, Tor e Speedreader. |
-| Telemetria | Desliga P3A, ping diário e Web Discovery. |
-| Políticas do Chromium | Desliga relatórios, pesquisas, guias promocionais, segundo plano, lista de compras e o aviso "não é o navegador padrão". |
-| Apps, senhas e cartões | Bloqueia instalar sites como app, gerenciador de senhas e cartões salvos. |
-| Transmitir para TV | Manter (cria a regra no firewall) ou desligar. Nos dois casos, sem aviso do firewall. |
+| Brave features | Turns off Wallet, VPN, Rewards, Leo, News, Talk, Playlist, Wayback, Tor and Speedreader. |
+| Telemetry | Turns off P3A, the daily ping and Web Discovery. |
+| Chromium policies | Turns off reports, surveys, promotional tabs, background mode, shopping list and the "not your default browser" prompt. |
+| Apps, passwords and cards | Blocks installing sites as apps, the password manager and saved cards. |
+| Cast to TV | Keep (creates the firewall rule) or turn off. Either way, no firewall prompt. |
 
 ## Chrome
 
@@ -26,14 +26,14 @@ Para desfazer: o mesmo script com `-Revert`.
 .\scripts\browsers\Configure-Chrome.ps1
 ```
 
-| Funcionalidade | O que faz |
+| Feature | What it does |
 |---|---|
-| Telemetria | Desliga relatórios, envio de URLs, ortografia na nuvem, pesquisas e feedback. |
-| Sugestões de pesquisa | Desliga o envio do que você digita ao Google em tempo real (pergunta). |
-| Pré-carregamento | Desliga o pré-carregamento de páginas (pergunta). |
-| IA | Desliga Gemini, Modo IA e todos os recursos de IA. |
-| Cookies | Bloqueia cookies de terceiros, liberando os domínios do Google. |
-| Extras | Bloqueia sincronização, segundo plano, lista de compras e o aviso "não é o navegador padrão". Navegação Segura no modo Padrão. |
+| Telemetry | Turns off reports, URL collection, cloud spell check, surveys and feedback. |
+| Search suggestions | Stops sending what you type to Google in real time (asks). |
+| Preloading | Turns off page preloading (asks). |
+| AI | Turns off Gemini, AI Mode and every AI feature. |
+| Cookies | Blocks third-party cookies, allowing Google's domains. |
+| Extras | Blocks sync, background mode, shopping list and the "not your default browser" prompt. Safe Browsing in Standard mode. |
 
 ## Firefox
 
@@ -41,14 +41,14 @@ Para desfazer: o mesmo script com `-Revert`.
 .\scripts\browsers\Configure-Firefox.ps1
 ```
 
-| Funcionalidade | O que faz |
+| Feature | What it does |
 |---|---|
-| Telemetria | Desliga telemetria, estudos, o agente de navegador padrão e o aviso "não é o navegador padrão". |
-| Patrocinados e recomendações | Remove patrocinados e recomendações da nova aba e da barra de endereço. |
-| IA | Desliga os recursos de IA. A tradução local continua. |
-| Extensões | Instala uBlock Origin e Bitwarden. |
-| Só Bitwarden | Desliga o gerenciador de senhas do Firefox e o preenchimento de endereços e cartões (avisa se houver senhas salvas). |
-| Sem avisos | Tira as dicas da barra de endereço, os convites para recursos experimentais e os favoritos de fábrica. |
-| Sugestões de pesquisa | Desliga o envio do que você digita ao buscador em tempo real (pergunta). |
-| Pré-carregamento | Desliga o pré-carregamento de páginas (pergunta). |
-| Somente HTTPS | Avisa antes de abrir sites sem conexão segura (pergunta). |
+| Telemetry | Turns off telemetry, studies, the default browser agent and the "not your default browser" prompt. |
+| Sponsored and recommendations | Removes sponsored content and recommendations from the new tab and the address bar. |
+| AI | Turns off AI features. Local translation keeps working. |
+| Extensions | Installs uBlock Origin and Bitwarden. |
+| Bitwarden only | Turns off Firefox's password manager and address and card autofill (warns if there are saved passwords). |
+| No nags | Removes address bar tips, invitations to experimental features and the default bookmarks. |
+| Search suggestions | Stops sending what you type to the search engine in real time (asks). |
+| Preloading | Turns off page preloading (asks). |
+| HTTPS-Only | Warns before opening sites without a secure connection (asks). |

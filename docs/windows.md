@@ -1,4 +1,4 @@
-[← voltar ao README](../README.md)
+[← back to README](../README.md)
 
 # Windows
 
@@ -6,71 +6,71 @@
 .\scripts\windows\Configure-Windows.ps1
 ```
 
-As perguntas vêm todas no começo; depois aparece um resumo e a confirmação.
-Para usar só os padrões, sem perguntas: `-NoPrompt`.
+All questions come first; then a summary and a confirmation.
+To use only the defaults, with no questions: `-NoPrompt`.
 
-## Automático
-| Funcionalidade | O que faz |
+## Automatic
+| Feature | What it does |
 |---|---|
-| Ponto de restauração | Cria um ponto de restauração antes de qualquer mudança. |
-| Resumo | Mostra tudo o que foi escolhido e pergunta "Aplicar agora?". |
-| Tolerante a falhas | Se uma etapa falhar, avisa e segue para a próxima. |
+| Restore point | Creates a restore point before any change. |
+| Summary | Shows everything that was chosen and asks "Aplicar agora?" (apply now?). |
+| Fault tolerant | If a step fails, it warns and moves on to the next one. |
 
-## Privacidade e limpeza
-| Funcionalidade | O que faz |
+## Privacy and cleanup
+| Feature | What it does |
 |---|---|
-| Telemetria | Desliga o serviço de telemetria, as tarefas de coleta e aplica as políticas de diagnóstico mínimo, sem anúncios, sem histórico de atividades e sem Bing na pesquisa. Desliga os Widgets. |
-| Sugestões | Desliga sugestões, anúncios e instalação silenciosa de apps (Candy Crush etc.). |
-| Apps inúteis | Remove Clipchamp, Bing, Solitaire, Teams, Outlook novo, Copilot e outros. |
-| Apps opcionais | Remove também Vincular ao Celular, Sticky Notes, Gravador, Relógio, Assistência Rápida, Media Player e OneNote. |
-| OneDrive | Desinstala o OneDrive e impede que volte. |
-| Edge | Políticas do Edge: sem telemetria, segundo plano, barra lateral, Copilot e compras. |
-| Segurança do Windows | Liga o bloqueio de apps e downloads indesejados e esconde avisos sem importância. |
-| Pastas do C: | Esconde a `inetpub` e apaga a `PerfLogs`. |
-| Apps de periféricos | Não baixa apps e ícones de fabricante ao conectar periféricos (drivers continuam vindo). |
-| Esconder áreas | Esconde "Proteção de contas" e "Segurança do dispositivo" da Segurança do Windows (avisos de conta Microsoft). |
+| Telemetry | Turns off the telemetry service and collection tasks, and applies the policies for minimum diagnostics, no ads, no activity history and no Bing in search. Turns off Widgets. |
+| Suggestions | Turns off suggestions, ads and silent app installs (Candy Crush etc.). |
+| Junk apps | Removes Clipchamp, Bing, Solitaire, Teams, the new Outlook, Copilot and others. |
+| Optional apps | Also removes Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote. |
+| OneDrive | Uninstalls OneDrive and keeps it from coming back. |
+| Edge | Edge policies: no telemetry, background mode, sidebar, Copilot or shopping. |
+| Windows Security | Turns on blocking of potentially unwanted apps and downloads, and hides unimportant notifications. |
+| C: folders | Hides `inetpub` and deletes `PerfLogs`. |
+| Device apps | Doesn't download manufacturer apps and icons when devices are connected (drivers still come). |
+| Hide areas | Hides "Account protection" and "Device security" in Windows Security (Microsoft account nags). |
 
-## Personalização
-| Funcionalidade | O que faz |
+## Personalization
+| Feature | What it does |
 |---|---|
-| Tema | Manter, Windows claro ou Windows escuro. Desliga o Destaques do Windows e aplica o papel de parede do tema. |
-| Barra de tarefas | Manter, ícones ao centro ou à esquerda. |
-| Pesquisa | Manter, oculta, só o ícone ou caixa de pesquisa. |
-| Visão de Tarefas | Manter, mostrar ou ocultar o botão. |
-| Sem fixados | Remove todos os ícones fixados na barra de tarefas. |
-| Bateria em % | Mostra a porcentagem da bateria na barra de tarefas (só notebook). |
-| Extensões | Mostra as extensões dos arquivos. |
-| Sem frequentes | Esconde as pastas frequentes do Acesso rápido. |
-| Sem recentes | Esconde os arquivos recentes no Explorador. |
-| Arquivos ocultos | Mostra arquivos e pastas ocultos. |
-| Sem descoberta de pasta | Pastas grandes abrem mais rápido. Zera as visualizações personalizadas. |
-| Sem Início/Galeria | Remove Início e Galeria do Explorador, que passa a abrir em "Este Computador". |
-| Borda fina | Afina a área invisível de redimensionar janelas. |
+| Theme | Keep, Windows light or Windows dark. Turns off Windows Spotlight and applies the theme's wallpaper. |
+| Taskbar | Keep, icons centered or on the left. |
+| Search | Keep, hidden, icon only or search box. |
+| Task View | Keep, show or hide the button. |
+| No pins | Removes every pinned icon from the taskbar. |
+| Battery % | Shows the battery percentage on the taskbar (laptops only). |
+| Extensions | Shows file extensions. |
+| No frequent folders | Hides frequent folders in Quick access. |
+| No recent files | Hides recent files in File Explorer. |
+| Hidden files | Shows hidden files and folders. |
+| No folder discovery | Large folders open faster. Resets custom folder views. |
+| No Home/Gallery | Removes Home and Gallery from File Explorer, which then opens in "This PC". |
+| Thin border | Shrinks the invisible window resize area. |
 
-## Uso no dia a dia
-| Funcionalidade | O que faz |
+## Everyday use
+| Feature | What it does |
 |---|---|
-| Caminhos longos | Permite caminhos com mais de 260 caracteres. |
-| Finalizar tarefa | Adiciona "Finalizar tarefa" ao clicar com o direito num app na barra. |
-| Sudo | Ativa o `sudo` no terminal. |
-| Histórico Win+V | Ativa o histórico da área de transferência. |
-| Sem aceleração | Desliga a aceleração do mouse. |
-| Sem aderência | Desliga o atalho das Teclas de Aderência (Shift 5 vezes). |
-| Volume 100% | Coloca o volume do aparelho de som em uso em 100%. |
-| Tela azul detalhada | Mostra os detalhes técnicos do erro na tela azul. |
+| Long paths | Allows paths longer than 260 characters. |
+| End task | Adds "End task" when right-clicking an app on the taskbar. |
+| Sudo | Turns on `sudo` in the terminal. |
+| Win+V history | Turns on clipboard history. |
+| No acceleration | Turns off mouse acceleration. |
+| No Sticky Keys | Turns off the Sticky Keys shortcut (Shift 5 times). |
+| Volume 100% | Sets the current audio device volume to 100%. |
+| Verbose blue screen | Shows the technical error details on the blue screen. |
 
-## Rede
-| Funcionalidade | O que faz |
+## Network
+| Feature | What it does |
 |---|---|
-| DNS | Define DNS IPv4 e IPv6 manualmente, com DNS por HTTPS (modelo automático) no Windows 11. |
+| DNS | Sets IPv4 and IPv6 DNS manually, with DNS over HTTPS (automatic template) on Windows 11. |
 
-## Reverter
+## Revert
 
 ```powershell
 .\scripts\windows\Revert-Configure-Windows.ps1
 ```
 
-| Funcionalidade | O que faz |
+| Feature | What it does |
 |---|---|
-| Reverter | Desfaz telemetria, políticas, sugestões, borda, DNS, Edge, áreas da Segurança, Início/Galeria, descoberta de pasta, periféricos, tela azul e `inetpub`. |
-| Não reverte | Apps removidos, OneDrive, tema, barra de tarefas, extensões, volume, arquivos ocultos e bateria (desfazer pelas Configurações). |
+| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, Home/Gallery, folder discovery, devices, blue screen and `inetpub`. |
+| Not reverted | Removed apps, OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

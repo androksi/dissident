@@ -1,4 +1,4 @@
-[← voltar ao README](../README.md)
+[← back to README](../README.md)
 
 # Apps
 
@@ -6,186 +6,186 @@
 .\scripts\apps\Configure-Apps.ps1
 ```
 
-| Funcionalidade | O que faz |
+| Feature | What it does |
 |---|---|
-| Instalar WinGet | Se o WinGet não existir (geralmente no Windows 10), oferece instalar antes de tudo. |
-| Lista de apps | 100 apps em categorias. ↑ ↓ navega, Espaço marca, Esc sai. |
-| Já instalados | Mostra "instalado" ao lado dos apps que já estão no PC. |
-| Marcar categoria | Tecla A: marca todos os apps da categoria (de novo: desmarca). |
-| Busca | Tecla /: digite o nome e o cursor pula para o app. Enter confirma, Esc cancela. |
-| Instalação interativa | Tecla I: abre o instalador do próprio app para escolher as opções (VS Code já vem marcado). |
-| Confirmação | Mostra os apps escolhidos: "Retornar" (padrão) volta à lista, "Instalar apps" instala. |
-| Resumo | Mostra o que instalou, o que já estava instalado e o que falhou. |
-| Adicionar apps | Uma linha na lista `$Apps` do script (ID com `winget search <nome>`). |
+| Install WinGet | If WinGet is missing (usually on Windows 10), offers to install it first. |
+| App list | 100 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
+| Already installed | Shows "instalado" (installed) next to apps already on the PC. |
+| Check category | A key: checks every app in the category (again: unchecks). |
+| Search | / key: type the name and the cursor jumps to the app. Enter confirms, Esc cancels. |
+| Interactive install | I key: opens the app's own installer so you can choose its options (VS Code comes checked). |
+| Confirmation | Shows the chosen apps: "Retornar" (back, default) returns to the list, "Instalar apps" installs. |
+| Summary | Shows what was installed, what was already installed and what failed. |
+| Adding apps | One line in the script's `$Apps` list (find the ID with `winget search <name>`). |
 
-## Teclas
+## Keys
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| ↑ ↓ PageUp PageDown Home End | navegar |
-| Espaço | marcar / desmarcar |
-| A | marcar a categoria inteira |
-| I | instalação interativa |
-| / | buscar pelo nome |
-| Enter | continuar |
-| Esc | sair |
+| ↑ ↓ PageUp PageDown Home End | move |
+| Space | check / uncheck |
+| A | check the whole category |
+| I | interactive install |
+| / | search by name |
+| Enter | continue |
+| Esc | quit |
 
-## Lista completa
+## Full list
 
 <details>
-<summary>Ver os 100 apps</summary>
+<summary>See all 100 apps</summary>
 
-### Comunicação (8)
+### Communication (8)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| Discord | chat de voz e texto | `Discord.Discord` |
-| Telegram | mensageiro | `Telegram.TelegramDesktop` |
-| Signal | mensageiro com criptografia (open source) | `OpenWhisperSystems.Signal` |
-| Thunderbird (pt-BR) | cliente de e-mail (open source) | `Mozilla.Thunderbird.pt-BR` |
-| WhatsApp | WhatsApp para desktop (Microsoft Store) | `9NKSQGP7F2NH` (Store) |
-| Zoom | videochamadas | `Zoom.Zoom` |
-| Slack | chat de trabalho | `SlackTechnologies.Slack` |
-| Microsoft Teams | reuniões e chat de trabalho | `Microsoft.Teams` |
+| Discord | voice and text chat | `Discord.Discord` |
+| Telegram | messenger | `Telegram.TelegramDesktop` |
+| Signal | encrypted messenger (open source) | `OpenWhisperSystems.Signal` |
+| Thunderbird (pt-BR) | email client (open source) | `Mozilla.Thunderbird.pt-BR` |
+| WhatsApp | WhatsApp for desktop (Microsoft Store) | `9NKSQGP7F2NH` (Store) |
+| Zoom | video calls | `Zoom.Zoom` |
+| Slack | work chat | `SlackTechnologies.Slack` |
+| Microsoft Teams | work meetings and chat | `Microsoft.Teams` |
 
 ### Design (7)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| GIMP | editor de imagens (open source) | `GIMP.GIMP.3` |
-| Inkscape | desenho vetorial (open source) | `Inkscape.Inkscape` |
-| Krita | pintura digital (open source) | `KDE.Krita` |
-| Blender | modelagem 3D e animação (open source) | `BlenderFoundation.Blender` |
-| Figma | design de interfaces | `Figma.Figma` |
-| Paint.NET | editor de imagens simples | `dotPDN.PaintDotNet` |
-| ScreenToGif | grava a tela em GIF (open source) | `NickeManarin.ScreenToGif` |
+| GIMP | image editor (open source) | `GIMP.GIMP.3` |
+| Inkscape | vector drawing (open source) | `Inkscape.Inkscape` |
+| Krita | digital painting (open source) | `KDE.Krita` |
+| Blender | 3D modeling and animation (open source) | `BlenderFoundation.Blender` |
+| Figma | interface design | `Figma.Figma` |
+| Paint.NET | simple image editor | `dotPDN.PaintDotNet` |
+| ScreenToGif | records the screen as a GIF (open source) | `NickeManarin.ScreenToGif` |
 
-### Jogos (12)
+### Games (12)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| Steam | loja e biblioteca de jogos | `Valve.Steam` |
-| Heroic Games Launcher | jogos da Epic, GOG e Amazon (open source) | `HeroicGamesLauncher.HeroicGamesLauncher` |
-| NVIDIA App | drivers e ajustes da placa NVIDIA | `XP8CLZL93F5Z4P` (Store) |
-| Epic Games Launcher | loja da Epic | `EpicGames.EpicGamesLauncher` |
-| EA app | loja da EA | `ElectronicArts.EADesktop` |
-| Ubisoft Connect | loja da Ubisoft | `Ubisoft.Connect` |
-| Battle.net | loja da Blizzard | `Blizzard.BattleNet` |
-| GOG Galaxy | loja da GOG | `GOG.Galaxy` |
-| MSI Afterburner | FPS e temperaturas na tela dos jogos | `Guru3D.Afterburner` |
-| Playnite | junta todas as bibliotecas de jogos (open source) | `Playnite.Playnite` |
-| Prism Launcher | launcher de Minecraft com mods (open source) | `PrismLauncher.PrismLauncher` |
-| RetroArch | emulador de consoles antigos (open source) | `Libretro.RetroArch` |
+| Steam | game store and library | `Valve.Steam` |
+| Heroic Games Launcher | Epic, GOG and Amazon games (open source) | `HeroicGamesLauncher.HeroicGamesLauncher` |
+| NVIDIA App | NVIDIA graphics drivers and settings | `XP8CLZL93F5Z4P` (Store) |
+| Epic Games Launcher | Epic's store | `EpicGames.EpicGamesLauncher` |
+| EA app | EA's store | `ElectronicArts.EADesktop` |
+| Ubisoft Connect | Ubisoft's store | `Ubisoft.Connect` |
+| Battle.net | Blizzard's store | `Blizzard.BattleNet` |
+| GOG Galaxy | GOG's store | `GOG.Galaxy` |
+| MSI Afterburner | FPS and temperatures on screen in games | `Guru3D.Afterburner` |
+| Playnite | brings every game library together (open source) | `Playnite.Playnite` |
+| Prism Launcher | Minecraft launcher with mods (open source) | `PrismLauncher.PrismLauncher` |
+| RetroArch | retro console emulator (open source) | `Libretro.RetroArch` |
 
-### Mídia (10)
+### Media (10)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| Spotify | música (versão da Microsoft Store) | `9NCBCSZSJRSB` (Store) |
-| VLC | toca qualquer vídeo ou áudio (open source) | `VideoLAN.VLC` |
-| OBS Studio | gravar a tela e fazer live (open source) | `OBSProject.OBSStudio` |
-| Audacity | editor de áudio (open source) | `Audacity.Audacity` |
-| HandBrake | converter e comprimir vídeos (open source) | `HandBrake.HandBrake` |
-| Kdenlive | editor de vídeo (open source) | `KDE.Kdenlive` |
-| Shotcut | editor de vídeo simples (open source) | `Meltytech.Shotcut` |
-| foobar2000 | player de música leve | `PeterPawlowski.foobar2000` |
-| ImageGlass | visualizador de imagens rápido (open source) | `DuongDieuPhap.ImageGlass` |
-| Stremio | central de filmes e séries | `Stremio.Stremio` |
+| Spotify | music (Microsoft Store version) | `9NCBCSZSJRSB` (Store) |
+| VLC | plays any video or audio (open source) | `VideoLAN.VLC` |
+| OBS Studio | screen recording and streaming (open source) | `OBSProject.OBSStudio` |
+| Audacity | audio editor (open source) | `Audacity.Audacity` |
+| HandBrake | convert and compress videos (open source) | `HandBrake.HandBrake` |
+| Kdenlive | video editor (open source) | `KDE.Kdenlive` |
+| Shotcut | simple video editor (open source) | `Meltytech.Shotcut` |
+| foobar2000 | lightweight music player | `PeterPawlowski.foobar2000` |
+| ImageGlass | fast image viewer (open source) | `DuongDieuPhap.ImageGlass` |
+| Stremio | movies and TV shows hub | `Stremio.Stremio` |
 
-### Navegadores (7)
+### Browsers (7)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| Brave | navegador com bloqueador de anúncios | `Brave.Brave` |
-| Chrome | navegador do Google | `Google.Chrome` |
-| Firefox (pt-BR) | navegador da Mozilla | `Mozilla.Firefox.pt-BR` |
-| Opera GX | navegador "gamer" da Opera | `Opera.OperaGX` |
-| Zen Browser | navegador baseado no Firefox, visual moderno (open source) | `Zen-Team.Zen-Browser` |
-| LibreWolf | Firefox focado em privacidade (open source) | `LibreWolf.LibreWolf` |
-| Vivaldi | navegador cheio de personalização | `Vivaldi.Vivaldi` |
+| Brave | browser with an ad blocker | `Brave.Brave` |
+| Chrome | Google's browser | `Google.Chrome` |
+| Firefox (pt-BR) | Mozilla's browser | `Mozilla.Firefox.pt-BR` |
+| Opera GX | Opera's "gamer" browser | `Opera.OperaGX` |
+| Zen Browser | Firefox-based browser with a modern look (open source) | `Zen-Team.Zen-Browser` |
+| LibreWolf | privacy-focused Firefox (open source) | `LibreWolf.LibreWolf` |
+| Vivaldi | highly customizable browser | `Vivaldi.Vivaldi` |
 
-### Produtividade (10)
+### Productivity (10)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| LibreOffice | pacote de escritório (open source) | `TheDocumentFoundation.LibreOffice` |
-| Joplin | notas em Markdown (open source) | `Joplin.Joplin` |
-| SumatraPDF | leitor de PDF leve (open source) | `SumatraPDF.SumatraPDF` |
-| Claude | app do Claude para desktop | `Anthropic.Claude` |
-| Obsidian | notas em Markdown | `Obsidian.Obsidian` |
-| Notion | notas, tarefas e wikis | `Notion.Notion` |
-| Adobe Acrobat Reader | leitor de PDF da Adobe | `Adobe.Acrobat.Reader.64-bit` |
-| Google Drive | sincroniza o Google Drive com o PC | `Google.GoogleDrive` |
-| ONLYOFFICE | escritório compatível com Office (open source) | `ONLYOFFICE.DesktopEditors` |
-| Logseq | notas conectadas (open source) | `Logseq.Logseq` |
+| LibreOffice | office suite (open source) | `TheDocumentFoundation.LibreOffice` |
+| Joplin | Markdown notes (open source) | `Joplin.Joplin` |
+| SumatraPDF | lightweight PDF reader (open source) | `SumatraPDF.SumatraPDF` |
+| Claude | Claude desktop app | `Anthropic.Claude` |
+| Obsidian | Markdown notes | `Obsidian.Obsidian` |
+| Notion | notes, tasks and wikis | `Notion.Notion` |
+| Adobe Acrobat Reader | Adobe's PDF reader | `Adobe.Acrobat.Reader.64-bit` |
+| Google Drive | syncs Google Drive with the PC | `Google.GoogleDrive` |
+| ONLYOFFICE | Office-compatible suite (open source) | `ONLYOFFICE.DesktopEditors` |
+| Logseq | connected notes (open source) | `Logseq.Logseq` |
 
-### Programação (27)
+### Development (27)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| Git | controle de versão (open source) | `Git.Git` |
-| GitHub Desktop | Git com interface gráfica | `GitHub.GitHubDesktop` |
-| VS Code | editor de código | `Microsoft.VisualStudioCode` |
-| Node.js LTS | JavaScript fora do navegador (open source) | `OpenJS.NodeJS.LTS` |
-| fnm | troca entre versões do Node.js (open source) | `Schniz.fnm` |
-| Python 3.14 | linguagem Python (open source) | `Python.Python.3.14` |
-| PowerShell 7 | PowerShell moderno (open source) | `Microsoft.PowerShell` |
-| Windows Terminal | terminal com abas (já vem no Windows 11) | `Microsoft.WindowsTerminal` |
-| Notepad++ | editor de texto (open source) | `Notepad++.Notepad++` |
-| WinMerge | comparar arquivos e pastas (open source) | `WinMerge.WinMerge` |
-| DBeaver | cliente de banco de dados (open source) | `DBeaver.DBeaver.Community` |
-| Bruno | testar APIs, alternativa ao Postman (open source) | `Bruno.Bruno` |
-| Insomnia | testar APIs (open source) | `Insomnia.Insomnia` |
-| Yaak | testar APIs (open source) | `Yaak.app` |
-| Postman | testar APIs | `Postman.Postman` |
-| Dataflare | cliente de banco de dados | `Dataflare.Dataflare` |
-| Cursor | editor de código com IA (baseado no VS Code) | `Anysphere.Cursor` |
-| JetBrains Toolbox | instala as IDEs da JetBrains | `JetBrains.Toolbox` |
+| Git | version control (open source) | `Git.Git` |
+| GitHub Desktop | Git with a graphical interface | `GitHub.GitHubDesktop` |
+| VS Code | code editor | `Microsoft.VisualStudioCode` |
+| Node.js LTS | JavaScript outside the browser (open source) | `OpenJS.NodeJS.LTS` |
+| fnm | switches between Node.js versions (open source) | `Schniz.fnm` |
+| Python 3.14 | Python language (open source) | `Python.Python.3.14` |
+| PowerShell 7 | modern PowerShell (open source) | `Microsoft.PowerShell` |
+| Windows Terminal | tabbed terminal (built into Windows 11) | `Microsoft.WindowsTerminal` |
+| Notepad++ | text editor (open source) | `Notepad++.Notepad++` |
+| WinMerge | compare files and folders (open source) | `WinMerge.WinMerge` |
+| DBeaver | database client (open source) | `DBeaver.DBeaver.Community` |
+| Bruno | API testing, a Postman alternative (open source) | `Bruno.Bruno` |
+| Insomnia | API testing (open source) | `Insomnia.Insomnia` |
+| Yaak | API testing (open source) | `Yaak.app` |
+| Postman | API testing | `Postman.Postman` |
+| Dataflare | database client | `Dataflare.Dataflare` |
+| Cursor | AI code editor (based on VS Code) | `Anysphere.Cursor` |
+| JetBrains Toolbox | installs JetBrains IDEs | `JetBrains.Toolbox` |
 | Docker Desktop | containers | `Docker.DockerDesktop` |
-| Zed | editor de código muito rápido (open source) | `ZedIndustries.Zed` |
-| Go | linguagem Go (open source) | `GoLang.Go` |
-| Rustup | instala a linguagem Rust (open source) | `Rustlang.Rustup` |
+| Zed | very fast code editor (open source) | `ZedIndustries.Zed` |
+| Go | Go language (open source) | `GoLang.Go` |
+| Rustup | installs the Rust language (open source) | `Rustlang.Rustup` |
 | Java (Temurin 25) | Java JDK 25 LTS (open source) | `EclipseAdoptium.Temurin.25.JDK` |
-| Bun | runtime JavaScript rápido (open source) | `Oven-sh.Bun` |
-| HeidiSQL | cliente de MySQL/MariaDB (open source) | `HeidiSQL.HeidiSQL` |
-| MongoDB Compass | cliente do MongoDB | `MongoDB.Compass.Full` |
-| Ollama | roda modelos de IA no próprio PC (open source) | `Ollama.Ollama` |
+| Bun | fast JavaScript runtime (open source) | `Oven-sh.Bun` |
+| HeidiSQL | MySQL/MariaDB client (open source) | `HeidiSQL.HeidiSQL` |
+| MongoDB Compass | MongoDB client | `MongoDB.Compass.Full` |
+| Ollama | runs AI models on your own PC (open source) | `Ollama.Ollama` |
 
-### Segurança (4)
+### Security (4)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| Bitwarden | gerenciador de senhas (open source) | `Bitwarden.Bitwarden` |
-| KeePassXC | gerenciador de senhas offline (open source) | `KeePassXCTeam.KeePassXC` |
-| Proton VPN | VPN com plano grátis (open source) | `Proton.ProtonVPN` |
-| Malwarebytes | antimalware (segunda opinião ao Defender) | `Malwarebytes.Malwarebytes` |
+| Bitwarden | password manager (open source) | `Bitwarden.Bitwarden` |
+| KeePassXC | offline password manager (open source) | `KeePassXCTeam.KeePassXC` |
+| Proton VPN | VPN with a free plan (open source) | `Proton.ProtonVPN` |
+| Malwarebytes | anti-malware (second opinion to Defender) | `Malwarebytes.Malwarebytes` |
 
-### Utilitários (15)
+### Utilities (15)
 
-| App | O que é | ID |
+| App | What it is | ID |
 |---|---|---|
-| 7-Zip | compactador de arquivos (open source) | `7zip.7zip` |
-| WinRAR | compactador de arquivos (RAR) | `RARLab.WinRAR` |
-| Everything | busca arquivos no PC na hora | `voidtools.Everything` |
-| AnyDesk | acesso remoto | `AnyDesk.AnyDesk` |
-| HWiNFO | informações e sensores do hardware | `REALiX.HWiNFO` |
-| CPU-Z | informações do processador e da memória | `CPUID.CPU-Z` |
-| WizTree | mostra o que ocupa espaço no disco | `AntibodySoftware.WizTree` |
-| Flow Launcher | abre apps e arquivos pelo teclado (open source) | `Flow-Launcher.Flow-Launcher` |
-| PowerToys | utilitários da Microsoft (open source) | `Microsoft.PowerToys` |
-| ShareX | capturas e gravação de tela (open source) | `ShareX.ShareX` |
-| LocalSend | enviar arquivos pela rede local (open source) | `LocalSend.LocalSend` |
-| qBittorrent | torrent sem anúncios (open source) | `qBittorrent.qBittorrent` |
-| UniGetUI | interface para o WinGet; atualiza tudo (open source) | `Devolutions.UniGetUI` |
-| Bulk Crap Uninstaller | desinstala e limpa os restos (open source) | `Klocman.BulkCrapUninstaller` |
-| CrystalDiskInfo | saúde do SSD/HD (open source) | `CrystalDewWorld.CrystalDiskInfo` |
+| 7-Zip | file archiver (open source) | `7zip.7zip` |
+| WinRAR | file archiver (RAR) | `RARLab.WinRAR` |
+| Everything | finds files on the PC instantly | `voidtools.Everything` |
+| AnyDesk | remote access | `AnyDesk.AnyDesk` |
+| HWiNFO | hardware information and sensors | `REALiX.HWiNFO` |
+| CPU-Z | processor and memory information | `CPUID.CPU-Z` |
+| WizTree | shows what takes up disk space | `AntibodySoftware.WizTree` |
+| Flow Launcher | opens apps and files from the keyboard (open source) | `Flow-Launcher.Flow-Launcher` |
+| PowerToys | Microsoft utilities (open source) | `Microsoft.PowerToys` |
+| ShareX | screenshots and screen recording (open source) | `ShareX.ShareX` |
+| LocalSend | send files over the local network (open source) | `LocalSend.LocalSend` |
+| qBittorrent | ad-free torrent client (open source) | `qBittorrent.qBittorrent` |
+| UniGetUI | interface for WinGet; updates everything (open source) | `Devolutions.UniGetUI` |
+| Bulk Crap Uninstaller | uninstalls and cleans up leftovers (open source) | `Klocman.BulkCrapUninstaller` |
+| CrystalDiskInfo | SSD/HDD health (open source) | `CrystalDewWorld.CrystalDiskInfo` |
 
 </details>
 
-## Desinstalar
+## Uninstalling
 
 ```powershell
 winget uninstall --id <ID>
 ```
 
-O **Bulk Crap Uninstaller** (da lista) também remove as pastas e chaves que sobram.
+**Bulk Crap Uninstaller** (in the list) also removes leftover folders and registry keys.

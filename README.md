@@ -4,76 +4,99 @@
 
 # dissident
 
-**Seu PC. Suas regras.**
+**Your PC. Your rules.**
 
-Scripts para um Windows que trabalha pra você — sem telemetria, sem lixo, sem pedir licença.
+Scripts for a Windows that works for you — no telemetry, no junk, no asking for permission.
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0d1117?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-0d1117?style=flat-square)
-![Licença](https://img.shields.io/badge/licen%C3%A7a-GPL--3.0-0d1117?style=flat-square)
+![License](https://img.shields.io/badge/license-GPL--3.0-0d1117?style=flat-square)
 [![Lint](https://github.com/androksi/dissident/actions/workflows/lint.yml/badge.svg)](https://github.com/androksi/dissident/actions/workflows/lint.yml)
 
 </div>
 
-<!-- Grave um GIF do menu com o ScreenToGif, salve em assets/demo.gif e descomente:
-<p align="center"><img src="assets/demo.gif" width="720" alt="demonstração"></p> -->
+<!-- Record a GIF of the menu with ScreenToGif, save it as assets/demo.gif and uncomment:
+<p align="center"><img src="assets/demo.gif" width="720" alt="demo"></p> -->
 
 ---
 
-## Uso rápido
+> [!NOTE]
+> The scripts' prompts and messages are in Brazilian Portuguese.
 
-Baixe o repositório (**Code → Download ZIP**, ou `git clone`), extraia e abra o **Terminal como Administrador** (Win + X) na pasta:
+## Quick start
+
+Open **PowerShell** (Win + X → Terminal) and paste a command. Nothing to download; it asks for administrator rights on its own.
+
+```powershell
+irm androksi.github.io/dissident/windows | iex
+irm androksi.github.io/dissident/apps    | iex
+irm androksi.github.io/dissident/chrome  | iex
+irm androksi.github.io/dissident/brave   | iex
+irm androksi.github.io/dissident/firefox | iex
+```
+
+To undo, add `-revert` to the name: `windows-revert`, `chrome-revert`, `brave-revert` or `firefox-revert`.
+List with copy buttons: [androksi.github.io/dissident](https://androksi.github.io/dissident).
+
+The script is downloaded to `%TEMP%\dissident`, runs, and the folder is deleted at the end.
+
+<details>
+<summary>Run from a downloaded copy of the repository</summary>
+
+Download the repository (**Code → Download ZIP**, or `git clone`), extract it and open **Terminal as Administrator** in the folder:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scripts\windows\Configure-Windows.ps1
 ```
 
-Todas as perguntas têm um padrão — só apertar **Enter** já faz a escolha recomendada.
-Todos os scripts podem ser rodados mais de uma vez sem problema.
+</details>
+
+Every question has a default — just pressing **Enter** picks the recommended choice.
+Every script can be run more than once safely.
 
 ## Scripts
 
-| Script | O que faz | Detalhes |
+| Script | What it does | Details |
 |---|---|---|
-| `scripts/windows/Configure-Windows.ps1` | Telemetria, apps inúteis, OneDrive, Edge, tema, barra de tarefas, Explorador, DNS criptografado e mais — tudo com perguntas | [docs/windows.md](docs/windows.md) |
-| `scripts/windows/Revert-Configure-Windows.ps1` | Desfaz o que o Configure-Windows mudou | [docs/windows.md](docs/windows.md#reverter) |
-| `scripts/apps/Configure-Apps.ps1` | Lista com 100 apps para marcar e instalar pelo WinGet | [docs/apps.md](docs/apps.md) |
-| `scripts/browsers/Configure-Brave.ps1` | Brave sem Wallet, VPN, Rewards, Leo, News e telemetria | [docs/browsers.md](docs/browsers.md#brave) |
-| `scripts/browsers/Configure-Chrome.ps1` | Chrome sem telemetria e IA, com login do Google funcionando | [docs/browsers.md](docs/browsers.md#chrome) |
-| `scripts/browsers/Configure-Firefox.ps1` | Firefox sem telemetria, patrocinados e IA, com uBlock Origin e Bitwarden | [docs/browsers.md](docs/browsers.md#firefox) |
+| `scripts/windows/Configure-Windows.ps1` | Telemetry, junk apps, OneDrive, Edge, theme, taskbar, File Explorer, encrypted DNS and more — all through questions | [docs/windows.md](docs/windows.md) |
+| `scripts/windows/Revert-Configure-Windows.ps1` | Undoes what Configure-Windows changed | [docs/windows.md](docs/windows.md#revert) |
+| `scripts/apps/Configure-Apps.ps1` | A list of 100 apps to pick and install with WinGet | [docs/apps.md](docs/apps.md) |
+| `scripts/browsers/Configure-Brave.ps1` | Brave without Wallet, VPN, Rewards, Leo, News and telemetry | [docs/browsers.md](docs/browsers.md#brave) |
+| `scripts/browsers/Configure-Chrome.ps1` | Chrome without telemetry and AI, with Google sign-in still working | [docs/browsers.md](docs/browsers.md#chrome) |
+| `scripts/browsers/Configure-Firefox.ps1` | Firefox without telemetry, sponsored content and AI, with uBlock Origin and Bitwarden | [docs/browsers.md](docs/browsers.md#firefox) |
 
-Para desfazer os navegadores: rode o mesmo script com `-Revert`.
+To undo a browser: run the same script with `-Revert`.
 
-## Ordem recomendada depois de formatar
+## Recommended order after a fresh install
 
-1. Windows Update até não aparecer mais nada (inclusive *Atualizações opcionais*)
-2. Drivers do fabricante (placa de vídeo pelo app do fabricante)
-3. Microsoft Store → *Obter atualizações*
-4. Reiniciar
-5. `Configure-Windows.ps1` → `Configure-Apps.ps1` → scripts dos navegadores
+1. Windows Update until nothing else shows up (including *Optional updates*)
+2. Manufacturer drivers (graphics card through the vendor's app)
+3. Microsoft Store → *Get updates*
+4. Restart
+5. `Configure-Windows.ps1` → `Configure-Apps.ps1` → browser scripts
 
-## O que **não** faz
+## What it does **not** do
 
-- Não desliga o Windows Defender, o Firewall nem a Navegação Segura
-- Não bloqueia nem adia o Windows Update
-- Não mexe em drivers, energia ou hibernação
-- Não instala nada escondido — o `Configure-Apps` só instala o que você marcar
-- Não usa "tweaks" de desempenho sem efeito real (serviços em manual, planos de energia, registro "mágico")
+- Does not turn off Windows Defender, the Firewall or Safe Browsing
+- Does not block or delay Windows Update
+- Does not touch drivers, power settings or hibernation
+- Does not install anything behind your back — `Configure-Apps` only installs what you pick
+- Does not use performance "tweaks" with no real effect (services set to manual, power plans, "magic" registry keys)
 
-Antes de mudar qualquer coisa, o `Configure-Windows` cria um **ponto de restauração**.
+Before changing anything, `Configure-Windows` creates a **restore point**.
 
-## Requisitos
+## Requirements
 
-- Windows 10 ou 11
-- Windows PowerShell 5.1 (já vem no Windows), executado como Administrador
-- `Configure-Apps`: WinGet (o próprio script oferece instalar, se faltar)
+- Windows 10 or 11
+- Windows PowerShell 5.1 (built into Windows), run as Administrator
+- `Configure-Apps`: WinGet (the script offers to install it if missing)
 
-## Aviso
+## Disclaimer
 
-Estes scripts mudam configurações do sistema e removem apps. Leia o que cada um faz antes de rodar.
-Use por sua conta e risco: não há garantia de nenhum tipo (veja a licença).
+These scripts change system settings and remove apps. Read what each one does before running it.
+Use at your own risk: there is no warranty of any kind (see the license).
 
-## Licença
+## License
 
-[GPL-3.0](LICENSE). Você pode usar, modificar e redistribuir; se distribuir uma versão modificada, ela também precisa ser GPL-3.0 com o código aberto.
+[GPL-3.0](LICENSE). You may use, modify and redistribute it; if you distribute a modified version, it must also be GPL-3.0 with its source code available.
