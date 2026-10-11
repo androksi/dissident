@@ -561,6 +561,15 @@ function Hide-HomeAndGallery {
     $script:RestartExplorer = $true
 }
 
+# Windows 11: the full right-click menu right away, without "Show more options" (the Windows 10 style menu).
+# An empty InprocServer32 for this CLSID makes File Explorer skip the new menu. Undo: delete the key.
+function Enable-ClassicContextMenu {
+    reg.exe add 'HKCU\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' /ve /f | Out-Null   # /ve without /d = empty default value
+    if ($LASTEXITCODE) { throw 'não foi possível gravar a chave do menu clássico' }
+    Write-Host '  menu de contexto clássico: ligado (sem "Mostrar mais opções")'
+    $script:RestartExplorer = $true
+}
+
 # Shows hidden files and folders (.git, AppData...). Protected system files stay hidden.
 function Show-HiddenFiles {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Hidden' 1
@@ -987,6 +996,7 @@ $opt.HideRecent     = Ask 'Esconder também os arquivos recentes no Explorador?'
 $opt.ShowHidden     = Ask 'Mostrar arquivos e pastas ocultos no Explorador (.git, AppData...)?' $false
 $opt.NoFolderSniff  = Ask 'Desligar a descoberta automática de tipo de pasta (pastas grandes abrem mais rápido; zera as visualizações personalizadas)?' $true
 $opt.HideHomeGallery = if ($isWin11) { Ask 'Remover "Início" e "Galeria" da barra lateral do Explorador (ele passa a abrir em "Este Computador")?' $false } else { $false }
+$opt.ClassicMenu    = if ($isWin11) { Ask 'Usar o menu clássico do botão direito (completo, sem precisar clicar em "Mostrar mais opções")?' $false } else { $false }
 $opt.ThinBorder     = Ask 'Afinar a borda de redimensionamento das janelas (evita redimensionar sem querer)?' $false
 
 # --- Everyday use
@@ -1034,7 +1044,7 @@ $labels = @{
     Telemetry = 'Telemetria'; Suggestions = 'Sugestões'; Apps = 'Apps'; OptionalApps = 'Apps opcionais'
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = 'Segurança'; HideAreas = 'Esconder áreas'; RootFolders = 'Pastas do C:'; Theme = 'Tema'; Taskbar = 'Barra de tarefas'
     Search = 'Pesquisa'; TaskView = 'Visão de Tarefas'; ClearPins = 'Sem fixados'
-    ShowExtensions = 'Extensões'; HideFrequent = 'Sem frequentes'; HideRecent = 'Sem recentes'; HideHomeGallery = 'Sem Início/Galeria'; ThinBorder = 'Borda fina'
+    ShowExtensions = 'Extensões'; HideFrequent = 'Sem frequentes'; HideRecent = 'Sem recentes'; HideHomeGallery = 'Sem Início/Galeria'; ClassicMenu = 'Menu clássico'; ThinBorder = 'Borda fina'
     LongPaths = 'Caminhos longos'; EndTask = 'Finalizar tarefa'; Sudo = 'Sudo'; ClipboardHistory = 'Histórico Win+V'
     NoMouseAccel = 'Sem aceleração'; NoStickyKeys = 'Sem aderência'; MaxVolume = 'Volume 100%'; DNS = 'DNS'
     NoDeviceApps = 'Sem apps de periféricos'; BatteryPercent = 'Bateria em %'; ShowHidden = 'Arquivos ocultos'
@@ -1113,6 +1123,7 @@ if ($opt.ShowExtensions -or $opt.HideFrequent -or $opt.HideRecent) {
 if ($opt.ShowHidden)    { Invoke-Step 'Explorador: arquivos ocultos'               { Show-HiddenFiles } }
 if ($opt.NoFolderSniff) { Invoke-Step 'Explorador: descoberta automática de pasta' { Disable-FolderDiscovery } }
 if ($opt.HideHomeGallery) { Invoke-Step 'Explorador: removendo Início e Galeria' { Hide-HomeAndGallery } }
+if ($opt.ClassicMenu) { Invoke-Step 'Menu de contexto clássico' { Enable-ClassicContextMenu } }
 if ($opt.ThinBorder) { Invoke-Step 'Borda de redimensionamento das janelas' { Set-ThinBorder } }
 
 # --- Everyday use

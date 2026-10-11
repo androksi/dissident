@@ -45,6 +45,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Hidden files | Shows hidden files and folders. |
 | No folder discovery | Large folders open faster. Resets custom folder views. |
 | No Home/Gallery | Removes Home and Gallery from File Explorer, which then opens in "This PC". |
+| Classic menu | Windows 11: the full right-click menu, without "Show more options". |
 | Thin border | Shrinks the invisible window resize area. |
 
 ## Everyday use
@@ -100,5 +101,5 @@ Measures each item, asks before deleting each one and shows how much space was f
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, Home/Gallery, folder discovery, devices, blue screen and `inetpub`. |
+| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, Home/Gallery, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
 | Not reverted | Removed apps, OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

@@ -129,7 +129,8 @@ function Restore-HomeAndGallery {
     Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}' -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}' -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'LaunchTo'
-    Write-Host '  Início e Galeria de volta (aparecem depois de reiniciar)'
+    Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}' -Recurse -Force -ErrorAction SilentlyContinue   # classic right-click menu
+    Write-Host '  Início, Galeria e o menu novo do botão direito de volta (aparecem depois de reiniciar)'
 }
 
 # Folder type discovery, manufacturer apps for devices and verbose blue screen back to the Windows default.
