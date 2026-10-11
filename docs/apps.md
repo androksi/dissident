@@ -182,6 +182,15 @@
 
 </details>
 
+## Moving apps to another PC
+
+```powershell
+.\scripts\apps\Backup-Apps.ps1 -Export   # before formatting
+.\scripts\apps\Backup-Apps.ps1 -Import   # after formatting
+```
+
+Export saves `tidywin-apps-<PC>-<date>.json` with every app WinGet knows (Desktop, Documents, Downloads, OneDrive or a folder you type). Import finds the newest file in those folders, lists the apps and installs the ones that are missing. Only apps are saved, not their settings.
+
 ## Uninstalling
 
 ```powershell

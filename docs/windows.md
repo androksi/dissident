@@ -93,6 +93,14 @@ Measures each item, asks before deleting each one and shows how much space was f
 | Old Windows components | No | Old system files left by updates (DISM). Can take minutes. Skipped while an update is pending. |
 | Windows.old | No | The previous Windows installation, if present. No going back after it. |
 
+## Repair
+
+```powershell
+.\scripts\windows\Repair-Windows.ps1
+```
+
+For when Windows acts strange. Creates a restore point, checks the Windows image with DISM and repairs it from Windows Update only if it is damaged, runs `sfc /scannow`, and checks the disk online (asks before scheduling a fix at the next restart). Only Windows' own tools; your files, apps and settings are not touched. Takes 10 to 30 minutes.
+
 ## Revert
 
 ```powershell
