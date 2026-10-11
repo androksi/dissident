@@ -93,6 +93,7 @@ Run as Administrator. Browser scripts accept `-Revert`.
 
 ## Resources
 
+- [Reinstalling Windows, step by step](docs/reinstall.md)
 - [Windows options](docs/windows.md)
 - [App list](docs/apps.md)
 - [Browser policies](docs/browsers.md)
