@@ -1,4 +1,4 @@
-# Tidywin
+# Tidywin — Windows Cleanup and Setup Utility
 
 Tidywin **removes** telemetry and preinstalled apps from Windows 10 and 11, **installs** apps with WinGet and **configures** Chrome, Brave and Firefox for privacy.
 
