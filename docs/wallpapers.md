@@ -9,7 +9,9 @@ irm androksi.github.io/tidywin/wallpapers | iex
 Check the ones you want, choose the folder (`Pictures\Wallpapers` by default) and they are downloaded at the end. Optionally sets one of them as the desktop background. Click a preview to open the full image.
 
 <!-- gallery:start -->
-_No wallpapers yet._
+<table>
+<tr><td align="center"><a href="../wallpapers/bloom-black.png"><img src="../wallpapers/previews/bloom-black.jpg" width="400" alt="bloom-black"></a><br><code>bloom-black</code> (1920×1080)</td></tr>
+</table>
 <!-- gallery:end -->
 
 ## Adding wallpapers
