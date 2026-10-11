@@ -5,9 +5,13 @@
     HOW TO RUN (Windows PowerShell 5.1 as Administrator, NOT PowerShell 7):
         powershell -ExecutionPolicy Bypass -File .\Configure-Windows.ps1
 
-    All questions are asked first (Enter accepts the default, the uppercase letter),
+    All questions are asked first (arrow-key menus; the default comes selected),
     then everything is applied at once. To use the defaults without any questions:
         powershell -ExecutionPolicy Bypass -File .\Configure-Windows.ps1 -NoPrompt
+
+    Check later (e.g. after a big Windows update) whether anything came back, and reapply it:
+        powershell -ExecutionPolicy Bypass -File .\Configure-Windows.ps1 -Check
+    The answers are saved in %ProgramData%\TidyWin\windows.json for that (Revert deletes it).
 
     If a step fails, the script reports it and moves on to the next one.
     Undo: Revert-Configure-Windows.ps1 (removed apps come back through the Microsoft Store).
@@ -20,11 +24,13 @@
         4. Personalization ........... theme, taskbar (alignment, search, Task View, pins, battery %), File Explorer (hidden files, folder discovery, Home/Gallery), window border
         5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, volume, verbose BSoD
         6. Network ................... DNS with DNS over HTTPS
-        7. Questions ................. what to apply
-        8. Execution ................. applies the chosen options, in order
+        7. Check ..................... -Check: compares the PC with the saved answers
+        8. Questions ................. what to apply
+        9. Execution ................. applies the chosen options, in order
 #>
 param(
-    [switch]$NoPrompt
+    [switch]$NoPrompt,
+    [switch]$Check
 )
 
 $ErrorActionPreference = 'Continue'
@@ -168,19 +174,20 @@ function Disable-TelemetryServices {
 
 # Disables (does not delete) the data collection tasks. The Compatibility Appraiser stays ON:
 # it is what clears the yearly Windows feature update to install safely.
+$TelemetryTasks = @(
+    @('\Microsoft\Windows\Application Experience\',                 'ProgramDataUpdater'),
+    @('\Microsoft\Windows\Application Experience\',                 'MareBackup'),
+    @('\Microsoft\Windows\Autochk\',                                'Proxy'),
+    @('\Microsoft\Windows\Customer Experience Improvement Program\', 'Consolidator'),
+    @('\Microsoft\Windows\Customer Experience Improvement Program\', 'UsbCeip'),
+    @('\Microsoft\Windows\DiskDiagnostic\',                         'Microsoft-Windows-DiskDiagnosticDataCollector'),
+    @('\Microsoft\Windows\Feedback\Siuf\',                          'DmClient'),
+    @('\Microsoft\Windows\Feedback\Siuf\',                          'DmClientOnScenarioDownload'),
+    @('\Microsoft\Windows\Windows Error Reporting\',                'QueueReporting')
+)
+
 function Disable-TelemetryTasks {
-    $tasks = @(
-        @('\Microsoft\Windows\Application Experience\',                 'ProgramDataUpdater'),
-        @('\Microsoft\Windows\Application Experience\',                 'MareBackup'),
-        @('\Microsoft\Windows\Autochk\',                                'Proxy'),
-        @('\Microsoft\Windows\Customer Experience Improvement Program\', 'Consolidator'),
-        @('\Microsoft\Windows\Customer Experience Improvement Program\', 'UsbCeip'),
-        @('\Microsoft\Windows\DiskDiagnostic\',                         'Microsoft-Windows-DiskDiagnosticDataCollector'),
-        @('\Microsoft\Windows\Feedback\Siuf\',                          'DmClient'),
-        @('\Microsoft\Windows\Feedback\Siuf\',                          'DmClientOnScenarioDownload'),
-        @('\Microsoft\Windows\Windows Error Reporting\',                'QueueReporting')
-    )
-    foreach ($t in $tasks) {
+    foreach ($t in $TelemetryTasks) {
         if (Get-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue) {
             Disable-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue | Out-Null
             Write-Host "  desativada: $($t[1])"
@@ -774,7 +781,164 @@ function Set-DNS([string[]]$V4, [string[]]$V6) {
 #endregion
 
 
-#region ==================== 7. QUESTIONS ====================
+#region ==================== 7. CHECK ====================
+
+# Where the answers are saved, so -Check knows what you chose.
+$StateFile = Join-Path $env:ProgramData 'TidyWin\windows.json'
+
+function Save-State($Options, [string[]]$V4, [string[]]$V6) {
+    New-Item -ItemType Directory -Path (Split-Path $StateFile) -Force | Out-Null
+    [ordered]@{ Saved = (Get-Date).ToString('s'); Options = $Options; DnsV4 = @($V4); DnsV6 = @($V6) } |
+        ConvertTo-Json -Depth 4 | Set-Content -Path $StateFile -Encoding UTF8
+}
+
+function Get-RegValue([string]$Path, [string]$Name) {
+    (Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue).$Name
+}
+
+# Each Test-* returns a list of what is no longer as configured (empty = OK).
+function Test-Telemetry {
+    $bad = @()
+    foreach ($svc in 'DiagTrack', 'dmwappushservice') {
+        $s = Get-Service $svc -ErrorAction SilentlyContinue
+        if ($s -and $s.StartType -ne 'Disabled') { $bad += "serviço $svc ligado" }
+    }
+    foreach ($t in $TelemetryTasks) {
+        $task = Get-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue
+        if ($task -and $task.State -ne 'Disabled') { $bad += "tarefa $($t[1]) ligada" }
+    }
+    if ((Get-RegValue "$P\DataCollection" 'AllowTelemetry') -ne 1)          { $bad += 'política de dados de diagnóstico' }
+    if ((Get-RegValue "$P\Windows Search" 'DisableWebSearch') -ne 1)       { $bad += 'Bing na pesquisa' }
+    if ((Get-RegValue "$P\AdvertisingInfo" 'DisabledByGroupPolicy') -ne 1) { $bad += 'ID de anúncios' }
+    if ($isWin11) {
+        $widgetsOff = (Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests') -eq 0 -or
+                      -not (Get-AppxPackage -AllUsers -Name 'MicrosoftWindows.Client.WebExperience' -ErrorAction SilentlyContinue)
+        if (-not $widgetsOff) { $bad += 'Widgets' }
+    } elseif ((Get-RegValue "$P\Windows Feeds" 'EnableFeeds') -ne 0) { $bad += 'Notícias e interesses' }
+    $bad
+}
+
+function Test-Suggestions {
+    $CDM = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+    $bad = @()
+    foreach ($n in 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled') {
+        if ((Get-RegValue $CDM $n) -ne 0) { $bad += $n }
+    }
+    if ((Get-RegValue "$P\CloudContent" 'DisableWindowsConsumerFeatures') -ne 1) { $bad += 'instalação de apps sugeridos' }
+    $bad
+}
+
+# Apps from the removal list that are installed again (names as Windows shows them in Get-AppxPackage).
+function Get-ReturnedApps([string[]]$List) {
+    @($List | Where-Object { Get-AppxPackage -AllUsers -Name $_ -ErrorAction SilentlyContinue })
+}
+
+function Test-OneDrive {
+    $bad = @()
+    if ((Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") -or (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")) { $bad += 'OneDrive instalado de novo' }
+    if ((Get-RegValue "$P\OneDrive" 'DisableFileSyncNGSC') -ne 1) { $bad += 'política que bloqueia o OneDrive' }
+    $bad
+}
+
+function Test-Edge {
+    $E = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
+    $bad = @()
+    foreach ($n in 'StartupBoostEnabled', 'BackgroundModeEnabled', 'HubsSidebarEnabled', 'DiagnosticData', 'EdgeShoppingAssistantEnabled') {
+        if ((Get-RegValue $E $n) -ne 0) { $bad += $n }
+    }
+    $bad
+}
+
+function Test-Security {
+    $bad = @()
+    try { if ((Get-MpPreference -ErrorAction Stop).PUAProtection -ne 1) { $bad += 'bloqueio de apps indesejados' } } catch { }
+    if ((Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications' 'DisableEnhancedNotifications') -ne 1) { $bad += 'avisos informativos' }
+    $bad
+}
+
+function Test-RootFolders {
+    $bad = @()
+    $inetpub = Get-Item "$env:SystemDrive\inetpub" -Force -ErrorAction SilentlyContinue
+    if ($inetpub -and -not ($inetpub.Attributes -band [IO.FileAttributes]::Hidden)) { $bad += 'inetpub visível' }
+    if (Test-Path "$env:SystemDrive\PerfLogs") { $bad += 'PerfLogs de volta' }
+    $bad
+}
+
+function Test-Value([string]$Path, [string]$Name, $Expected, [string]$Label) {
+    if ((Get-RegValue $Path $Name) -ne $Expected) { $Label }
+}
+
+function Test-DNS([string[]]$V4) {
+    $bad = @()
+    foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -ne 'Disabled')) {
+        $current = @((Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses)
+        if (($current -join ',') -ne ($V4 -join ',')) { $bad += "$($adapter.Name): $(if ($current) { $current -join ', ' } else { 'automático' })" }
+    }
+    $bad
+}
+
+function Invoke-Check {
+    Write-Host "`nConfigure-Windows -Check — $osLabel" -ForegroundColor Green
+    if (-not (Test-Path $StateFile)) {
+        Write-Host '  Nenhuma resposta salva. Rode o Configure-Windows primeiro (versões antigas dele não salvavam as respostas).' -ForegroundColor Yellow
+        return
+    }
+    $state = Get-Content $StateFile -Raw | ConvertFrom-Json
+    $o = $state.Options
+    Write-Host "  Comparando com as respostas de $(([datetime]$state.Saved).ToString('dd/MM/yyyy HH:mm'))."
+    Write-Host '  Personalização não é conferida: são preferências que você pode ter mudado de propósito.' -ForegroundColor DarkGray
+
+    $appList = if ($o.OptionalApps) { $JunkApps + $OptionalApps } else { $JunkApps }
+    $returnedApps = @()
+    # Name shown, chosen?, test, fix
+    $items = @(
+        @{ Name = 'Telemetria';                    On = $o.Telemetry;    Test = { Test-Telemetry };   Fix = { Disable-TelemetryServices; Disable-TelemetryTasks; Set-TelemetryPolicies; Disable-Widgets } }
+        @{ Name = 'Sugestões e anúncios';          On = $o.Suggestions;  Test = { Test-Suggestions }; Fix = { Disable-Suggestions } }
+        @{ Name = 'Apps removidos';                On = $o.Apps;         Test = { $script:returnedApps = Get-ReturnedApps $appList; $script:returnedApps }; Fix = { Remove-Apps $script:returnedApps } }
+        @{ Name = 'OneDrive';                      On = $o.OneDrive;     Test = { Test-OneDrive };    Fix = { Remove-OneDrive } }
+        @{ Name = 'Políticas do Edge';             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
+        @{ Name = 'Segurança do Windows';          On = $o.Security;     Test = { Test-Security };    Fix = { Set-WindowsSecurity } }
+        @{ Name = 'Pastas do C:';                  On = $o.RootFolders;  Test = { Test-RootFolders }; Fix = { Clear-SystemDriveRoot } }
+        @{ Name = 'Apps de fabricante';            On = $o.NoDeviceApps; Test = { Test-Value 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 'download de apps de fabricante' }; Fix = { Disable-DeviceMetadata } }
+        @{ Name = 'Áreas de conta escondidas';     On = $o.HideAreas;    Test = { Test-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection' 'UILockdown' 1 'Proteção de contas visível' }; Fix = { Hide-SecurityAccountAreas } }
+        @{ Name = 'Caminhos longos';               On = $o.LongPaths;    Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1 'desligado' }; Fix = { Enable-LongPaths } }
+        @{ Name = 'Tela azul detalhada';           On = $o.VerboseBsod;  Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1 'desligada' }; Fix = { Enable-VerboseBsod } }
+        @{ Name = 'DNS';                           On = [bool]@($state.DnsV4).Count; Test = { Test-DNS @($state.DnsV4) }; Fix = { Set-DNS @($state.DnsV4) @($state.DnsV6 | Where-Object { $_ }) } }
+    )
+
+    $drifted = @()
+    Write-Host ''
+    foreach ($item in $items) {
+        if (-not $item.On) { continue }
+        $problems = @(& $item.Test | Where-Object { $_ })
+        if ($problems) {
+            $drifted += $item
+            Write-Host '  [VOLTOU] ' -ForegroundColor Yellow -NoNewline
+            Write-Host $item.Name -NoNewline
+            Write-Host "  ($($problems -join '; '))" -ForegroundColor DarkGray
+        } else {
+            Write-Host '  [OK]     ' -ForegroundColor Green -NoNewline
+            Write-Host $item.Name
+        }
+    }
+
+    if (-not $drifted) { Write-Host "`nTudo continua como você deixou." -ForegroundColor Green; return }
+    Write-Host ''
+    if (-not (Ask "Reaplicar o que voltou ($($drifted.Count) item(ns))?" $true)) { Write-Host 'Nada foi alterado.'; return }
+    foreach ($item in $drifted) { Invoke-Step $item.Name $item.Fix }
+    if ($script:Failures.Count) {
+        Write-Host "`nEtapas que falharam:" -ForegroundColor Yellow
+        $script:Failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+    }
+    Write-Step 'Concluído. Reinicie o computador.'
+}
+
+if ($Check) { Invoke-Check; return }
+
+#endregion
+
+
+#region ==================== 8. QUESTIONS ====================
 
 Write-Host "`nConfigure-Windows — $osLabel" -ForegroundColor Green
 if ($cv.EditionID -match 'Core') {
@@ -894,7 +1058,10 @@ if (-not $NoPrompt) {
 #endregion
 
 
-#region ==================== 8. EXECUTION ====================
+#region ==================== 9. EXECUTION ====================
+
+# --- Save the answers for -Check
+try { Save-State $opt $dnsV4 $dnsV6 } catch { Write-Warning "Não foi possível salvar as respostas para o -Check: $($_.Exception.Message)" }
 
 # --- Restore point (if there is already one from the last 24 h, Windows just warns and moves on)
 Write-Step 'Criando ponto de restauração'
@@ -975,5 +1142,6 @@ if ($script:Failures.Count) {
 }
 Write-Step 'Concluído. Reinicie o computador.'
 Write-Host 'Para desfazer: Revert-Configure-Windows.ps1' -ForegroundColor Green
+Write-Host 'Depois de uma atualização grande do Windows, confira com: Configure-Windows.ps1 -Check' -ForegroundColor DarkGray
 
 #endregion

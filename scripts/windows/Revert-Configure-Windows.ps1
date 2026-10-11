@@ -153,6 +153,11 @@ function Remove-EdgePolicies {
     Remove-Item 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+# Answers saved by Configure-Windows for -Check.
+function Remove-SavedAnswers {
+    Remove-Item (Join-Path $env:ProgramData 'TidyWin') -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 #endregion
 
 
@@ -168,6 +173,7 @@ Write-Step 'Início e Galeria de volta no Explorador';  Restore-HomeAndGallery
 Write-Step 'Pastas, periféricos e tela azul no padrão'; Restore-ExplorerAndDeviceDefaults
 Write-Step 'Pasta inetpub visível de novo';            Show-Inetpub
 Write-Step 'Removendo políticas do Edge';              Remove-EdgePolicies
+Write-Step 'Apagando as respostas salvas (TidyWin)';  Remove-SavedAnswers
 Write-Step 'Concluído. Reinicie o computador.'
 
 #endregion

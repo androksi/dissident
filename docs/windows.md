@@ -64,6 +64,14 @@ To use only the defaults, with no questions: `-NoPrompt`.
 |---|---|
 | DNS | Sets IPv4 and IPv6 DNS manually, with DNS over HTTPS (automatic template) on Windows 11. |
 
+## Check
+
+```powershell
+.\scripts\windows\Configure-Windows.ps1 -Check
+```
+
+Compares the PC with the answers saved the last time you ran `Configure-Windows` (in `%ProgramData%\TidyWin`), shows what came back after a Windows update and asks whether to reapply only that. Personalization is not checked.
+
 ## Revert
 
 ```powershell

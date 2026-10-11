@@ -33,6 +33,7 @@ shortcut() {
 echo "Shortcuts:"
 shortcut windows        scripts/windows/Configure-Windows.ps1
 shortcut windows-revert scripts/windows/Revert-Configure-Windows.ps1
+shortcut windows-check  scripts/windows/Configure-Windows.ps1       -Check
 shortcut apps           scripts/apps/Configure-Apps.ps1
 shortcut chrome         scripts/browsers/Configure-Chrome.ps1
 shortcut chrome-revert  scripts/browsers/Configure-Chrome.ps1  -Revert

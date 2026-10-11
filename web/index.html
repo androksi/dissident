@@ -54,6 +54,9 @@
   <h2 data-t="apply"></h2>
   <ul id="apply"></ul>
 
+  <h2 data-t="check"></h2>
+  <ul id="check"></ul>
+
   <h2 data-t="undo"></h2>
   <ul id="undo"></ul>
 
@@ -67,6 +70,8 @@
       intro: "Run in PowerShell. Click a command to copy it. Administrator rights are requested automatically. The scripts' prompts are in Brazilian Portuguese.",
       apply: "Apply",
       undo: "Undo",
+      check: "Check",
+      "windows-check": "Checks whether a Windows update brought back anything the windows command changed (telemetry, removed apps, OneDrive, policies) and offers to reapply only that.",
       copied: "copied",
       options: "What each option does",
       asks: "asks", yes: "default yes", no: "default no", def: "default", local: "default yes with a local account, no with a Microsoft account",
@@ -84,6 +89,8 @@
       intro: "Rode no PowerShell. Clique num comando para copiar. A permissão de administrador é pedida automaticamente.",
       apply: "Aplicar",
       undo: "Desfazer",
+      check: "Conferir",
+      "windows-check": "Confere se alguma atualização do Windows trouxe de volta algo que o comando windows mudou (telemetria, apps removidos, OneDrive, políticas) e oferece reaplicar só isso.",
       copied: "copiado",
       options: "O que cada opção faz",
       asks: "pergunta", yes: "padrão sim", no: "padrão não", def: "padrão", local: "padrão sim com conta local, não com conta Microsoft",
@@ -357,6 +364,17 @@
       ]),
     ],
 
+    "windows-check": [G("", "", [
+      I("What is checked", "O que é conferido", "auto", null,
+        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, OneDrive, Edge policies, Windows Security, C: drive folders, manufacturer apps, account areas, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
+        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, OneDrive, políticas do Edge, Segurança do Windows, pastas do C:, apps de fabricante, áreas de conta, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
+      I("Reapply", "Reaplicar", "ask", true,
+        "Shows each item as OK or as back, with what changed. Then asks whether to reapply only the items that came back. Answering no changes nothing.",
+        "Mostra cada item como OK ou como voltou, com o que mudou. Depois pergunta se quer reaplicar só os itens que voltaram. Respondendo não, nada é alterado."),
+      I("Saved answers", "Respostas salvas", "auto", null,
+        "The windows command saves your answers in %ProgramData%\\TidyWin. windows-revert deletes them. If you ran an older version that didn't save them, run windows once more.",
+        "O comando windows salva suas respostas em %ProgramData%\\TidyWin. O windows-revert apaga. Se você rodou uma versão antiga que não salvava, rode o windows mais uma vez."),
+    ])],
     "chrome-revert": [G("", "", [I("Policies", "Políticas", "auto", null,
       "Removes every Chrome policy set by TidyWin. Close and reopen Chrome.",
       "Remove todas as políticas do Chrome aplicadas pelo TidyWin. Feche e abra o Chrome.")])],
@@ -370,6 +388,7 @@
 
   const lists = {
     apply: ["windows", "apps", "chrome", "brave", "firefox"],
+    check: ["windows-check"],
     undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert"],
   };
 
