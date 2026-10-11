@@ -4,6 +4,7 @@
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
         powershell -ExecutionPolicy Bypass -File .\Clean-Windows.ps1
+    Add -Lang en or -Lang pt to skip the language question.
 
     First measures how much each item takes, then asks item by item (arrow-key menus; the default
     comes selected) and only then deletes. At the end, shows how much space was freed on C:.
@@ -16,15 +17,24 @@
         3. Execution ................. measure, ask, clean, report
 #>
 
+param(
+    [ValidateSet('en', 'pt')]
+    [string]$Lang
+)
+
 $ErrorActionPreference = 'Continue'
 
+
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
-    Write-Warning 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).'
+    Write-Warning $(if ($Lang -eq 'pt') { 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).' } else { 'Run in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).' })   # T is not defined yet
     return
 }
 
 
 #region ==================== 1. HELPERS ====================
+
+# Text in the chosen language: T 'English text' 'Texto em português'
+function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
@@ -37,15 +47,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  Número [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host "  Digite um número de 1 a $($Options.Count)." -ForegroundColor DarkYellow
+            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host '  (use as setas ↑ ↓ e Enter)' -ForegroundColor DarkGray
+        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -72,10 +82,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
     return $selected
 }
 
-# Yes/no question shown as a "Sim / Não" menu (same as Choose). The default comes selected.
+# Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @('Sim', 'Não') $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
 }
+
+# Language: asked once at the start (default English), unless -Lang was given.
+# Asked here, before the items below are defined, because their names and notes are picked at load time.
+if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
+$script:Lang = $Lang
 
 # Bytes → "3,4 GB", "250 MB"... Sizes use 1024, like File Explorer.
 function Format-Size([double]$Bytes) {
@@ -129,8 +144,8 @@ $Reports = @(
 function Get-UpdateBusyReason {
     $wu  = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
     $cbs = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
-    if ((Test-Path $wu) -or (Test-Path $cbs))             { return 'há uma atualização esperando o PC reiniciar' }
-    if (Get-Process TiWorker -ErrorAction SilentlyContinue) { return 'o Windows está instalando atualizações agora' }
+    if ((Test-Path $wu) -or (Test-Path $cbs))             { return (T 'an update is waiting for the PC to restart' 'há uma atualização esperando o PC reiniciar') }
+    if (Get-Process TiWorker -ErrorAction SilentlyContinue) { return (T 'Windows is installing updates right now' 'o Windows está instalando atualizações agora') }
 }
 
 # Recycle Bin size, from the shell (covers every drive).
@@ -145,20 +160,20 @@ function Get-RecycleBinSize {
 # Present: only listed when it returns true. Blocked: returns a reason to skip it right now.
 $Items = @(
     @{
-        Name = 'Arquivos temporários do seu usuário'; Default = $true
-        Note = 'Pasta %TEMP%. Os apps criam de novo o que precisarem.'
+        Name = (T 'Your user temporary files' 'Arquivos temporários do seu usuário'); Default = $true
+        Note = (T '%TEMP% folder. Apps recreate whatever they need.' 'Pasta %TEMP%. Os apps criam de novo o que precisarem.')
         Size = { Get-Size @($env:TEMP) }
         Clean = { Clear-Folder @($env:TEMP) }
     }
     @{
-        Name = 'Arquivos temporários do Windows'; Default = $true
-        Note = 'Pasta C:\Windows\Temp.'
+        Name = (T 'Windows temporary files' 'Arquivos temporários do Windows'); Default = $true
+        Note = (T 'C:\Windows\Temp folder.' 'Pasta C:\Windows\Temp.')
         Size = { Get-Size @("$WinDir\Temp") }
         Clean = { Clear-Folder @("$WinDir\Temp") }
     }
     @{
-        Name = 'Downloads do Windows Update'; Default = $true
-        Note = 'Atualizações já instaladas. Se alguma estiver pela metade, o Windows baixa de novo.'
+        Name = (T 'Windows Update downloads' 'Downloads do Windows Update'); Default = $true
+        Note = (T 'Updates already installed. If one is half done, Windows downloads it again.' 'Atualizações já instaladas. Se alguma estiver pela metade, o Windows baixa de novo.')
         Blocked = { Get-UpdateBusyReason }
         Size = { Get-Size @("$WinDir\SoftwareDistribution\Download") }
         Clean = {
@@ -168,8 +183,8 @@ $Items = @(
         }
     }
     @{
-        Name = 'Cache de Otimização de Entrega'; Default = $true
-        Note = 'Cópias de atualizações guardadas para compartilhar com outros PCs.'
+        Name = (T 'Delivery Optimization cache' 'Cache de Otimização de Entrega'); Default = $true
+        Note = (T 'Copies of updates kept to share with other PCs.' 'Cópias de atualizações guardadas para compartilhar com outros PCs.')
         Size = { Get-Size @($DOCache) }
         Clean = {
             try { Delete-DeliveryOptimizationCache -Force -ErrorAction Stop }
@@ -177,8 +192,8 @@ $Items = @(
         }
     }
     @{
-        Name = 'Relatórios de erro e despejos de memória'; Default = $true
-        Note = 'Relatórios de travamento de apps e da tela azul. Só servem para investigar um problema que já aconteceu.'
+        Name = (T 'Error reports and memory dumps' 'Relatórios de erro e despejos de memória'); Default = $true
+        Note = (T 'Crash reports from apps and blue screens. Only useful to investigate a problem that already happened.' 'Relatórios de travamento de apps e da tela azul. Só servem para investigar um problema que já aconteceu.')
         Size = { Get-Size ($Reports + "$WinDir\MEMORY.DMP") }
         Clean = {
             Clear-Folder $Reports
@@ -186,8 +201,8 @@ $Items = @(
         }
     }
     @{
-        Name = 'Cache de miniaturas e ícones'; Default = $false
-        Note = 'O Windows recria; pastas com muitas imagens abrem mais devagar na primeira vez. O Explorador reinicia rapidinho.'
+        Name = (T 'Thumbnail and icon cache' 'Cache de miniaturas e ícones'); Default = $false
+        Note = (T 'Windows recreates it; folders with many images open more slowly the first time. File Explorer restarts briefly.' 'O Windows recria; pastas com muitas imagens abrem mais devagar na primeira vez. O Explorador reinicia rapidinho.')
         Size = { Get-Size @("$Thumbs\thumbcache_*.db", "$Thumbs\iconcache_*.db") }
         Clean = {
             Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
@@ -197,21 +212,21 @@ $Items = @(
         }
     }
     @{
-        Name = 'Lixeira'; Default = $false
-        Note = 'Apaga de vez o que está na Lixeira, em todos os discos.'
+        Name = (T 'Recycle Bin' 'Lixeira'); Default = $false
+        Note = (T 'Permanently deletes what is in the Recycle Bin, on every drive.' 'Apaga de vez o que está na Lixeira, em todos os discos.')
         Size = { Get-RecycleBinSize }
         Clean = { Clear-RecycleBin -Force -ErrorAction SilentlyContinue }
     }
     @{
-        Name = 'Componentes antigos do Windows'; Default = $false
-        Note = 'Versões antigas de arquivos do sistema deixadas pelas atualizações (DISM). Seguro, mas pode levar vários minutos.'
+        Name = (T 'Old Windows components' 'Componentes antigos do Windows'); Default = $false
+        Note = (T 'Old versions of system files left behind by updates (DISM). Safe, but can take several minutes.' 'Versões antigas de arquivos do sistema deixadas pelas atualizações (DISM). Seguro, mas pode levar vários minutos.')
         Blocked = { Get-UpdateBusyReason }
         Size = $null
         Clean = { & Dism.exe /Online /Cleanup-Image /StartComponentCleanup /Quiet | Out-Null }
     }
     @{
-        Name = 'Windows.old (instalação anterior)'; Default = $false
-        Note = 'Depois de apagar, não dá mais para voltar à versão anterior do Windows. Seus arquivos que ficaram lá também somem.'
+        Name = (T 'Windows.old (previous installation)' 'Windows.old (instalação anterior)'); Default = $false
+        Note = (T 'After deleting it, you can no longer go back to the previous version of Windows. Any of your files left there are gone too.' 'Depois de apagar, não dá mais para voltar à versão anterior do Windows. Seus arquivos que ficaram lá também somem.')
         Present = { Test-Path $WinOld }
         Size = { Get-Size @($WinOld) }
         Clean = {
@@ -230,7 +245,7 @@ $Items = @(
 Write-Host "`nClean-Windows" -ForegroundColor Green
 
 # --- Measure
-Write-Step 'Medindo o que pode ser limpo'
+Write-Step (T 'Measuring what can be cleaned' 'Medindo o que pode ser limpo')
 $Items = @($Items | Where-Object { -not $_.Present -or (& $_.Present) })
 foreach ($item in $Items) {
     $item.Bytes = if ($item.Size) { & $item.Size } else { $null }
@@ -239,37 +254,37 @@ foreach ($item in $Items) {
 }
 
 # --- Ask (items with nothing to clean are skipped)
-Write-Step 'O que limpar'
-Write-Host '  A resposta padrão já vem selecionada.'
+Write-Step (T 'What to clean' 'O que limpar')
+Write-Host (T '  The default answer comes selected.' '  A resposta padrão já vem selecionada.')
 $chosen = @()
 foreach ($item in $Items) {
     if ($null -ne $item.Bytes -and $item.Bytes -lt 1MB) { continue }
     $reason = if ($item.Blocked) { & $item.Blocked }
     if ($reason) {
         Write-Host ''
-        Write-Host "  Pulado: $($item.Name) — $reason. Reinicie o PC e rode de novo." -ForegroundColor DarkYellow
+        Write-Host (T "  Skipped: $($item.Name) — $reason. Restart the PC and run again." "  Pulado: $($item.Name) — $reason. Reinicie o PC e rode de novo.") -ForegroundColor DarkYellow
         continue
     }
     Write-Host ''
     Write-Host "  $($item.Note)" -ForegroundColor DarkGray
     $size = if ($null -eq $item.Bytes) { '' } else { " ($(Format-Size $item.Bytes))" }
-    if (Ask "Limpar: $($item.Name)$size?" $item.Default) { $chosen += $item }
+    if (Ask (T "Clean: $($item.Name)$size?" "Limpar: $($item.Name)$size?") $item.Default) { $chosen += $item }
 }
-if (-not $chosen) { Write-Host "`nNada foi apagado."; return }
+if (-not $chosen) { Write-Host (T "`nNothing was deleted." "`nNada foi apagado."); return }
 
 # --- Clean
 $freeBefore = Get-FreeSpace
 foreach ($item in $chosen) {
     Write-Step $item.Name
-    try { & $item.Clean; Write-Host '  feito' }
-    catch { Write-Warning "Falhou: $($_.Exception.Message)" }
+    try { & $item.Clean; Write-Host (T '  done' '  feito') }
+    catch { Write-Warning (T "Failed: $($_.Exception.Message)" "Falhou: $($_.Exception.Message)") }
 }
 
 # --- Report
 $freed = (Get-FreeSpace) - $freeBefore
 Write-Host ''
-if ($freed -gt 0) { Write-Host "Pronto. Espaço liberado no $($env:SystemDrive): $(Format-Size $freed)." -ForegroundColor Green }
-else              { Write-Host 'Pronto.' -ForegroundColor Green }
-Write-Host 'Arquivos em uso foram pulados; reinicie o PC e rode de novo para pegar o resto.' -ForegroundColor DarkGray
+if ($freed -gt 0) { Write-Host (T "Done. Space freed on $($env:SystemDrive): $(Format-Size $freed)." "Pronto. Espaço liberado no $($env:SystemDrive): $(Format-Size $freed).") -ForegroundColor Green }
+else              { Write-Host (T 'Done.' 'Pronto.') -ForegroundColor Green }
+Write-Host (T 'Files in use were skipped; restart the PC and run again to get the rest.' 'Arquivos em uso foram pulados; reinicie o PC e rode de novo para pegar o resto.') -ForegroundColor DarkGray
 
 #endregion

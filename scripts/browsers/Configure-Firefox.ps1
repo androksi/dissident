@@ -7,6 +7,7 @@
         powershell -ExecutionPolicy Bypass -File .\Configure-Firefox.ps1
     UNDO EVERYTHING:
         powershell -ExecutionPolicy Bypass -File .\Configure-Firefox.ps1 -Revert
+    Add -Lang en or -Lang pt to skip the language question.
 
     Uses Firefox's official policies (github.com/mozilla/policy-templates). They apply even if
     Firefox is installed later. Close and reopen Firefox to apply. It will show
@@ -28,7 +29,8 @@
         4. Execution
 #>
 param(
-    [switch]$Revert
+    [switch]$Revert,
+    [ValidateSet('en', 'pt')][string]$Lang
 )
 
 $ErrorActionPreference = 'Continue'
@@ -38,6 +40,9 @@ $F = 'HKLM:\SOFTWARE\Policies\Mozilla\Firefox'
 #region ==================== 1. HELPERS ====================
 
 $script:Failures = 0
+
+# Text in the chosen language: T 'English text' 'Texto em português'
+function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 # Writes the policy (in $F or in a subkey) and prints the result: [OK] or [ERRO].
 function Set-Policy([string]$SubKey, [string]$Name, [object]$Value, [string]$Description, [string]$Type = 'DWord') {
@@ -52,7 +57,7 @@ function Set-Policy([string]$SubKey, [string]$Name, [object]$Value, [string]$Des
         Write-Host "$label = $shown" -ForegroundColor DarkGray
     } catch {
         $script:Failures++
-        Write-Host '  [ERRO] ' -ForegroundColor Red -NoNewline
+        Write-Host (T '  [ERROR] ' '  [ERRO] ') -ForegroundColor Red -NoNewline
         Write-Host "$Description ($label): $($_.Exception.Message)"
     }
 }
@@ -69,15 +74,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  Número [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host "  Digite um número de 1 a $($Options.Count)." -ForegroundColor DarkYellow
+            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host '  (use as setas ↑ ↓ e Enter)' -ForegroundColor DarkGray
+        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -104,10 +109,14 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
     return $selected
 }
 
-# Yes/no question shown as a "Sim / Não" menu (same as Choose). The default comes selected.
+# Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @('Sim', 'Não') $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
 }
+
+# Language: asked once at the start (default English), unless -Lang was given.
+if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
+$script:Lang = $Lang
 
 #endregion
 
@@ -115,39 +124,39 @@ function Ask([string]$Question, [bool]$Default) {
 #region ==================== 2. POLICIES ====================
 
 function Set-Telemetry {
-    Set-Policy ''               'DisableTelemetry'           1 'Telemetria: off'
-    Set-Policy ''               'DisableFirefoxStudies'      1 'Estudos e experimentos remotos: off'
-    Set-Policy ''               'DisableDefaultBrowserAgent' 1 'Agente de navegador padrão (tarefa): off'
-    Set-Policy ''               'DontCheckDefaultBrowser'    1 'Aviso "não é o navegador padrão": off'
+    Set-Policy ''               'DisableTelemetry'           1 (T 'Telemetry: off' 'Telemetria: off')
+    Set-Policy ''               'DisableFirefoxStudies'      1 (T 'Studies and remote experiments: off' 'Estudos e experimentos remotos: off')
+    Set-Policy ''               'DisableDefaultBrowserAgent' 1 (T 'Default browser agent (task): off' 'Agente de navegador padrão (tarefa): off')
+    Set-Policy ''               'DontCheckDefaultBrowser'    1 (T '"Not your default browser" prompt: off' 'Aviso "não é o navegador padrão": off')
 }
 
 function Set-SponsoredAndRecommendations {
-    Set-Policy 'FirefoxHome'    'SponsoredTopSites'          0 'Atalhos patrocinados na nova aba: off'
-    Set-Policy 'FirefoxHome'    'SponsoredStories'           0 'Matérias patrocinadas na nova aba: off'
-    Set-Policy 'FirefoxHome'    'Stories'                    0 'Matérias recomendadas na nova aba: off'
-    Set-Policy 'FirefoxSuggest' 'SponsoredSuggestions'       0 'Sugestões patrocinadas na barra: off'
-    Set-Policy 'FirefoxSuggest' 'WebSuggestions'             0 'Sugestões da Mozilla na barra: off'
-    Set-Policy 'FirefoxSuggest' 'ImproveSuggest'             0 'Enviar o que digita para a Mozilla: off'
-    Set-Policy 'UserMessaging'  'ExtensionRecommendations'   0 'Recomendação de extensões: off'
-    Set-Policy 'UserMessaging'  'FeatureRecommendations'     0 'Recomendação de recursos: off'
-    Set-Policy 'UserMessaging'  'MoreFromMozilla'            0 '"Mais da Mozilla" nas configurações: off'
-    Set-Policy 'UserMessaging'  'SkipOnboarding'             1 'Telas de boas-vindas: off'
-    Set-Policy 'UserMessaging'  'UrlbarInterventions'        0 'Dicas na barra de endereço: off'
-    Set-Policy 'UserMessaging'  'FirefoxLabs'                0 'Convites para recursos experimentais: off'
-    Set-Policy ''               'NoDefaultBookmarks'         1 'Favoritos de fábrica em perfis novos: off'
+    Set-Policy 'FirefoxHome'    'SponsoredTopSites'          0 (T 'Sponsored shortcuts on the new tab: off' 'Atalhos patrocinados na nova aba: off')
+    Set-Policy 'FirefoxHome'    'SponsoredStories'           0 (T 'Sponsored stories on the new tab: off' 'Matérias patrocinadas na nova aba: off')
+    Set-Policy 'FirefoxHome'    'Stories'                    0 (T 'Recommended stories on the new tab: off' 'Matérias recomendadas na nova aba: off')
+    Set-Policy 'FirefoxSuggest' 'SponsoredSuggestions'       0 (T 'Sponsored suggestions in the address bar: off' 'Sugestões patrocinadas na barra: off')
+    Set-Policy 'FirefoxSuggest' 'WebSuggestions'             0 (T 'Suggestions from Mozilla in the address bar: off' 'Sugestões da Mozilla na barra: off')
+    Set-Policy 'FirefoxSuggest' 'ImproveSuggest'             0 (T 'Send what you type to Mozilla: off' 'Enviar o que digita para a Mozilla: off')
+    Set-Policy 'UserMessaging'  'ExtensionRecommendations'   0 (T 'Extension recommendations: off' 'Recomendação de extensões: off')
+    Set-Policy 'UserMessaging'  'FeatureRecommendations'     0 (T 'Feature recommendations: off' 'Recomendação de recursos: off')
+    Set-Policy 'UserMessaging'  'MoreFromMozilla'            0 (T '"More from Mozilla" in settings: off' '"Mais da Mozilla" nas configurações: off')
+    Set-Policy 'UserMessaging'  'SkipOnboarding'             1 (T 'Welcome screens: off' 'Telas de boas-vindas: off')
+    Set-Policy 'UserMessaging'  'UrlbarInterventions'        0 (T 'Address bar tips: off' 'Dicas na barra de endereço: off')
+    Set-Policy 'UserMessaging'  'FirefoxLabs'                0 (T 'Invitations to experimental features: off' 'Convites para recursos experimentais: off')
+    Set-Policy ''               'NoDefaultBookmarks'         1 (T 'Default bookmarks in new profiles: off' 'Favoritos de fábrica em perfis novos: off')
 }
 
 # Firefox 149+ (AIControls) and older versions (GenerativeAI). Page translation runs on your PC without
 # sending anything out, so it stays available unless you choose to turn it off (that also hides its
 # address bar icon; there is no way to hide only the icon).
 function Set-AI([bool]$KeepTranslations) {
-    Set-Policy 'AIControls\Default'      'Value' 'blocked'   'Recursos de IA (padrão geral): off'  'String'
+    Set-Policy 'AIControls\Default'      'Value' 'blocked'   (T 'AI features (general default): off' 'Recursos de IA (padrão geral): off')  'String'
     if ($KeepTranslations) {
-        Set-Policy 'AIControls\Translations' 'Value' 'available' 'Tradução de páginas (local): mantida' 'String'
+        Set-Policy 'AIControls\Translations' 'Value' 'available' (T 'Page translation (local): kept' 'Tradução de páginas (local): mantida') 'String'
     } else {
-        Set-Policy 'AIControls\Translations' 'Value' 'blocked' 'Tradução de páginas: off'            'String'
+        Set-Policy 'AIControls\Translations' 'Value' 'blocked' (T 'Page translation: off' 'Tradução de páginas: off')            'String'
     }
-    Set-Policy 'GenerativeAI'   'Enabled'                    0 'Recursos de IA (versões antigas): off'
+    Set-Policy 'GenerativeAI'   'Enabled'                    0 (T 'AI features (older versions): off' 'Recursos de IA (versões antigas): off')
 }
 
 # Buttons that show up in the address bar when a site allows them. Set through the "Preferences" policy
@@ -158,10 +167,10 @@ function Set-AI([bool]$KeepTranslations) {
 #   browser.translations.enable                                   translation icon, only if translation is off
 function Set-AddressBarButtons([bool]$KeepTranslations) {
     $prefs = [ordered]@{
-        'browser.taskbarTabs.enabled'                                  = '"Adicionar à barra de tarefas": off'
-        'media.videocontrols.picture-in-picture.urlbar-button.enabled' = 'Botão de Picture-in-Picture: off'
+        'browser.taskbarTabs.enabled'                                  = (T '"Add to taskbar": off' '"Adicionar à barra de tarefas": off')
+        'media.videocontrols.picture-in-picture.urlbar-button.enabled' = (T 'Picture-in-Picture button: off' 'Botão de Picture-in-Picture: off')
     }
-    if (-not $KeepTranslations) { $prefs['browser.translations.enable'] = 'Ícone de tradução: off' }
+    if (-not $KeepTranslations) { $prefs['browser.translations.enable'] = (T 'Translation icon: off' 'Ícone de tradução: off') }
     $entries = foreach ($name in $prefs.Keys) { '"{0}":{{"Value":false,"Status":"locked"}}' -f $name }
     $json = '{' + ($entries -join ',') + '}'
     Set-Policy '' 'Preferences' @($json) ($prefs.Values -join '; ') 'MultiString'
@@ -178,7 +187,7 @@ function Set-Extensions {
         '"{0}":{{"installation_mode":"normal_installed","install_url":"https://addons.mozilla.org/firefox/downloads/latest/{0}/latest.xpi","private_browsing":true}}' -f $id
     }
     $json = '{' + ($entries -join ',') + '}'
-    Set-Policy '' 'ExtensionSettings' @($json) "Instaladas: $($extensions.Values -join ', ')" 'MultiString'
+    Set-Policy '' 'ExtensionSettings' @($json) (T "Installed: $($extensions.Values -join ', ')" "Instaladas: $($extensions.Values -join ', ')") 'MultiString'
 }
 
 # Before turning it off: warns if Firefox itself has saved passwords (they are hidden, not deleted).
@@ -188,21 +197,21 @@ function Set-BitwardenOnly {
         try { $saved += @((Get-Content $_.FullName -Raw | ConvertFrom-Json).logins).Count } catch { }
     }
     if ($saved -gt 0) {
-        Write-Host "  ATENÇÃO: o Firefox tem $saved senha(s) salva(s). Elas não serão apagadas, só ficarão ocultas." -ForegroundColor Yellow
-        Write-Host '  Para levar ao Bitwarden: Firefox → about:logins → menu (...) → Exportar senhas;' -ForegroundColor Yellow
-        Write-Host '  depois, no cofre web do Bitwarden: Ferramentas → Importar dados → Firefox (csv). Apague o .csv depois.' -ForegroundColor Yellow
+        Write-Host (T "  WARNING: Firefox has $saved saved password(s). They will not be deleted, only hidden." "  ATENÇÃO: o Firefox tem $saved senha(s) salva(s). Elas não serão apagadas, só ficarão ocultas.") -ForegroundColor Yellow
+        Write-Host (T '  To move them to Bitwarden: Firefox → about:logins → menu (...) → Export passwords;' '  Para levar ao Bitwarden: Firefox → about:logins → menu (...) → Exportar senhas;') -ForegroundColor Yellow
+        Write-Host (T '  then, in the Bitwarden web vault: Tools → Import data → Firefox (csv). Delete the .csv afterwards.' '  depois, no cofre web do Bitwarden: Ferramentas → Importar dados → Firefox (csv). Apague o .csv depois.') -ForegroundColor Yellow
     }
-    Set-Policy ''               'PasswordManagerEnabled'     0 'Gerenciador de senhas do Firefox: off'
-    Set-Policy ''               'OfferToSaveLogins'          0 'Oferecer para salvar senhas: off'
-    Set-Policy ''               'AutofillAddressEnabled'     0 'Salvar/preencher endereços: off'
-    Set-Policy ''               'AutofillCreditCardEnabled'  0 'Salvar/preencher cartões: off'
+    Set-Policy ''               'PasswordManagerEnabled'     0 (T 'Firefox password manager: off' 'Gerenciador de senhas do Firefox: off')
+    Set-Policy ''               'OfferToSaveLogins'          0 (T 'Offer to save passwords: off' 'Oferecer para salvar senhas: off')
+    Set-Policy ''               'AutofillAddressEnabled'     0 (T 'Save/fill addresses: off' 'Salvar/preencher endereços: off')
+    Set-Policy ''               'AutofillCreditCardEnabled'  0 (T 'Save/fill payment cards: off' 'Salvar/preencher cartões: off')
 }
 
 # The three optional choices asked at the start.
 function Set-OptionalPrivacy([bool]$NoSearchSuggestions, [bool]$NoPrefetch, [bool]$HttpsOnly) {
-    if ($NoSearchSuggestions) { Set-Policy '' 'SearchSuggestEnabled' 0 'Sugestões de pesquisa: off' }
-    if ($NoPrefetch)          { Set-Policy '' 'NetworkPrediction'    0 'Pré-carregamento de páginas: off' }
-    if ($HttpsOnly)           { Set-Policy '' 'HttpsOnlyMode' 'enabled' 'Modo somente HTTPS: ligado' 'String' }
+    if ($NoSearchSuggestions) { Set-Policy '' 'SearchSuggestEnabled' 0 (T 'Search suggestions: off' 'Sugestões de pesquisa: off') }
+    if ($NoPrefetch)          { Set-Policy '' 'NetworkPrediction'    0 (T 'Page preloading: off' 'Pré-carregamento de páginas: off') }
+    if ($HttpsOnly)           { Set-Policy '' 'HttpsOnlyMode' 'enabled' (T 'HTTPS-Only Mode: on' 'Modo somente HTTPS: ligado') 'String' }
 }
 
 
@@ -212,18 +221,18 @@ function Set-OptionalPrivacy([bool]$NoSearchSuggestions, [bool]$NoPrefetch, [boo
 #region ==================== 3. REVERT ====================
 
 function Remove-Policies {
-    Write-Step 'Removendo as políticas do Firefox'
+    Write-Step (T 'Removing Firefox policies' 'Removendo as políticas do Firefox')
     if (Test-Path $F) {
         Get-ChildItem $F -Recurse | ForEach-Object {
             $sub = $_.Name -replace '^.*\\Mozilla\\Firefox\\?', ''
-            $_.Property | ForEach-Object { Write-Host "  [removida] $sub\$_" -ForegroundColor DarkGray }
+            $_.Property | ForEach-Object { Write-Host (T "  [removed] $sub\$_" "  [removida] $sub\$_") -ForegroundColor DarkGray }
         }
-        (Get-Item $F).Property | ForEach-Object { Write-Host "  [removida] $_" -ForegroundColor DarkGray }
+        (Get-Item $F).Property | ForEach-Object { Write-Host (T "  [removed] $_" "  [removida] $_") -ForegroundColor DarkGray }
         Remove-Item $F -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "`nPronto. Feche e abra o Firefox." -ForegroundColor Green
-        Write-Host 'Obs.: o uBlock Origin e o Bitwarden continuam instalados; remova em about:addons se quiser.'
+        Write-Host (T "`nDone. Close and reopen Firefox." "`nPronto. Feche e abra o Firefox.") -ForegroundColor Green
+        Write-Host (T 'Note: uBlock Origin and Bitwarden remain installed; remove them in about:addons if you want.' 'Obs.: o uBlock Origin e o Bitwarden continuam instalados; remova em about:addons se quiser.')
     } else {
-        Write-Host '  Nenhuma política do Firefox encontrada; nada a fazer.'
+        Write-Host (T '  No Firefox policies found; nothing to do.' '  Nenhuma política do Firefox encontrada; nada a fazer.')
     }
 }
 
@@ -240,33 +249,34 @@ $installed = @(
     "$env:LOCALAPPDATA\Mozilla Firefox\firefox.exe"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $installed) {
-    Write-Host 'Firefox não encontrado. As políticas serão aplicadas mesmo assim e valem quando você instalar.' -ForegroundColor DarkYellow
+    Write-Host (T 'Firefox not found. The policies will be applied anyway and take effect when you install it.' 'Firefox não encontrado. As políticas serão aplicadas mesmo assim e valem quando você instalar.') -ForegroundColor DarkYellow
 }
 
 Write-Host "`nConfigure-Firefox" -ForegroundColor Green
 
 # --- Questions
-Write-Host '  Quatro escolhas (setas e Enter; o padrão já vem selecionado):'
-$noSearchSuggestions = Ask 'Desativar as sugestões de pesquisa enquanto digita? (o que você digita vai ao buscador em tempo real)' $false
-$noPrefetch          = Ask 'Desativar o pré-carregamento de páginas? (sites ficam sabendo de links que você nem abriu)' $true
-$httpsOnly           = Ask 'Ligar o modo somente HTTPS? (avisa antes de abrir sites sem conexão segura)' $true
-$keepTranslations    = Ask 'Manter a tradução de páginas? (roda no seu PC; se desligar, o ícone de traduzir some da barra de endereço)' $true
+Write-Host (T '  Four choices (arrows and Enter; the default is already selected):' '  Quatro escolhas (setas e Enter; o padrão já vem selecionado):')
+$noSearchSuggestions = Ask (T 'Turn off search suggestions while typing? (what you type goes to the search engine in real time)' 'Desativar as sugestões de pesquisa enquanto digita? (o que você digita vai ao buscador em tempo real)') $false
+$noPrefetch          = Ask (T 'Turn off page preloading? (sites learn about links you never opened)' 'Desativar o pré-carregamento de páginas? (sites ficam sabendo de links que você nem abriu)') $true
+$httpsOnly           = Ask (T 'Turn on HTTPS-Only Mode? (warns before opening sites without a secure connection)' 'Ligar o modo somente HTTPS? (avisa antes de abrir sites sem conexão segura)') $true
+$keepTranslations    = Ask (T 'Keep page translation? (runs on your PC; if turned off, the translate icon disappears from the address bar)' 'Manter a tradução de páginas? (roda no seu PC; se desligar, o ícone de traduzir some da barra de endereço)') $true
 
 # --- Apply
-Write-Step 'Telemetria';                   Set-Telemetry
-Write-Step 'Patrocinados e recomendações'; Set-SponsoredAndRecommendations
-Write-Step 'Inteligência artificial';      Set-AI $keepTranslations
-Write-Step 'Botões da barra de endereço';  Set-AddressBarButtons $keepTranslations
-Write-Step 'Extensões';                    Set-Extensions
-Write-Step 'Senhas (só o Bitwarden)';      Set-BitwardenOnly
-Write-Step 'Escolhas de privacidade';      Set-OptionalPrivacy $noSearchSuggestions $noPrefetch $httpsOnly
+Write-Step (T 'Telemetry' 'Telemetria');                   Set-Telemetry
+Write-Step (T 'Sponsored content and recommendations' 'Patrocinados e recomendações'); Set-SponsoredAndRecommendations
+Write-Step (T 'Artificial intelligence' 'Inteligência artificial');      Set-AI $keepTranslations
+Write-Step (T 'Address bar buttons' 'Botões da barra de endereço');  Set-AddressBarButtons $keepTranslations
+Write-Step (T 'Extensions' 'Extensões');                    Set-Extensions
+Write-Step (T 'Passwords (Bitwarden only)' 'Senhas (só o Bitwarden)');      Set-BitwardenOnly
+Write-Step (T 'Privacy choices' 'Escolhas de privacidade');      Set-OptionalPrivacy $noSearchSuggestions $noPrefetch $httpsOnly
 
 # --- Done
-if ($script:Failures) { Write-Host "`n$($script:Failures) política(s) falharam — veja as linhas [ERRO] acima." -ForegroundColor Yellow }
-Write-Host "`nPronto. Feche e abra o Firefox (ou confira em about:policies)." -ForegroundColor Green
+if ($script:Failures) { Write-Host (T "`n$($script:Failures) policy(ies) failed — see the [ERROR] lines above." "`n$($script:Failures) política(s) falharam — veja as linhas [ERRO] acima.") -ForegroundColor Yellow }
+Write-Host (T "`nDone. Close and reopen Firefox (or check about:policies)." "`nPronto. Feche e abra o Firefox (ou confira em about:policies).") -ForegroundColor Green
 if (Get-Process firefox -ErrorAction SilentlyContinue) {
-    Write-Host 'O Firefox está aberto: feche todas as janelas dele para as mudanças valerem.' -ForegroundColor DarkYellow
+    Write-Host (T 'Firefox is open: close all of its windows for the changes to take effect.' 'O Firefox está aberto: feche todas as janelas dele para as mudanças valerem.') -ForegroundColor DarkYellow
 }
+if ($script:Lang -eq 'pt') {
 Write-Host @'
 
 Google só com links (sem IA e sem blocos extras) como pesquisa padrão — faça uma vez:
@@ -277,5 +287,17 @@ Google só com links (sem IA e sem blocos extras) como pesquisa padrão — faç
        Atalho (opcional): @g
   3. No topo, em "Mecanismo de pesquisa padrão", escolha "Google Web"
 '@
+} else {
+Write-Host @'
+
+Google with links only (no AI and no extra blocks) as the default search — do this once:
+  1. Open about:preferences#search
+  2. Under "Search Shortcuts", click "Add"
+       Name:  Google Web
+       URL:   https://www.google.com/search?q=%s&udm=14
+       Keyword (optional): @g
+  3. At the top, under "Default Search Engine", choose "Google Web"
+'@
+}
 
 #endregion

@@ -16,6 +16,7 @@
     If a step fails, the script reports it and moves on to the next one.
     Undo: Revert-Configure-Windows.ps1 (removed apps come back through the Microsoft Store).
     Safe to run more than once. Restart the PC at the end.
+    Language: asked at the start (English by default); skip the question with -Lang en or -Lang pt.
 
     FILE LAYOUT
         1. Helpers ................... registry, prompts, steps
@@ -30,18 +31,18 @@
 #>
 param(
     [switch]$NoPrompt,
-    [switch]$Check
+    [switch]$Check,
+    [ValidateSet('en', 'pt')]
+    [string]$Lang
 )
 
 $ErrorActionPreference = 'Continue'
 
-if ($PSVersionTable.PSEdition -ne 'Desktop') {
-    Write-Warning 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).'
-    return
-}
-
 
 #region ==================== 1. HELPERS ====================
+
+# Text in the chosen language: T 'English text' 'Texto em português'
+function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 # Writes a registry value, creating the key if it doesn't exist.
 function Set-Reg {
@@ -53,10 +54,10 @@ function Set-Reg {
 # Step title in the terminal.
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
-# Yes/no question shown as a "Sim / Não" menu (same as Choose). The default comes selected.
+# Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 # With -NoPrompt, Choose returns the default right away.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @('Sim', 'Não') $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
@@ -69,15 +70,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  Número [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host "  Digite um número de 1 a $($Options.Count)." -ForegroundColor DarkYellow
+            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host '  (use as setas ↑ ↓ e Enter)' -ForegroundColor DarkGray
+        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -113,7 +114,7 @@ function Read-IP([string]$Question, [string]$Family, [bool]$Optional) {
         # (TryParse accepts short forms like "1.1.1"; for IPv4 all 4 octets are required)
         $formatOk = if ($Family -eq 'InterNetwork') { $answer -match '^\d{1,3}(\.\d{1,3}){3}$' } else { $answer -match ':' }
         if ($formatOk -and [System.Net.IPAddress]::TryParse($answer, [ref]$ip) -and $ip.AddressFamily -eq $Family) { return $ip.ToString() }
-        Write-Host "    Endereço inválido. Exemplo: $(if ($Family -eq 'InterNetwork') { '1.1.1.1' } else { '2606:4700:4700::1111' })" -ForegroundColor DarkYellow
+        Write-Host "    $(T 'Invalid address. Example:' 'Endereço inválido. Exemplo:') $(if ($Family -eq 'InterNetwork') { '1.1.1.1' } else { '2606:4700:4700::1111' })" -ForegroundColor DarkYellow
     }
 }
 
@@ -124,8 +125,17 @@ function Invoke-Step([string]$Title, [scriptblock]$Body) {
     try { & $Body }
     catch {
         $script:Failures += "${Title}: $($_.Exception.Message)"
-        Write-Warning "Esta etapa falhou ($($_.Exception.Message)). Seguindo para a próxima."
+        Write-Warning (T "This step failed ($($_.Exception.Message)). Moving on to the next one." "Esta etapa falhou ($($_.Exception.Message)). Seguindo para a próxima.")
     }
+}
+
+# Language: asked once at the start (default English), unless -Lang was given.
+if (-not $Lang) { $Lang = if ($NoPrompt) { 'en' } else { @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] } }
+$script:Lang = $Lang
+
+if ($PSVersionTable.PSEdition -ne 'Desktop') {
+    Write-Warning (T 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).' 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).')
+    return
 }
 
 #endregion
@@ -167,7 +177,7 @@ function Disable-TelemetryServices {
         if (Get-Service $svc -ErrorAction SilentlyContinue) {
             Stop-Service $svc -Force -ErrorAction SilentlyContinue
             Set-Service  $svc -StartupType Disabled -ErrorAction SilentlyContinue
-            Write-Host "  desativado: $svc"
+            Write-Host "  $(T 'disabled' 'desativado'): $svc"
         }
     }
 }
@@ -190,7 +200,7 @@ function Disable-TelemetryTasks {
     foreach ($t in $TelemetryTasks) {
         if (Get-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue) {
             Disable-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue | Out-Null
-            Write-Host "  desativada: $($t[1])"
+            Write-Host "  $(T 'disabled' 'desativada'): $($t[1])"
         }
     }
     # (Older versions of this script disabled the Compatibility Appraiser; here it is re-enabled.)
@@ -198,7 +208,7 @@ function Disable-TelemetryTasks {
         $task = Get-ScheduledTask -TaskPath '\Microsoft\Windows\Application Experience\' -TaskName $name -ErrorAction SilentlyContinue
         if ($task -and $task.State -eq 'Disabled') {
             Enable-ScheduledTask -InputObject $task -ErrorAction SilentlyContinue | Out-Null
-            Write-Host "  religada: $name (necessária para a atualização anual)"
+            Write-Host (T "  re-enabled: $name (needed for the yearly feature update)" "  religada: $name (necessária para a atualização anual)")
         }
     }
 }
@@ -230,7 +240,7 @@ function Set-TelemetryPolicies {
     Set-Reg 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 1
     # Delivery Optimization: updates only from Microsoft, no sharing with other PCs
     Set-Reg "$P\DeliveryOptimization" 'DODownloadMode' 0
-    Write-Host '  políticas aplicadas'
+    Write-Host (T '  policies applied' '  políticas aplicadas')
 }
 
 # Widgets (Windows 11) / News and interests (Windows 10).
@@ -241,17 +251,17 @@ function Disable-Widgets {
         try {
             if (-not (Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh')) { New-Item 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' -Force -ErrorAction Stop | Out-Null }
             New-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' -Name 'AllowNewsAndInterests' -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
-            Write-Host '  Widgets desativados por política'
+            Write-Host (T '  Widgets disabled by policy' '  Widgets desativados por política')
         } catch {
-            Write-Host '  (o Windows protege a política dos Widgets; removendo o pacote dos Widgets em vez disso)' -ForegroundColor DarkYellow
+            Write-Host (T '  (Windows protects the Widgets policy; removing the Widgets package instead)' '  (o Windows protege a política dos Widgets; removendo o pacote dos Widgets em vez disso)') -ForegroundColor DarkYellow
             $widgets = Get-AppxPackage -AllUsers -Name 'MicrosoftWindows.Client.WebExperience' -ErrorAction SilentlyContinue
-            if (-not $widgets) { Write-Host '  Widgets já não estão instalados' }
+            if (-not $widgets) { Write-Host (T '  Widgets are not installed anymore' '  Widgets já não estão instalados') }
             foreach ($pkg in $widgets) {
                 try {
                     Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
-                    Write-Host '  Widgets removidos'
+                    Write-Host (T '  Widgets removed' '  Widgets removidos')
                 } catch {
-                    Write-Host "  (não foi possível remover os Widgets: $($_.Exception.Message.Trim()). Desligue em Configurações → Personalização → Barra de tarefas.)" -ForegroundColor DarkYellow
+                    Write-Host (T "  (could not remove Widgets: $($_.Exception.Message.Trim()). Turn them off in Settings → Personalization → Taskbar.)" "  (não foi possível remover os Widgets: $($_.Exception.Message.Trim()). Desligue em Configurações → Personalização → Barra de tarefas.)") -ForegroundColor DarkYellow
                 }
             }
         }
@@ -259,9 +269,9 @@ function Disable-Widgets {
         try {
             if (-not (Test-Path "$P\Windows Feeds")) { New-Item "$P\Windows Feeds" -Force -ErrorAction Stop | Out-Null }
             New-ItemProperty "$P\Windows Feeds" -Name 'EnableFeeds' -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
-            Write-Host '  Notícias e interesses desativado'
+            Write-Host (T '  News and interests turned off' '  Notícias e interesses desativado')
         } catch {
-            Write-Host '  (não foi possível desativar Notícias e interesses por política; clique com o direito na barra de tarefas → Notícias e interesses → Desativar)' -ForegroundColor DarkYellow
+            Write-Host (T '  (could not turn off News and interests by policy; right-click the taskbar → News and interests → Turn off)' '  (não foi possível desativar Notícias e interesses por política; clique com o direito na barra de tarefas → Notícias e interesses → Desativar)') -ForegroundColor DarkYellow
         }
     }
 }
@@ -288,7 +298,7 @@ function Disable-Suggestions {
     # Blocks reinstalling "consumer apps" (Candy Crush etc.). Officially Enterprise/Education only;
     # on Home/Pro SilentInstalledAppsEnabled=0 above does the job.
     Set-Reg "$P\CloudContent" 'DisableWindowsConsumerFeatures' 1
-    Write-Host '  ajustes aplicados'
+    Write-Host (T '  settings applied' '  ajustes aplicados')
 }
 
 # --- Apps ------------------------------------------------------------------
@@ -344,17 +354,17 @@ function Remove-Apps([string[]]$List) {
         foreach ($prov in ($provisioned | Where-Object DisplayName -eq $app)) {
             try {
                 Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop | Out-Null
-                Write-Host "  desprovisionado: $($prov.DisplayName)"
+                Write-Host "  $(T 'deprovisioned' 'desprovisionado'): $($prov.DisplayName)"
             } catch {
-                Write-Host "  (não desprovisionado: $($prov.DisplayName) — $($_.Exception.Message.Trim()))" -ForegroundColor DarkYellow
+                Write-Host (T "  (not deprovisioned: $($prov.DisplayName) — $($_.Exception.Message.Trim()))" "  (não desprovisionado: $($prov.DisplayName) — $($_.Exception.Message.Trim()))") -ForegroundColor DarkYellow
             }
         }
         foreach ($pkg in (Get-AppxPackage -AllUsers -Name $app -ErrorAction SilentlyContinue)) {
             try {
                 Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
-                Write-Host "  removido: $($pkg.Name)"
+                Write-Host "  $(T 'removed' 'removido'): $($pkg.Name)"
             } catch {
-                Write-Host "  (não removido: $($pkg.Name) — $($_.Exception.Message.Trim()))" -ForegroundColor DarkYellow
+                Write-Host (T "  (not removed: $($pkg.Name) — $($_.Exception.Message.Trim()))" "  (não removido: $($pkg.Name) — $($_.Exception.Message.Trim()))") -ForegroundColor DarkYellow
             }
         }
     }
@@ -372,7 +382,7 @@ function Remove-OneDrive {
     }
     Remove-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'OneDriveSetup' -ErrorAction SilentlyContinue
     Set-Reg "$P\OneDrive" 'DisableFileSyncNGSC' 1
-    Write-Host '  OneDrive removido'
+    Write-Host (T '  OneDrive removed' '  OneDrive removido')
 }
 
 # --- Edge ------------------------------------------------------------------
@@ -393,7 +403,7 @@ function Set-EdgePolicies {
     Set-Reg $E 'NewTabPageContentEnabled' 0
     Set-Reg $E 'NewTabPageQuickLinksEnabled' 0
     Set-Reg $E 'NewTabPageHideDefaultTopSites' 1
-    Write-Host '  políticas do Edge aplicadas'
+    Write-Host (T '  Edge policies applied' '  políticas do Edge aplicadas')
 }
 
 # --- Windows Security ------------------------------------------------------
@@ -402,22 +412,22 @@ function Set-WindowsSecurity {
     # Potentially unwanted app blocking (adware, installers bundling "extras")
     try {
         Set-MpPreference -PUAProtection Enabled -ErrorAction Stop
-        Write-Host '  bloqueio de apps indesejados: ligado'
+        Write-Host (T '  potentially unwanted app blocking: on' '  bloqueio de apps indesejados: ligado')
     } catch {
-        Write-Host "  (não foi possível ligar o bloqueio de apps indesejados: $($_.Exception.Message.Trim()). Outro antivírus instalado?)" -ForegroundColor DarkYellow
+        Write-Host (T "  (could not turn on potentially unwanted app blocking: $($_.Exception.Message.Trim()). Another antivirus installed?)" "  (não foi possível ligar o bloqueio de apps indesejados: $($_.Exception.Message.Trim()). Outro antivírus instalado?)") -ForegroundColor DarkYellow
     }
     # Second half of the same setting: "Block downloads" (SmartScreen in Edge). Without it, Windows Security
     # keeps warning that potentially unwanted app blocking is off.
     # (the value is the key's default value; reg.exe /ve writes it reliably)
     reg.exe add 'HKCU\SOFTWARE\Microsoft\Edge\SmartScreenPuaEnabled' /ve /t REG_DWORD /d 1 /f | Out-Null
-    if ($LASTEXITCODE) { Write-Host '  (não foi possível ligar o bloqueio de downloads indesejados)' -ForegroundColor DarkYellow }
-    else               { Write-Host '  bloqueio de downloads indesejados: ligado' }
+    if ($LASTEXITCODE) { Write-Host (T '  (could not turn on unwanted download blocking)' '  (não foi possível ligar o bloqueio de downloads indesejados)') -ForegroundColor DarkYellow }
+    else               { Write-Host (T '  unwanted download blocking: on' '  bloqueio de downloads indesejados: ligado') }
 
     $WSC = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center'
     # "Informational" notifications (suggestions, summaries). Important alerts — threat found,
     # protection turned off — keep showing up.
     Set-Reg "$WSC\Notifications" 'DisableEnhancedNotifications' 1
-    Write-Host '  avisos informativos: escondidos (alertas importantes continuam)'
+    Write-Host (T '  informational notifications: hidden (important alerts still show up)' '  avisos informativos: escondidos (alertas importantes continuam)')
 
     # "Set up OneDrive for ransomware recovery" card: without OneDrive it only causes the
     # exclamation mark on the icon. Hidden only when OneDrive is not installed.
@@ -425,9 +435,9 @@ function Set-WindowsSecurity {
                    (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")
     if (-not $hasOneDrive) {
         Set-Reg "$WSC\Virus and threat protection" 'HideRansomwareRecovery' 1
-        Write-Host '  aviso de backup do OneDrive: escondido (OneDrive não instalado)'
+        Write-Host (T '  OneDrive backup warning: hidden (OneDrive not installed)' '  aviso de backup do OneDrive: escondido (OneDrive não instalado)')
     } else {
-        Write-Host '  aviso de backup do OneDrive: mantido (OneDrive instalado)'
+        Write-Host (T '  OneDrive backup warning: kept (OneDrive installed)' '  aviso de backup do OneDrive: mantido (OneDrive instalado)')
     }
 }
 
@@ -436,7 +446,7 @@ function Set-WindowsSecurity {
 # Note: some vendor installers (e.g. Razer) ship inside the driver package itself and may still appear.
 function Disable-DeviceMetadata {
     Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1
-    Write-Host '  apps e ícones de fabricante para periféricos: não são mais baixados (drivers continuam)'
+    Write-Host (T '  manufacturer apps and icons for devices: no longer downloaded (drivers still are)' '  apps e ícones de fabricante para periféricos: não são mais baixados (drivers continuam)')
 }
 
 # Hides the "Account protection" and "Device security" areas of Windows Security (official policy).
@@ -446,7 +456,7 @@ function Hide-SecurityAccountAreas {
     $WSC = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center'
     Set-Reg "$WSC\Account protection" 'UILockdown' 1
     Set-Reg "$WSC\Device security"    'UILockdown' 1
-    Write-Host '  "Proteção de contas" e "Segurança do dispositivo": escondidas da Segurança do Windows'
+    Write-Host (T '  "Account protection" and "Device security": hidden from Windows Security' '  "Proteção de contas" e "Segurança do dispositivo": escondidas da Segurança do Windows')
 }
 
 # --- System drive root -------------------------------------------------------
@@ -461,11 +471,11 @@ function Clear-SystemDriveRoot {
     if (Test-Path $inetpub) {
         $folder = Get-Item $inetpub -Force
         $folder.Attributes = $folder.Attributes -bor [IO.FileAttributes]::Hidden   # -bor: safe if already hidden
-        Write-Host '  inetpub: escondida (não é apagada: faz parte de uma correção de segurança)'
+        Write-Host (T '  inetpub: hidden (not deleted: it is part of a security fix)' '  inetpub: escondida (não é apagada: faz parte de uma correção de segurança)')
     }
     if (Test-Path $perfLogs) {
         Remove-Item $perfLogs -Recurse -Force -ErrorAction Stop
-        Write-Host '  PerfLogs: apagada'
+        Write-Host (T '  PerfLogs: deleted' '  PerfLogs: apagada')
     }
 }
 
@@ -488,7 +498,7 @@ function Set-Theme([bool]$Light) {
     $theme = if ($isWin11) { if ($Light) { "$dir\aero.theme" } else { "$dir\dark.theme" } }
              else          { if ($Light) { "$dir\light.theme" } else { "$dir\aero.theme" } }
     if (-not (Test-Path $theme)) { $theme = "$dir\aero.theme" }
-    if (-not (Test-Path $theme)) { throw "arquivo de tema não encontrado: $theme" }
+    if (-not (Test-Path $theme)) { throw (T "theme file not found: $theme" "arquivo de tema não encontrado: $theme") }
 
     $Themes = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes'
     Start-Process $theme
@@ -506,8 +516,8 @@ function Set-Theme([bool]$Light) {
     Set-Reg "$Themes\Personalize" 'SystemUsesLightTheme' $mode
     Set-Reg "$Themes\Personalize" 'AppsUseLightTheme'    $mode
     Set-ThemeWallpaper $theme
-    if ($current -ine $theme) { Write-Warning 'Não deu para confirmar o tema. Confira em Configurações → Personalização → Temas.' }
-    else { Write-Host "  tema aplicado: $(Split-Path $theme -Leaf)" }
+    if ($current -ine $theme) { Write-Warning (T 'Could not confirm the theme. Check Settings → Personalization → Themes.' 'Não deu para confirmar o tema. Confira em Configurações → Personalização → Temas.') }
+    else { Write-Host "  $(T 'theme applied' 'tema aplicado'): $(Split-Path $theme -Leaf)" }
 }
 
 # On Windows 11 the desktop background can stay on "Windows Spotlight" even after applying a theme
@@ -531,21 +541,21 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, stri
     }
     # SPI_SETDESKWALLPAPER = 0x14; SPIF_UPDATEINIFILE | SPIF_SENDCHANGE = 3
     if ([CfgWin.Wallpaper]::SystemParametersInfo(0x14, 0, $wallpaper, 3)) {
-        Write-Host "  papel de parede do tema: $(Split-Path $wallpaper -Leaf) (Destaques do Windows desligado)"
+        Write-Host (T "  theme wallpaper: $(Split-Path $wallpaper -Leaf) (Windows Spotlight off)" "  papel de parede do tema: $(Split-Path $wallpaper -Leaf) (Destaques do Windows desligado)")
     } else {
-        Write-Host '  (não foi possível trocar o papel de parede; escolha em Configurações → Personalização → Tela de fundo)' -ForegroundColor DarkYellow
+        Write-Host (T '  (could not change the wallpaper; pick one in Settings → Personalization → Background)' '  (não foi possível trocar o papel de parede; escolha em Configurações → Personalização → Tela de fundo)') -ForegroundColor DarkYellow
     }
 }
 
 # Visible file extensions, frequent folders and recent files in File Explorer.
 function Set-Explorer([bool]$ShowExtensions, [bool]$HideFrequent, [bool]$HideRecent) {
     $Exp = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer'
-    if ($ShowExtensions) { Set-Reg "$Exp\Advanced" 'HideFileExt' 0; Write-Host '  extensões visíveis' }
-    if ($HideFrequent)   { Set-Reg $Exp 'ShowFrequent' 0;          Write-Host '  pastas frequentes escondidas (as que você fixou continuam)' }
+    if ($ShowExtensions) { Set-Reg "$Exp\Advanced" 'HideFileExt' 0; Write-Host (T '  file extensions visible' '  extensões visíveis') }
+    if ($HideFrequent)   { Set-Reg $Exp 'ShowFrequent' 0;          Write-Host (T '  frequent folders hidden (the ones you pinned stay)' '  pastas frequentes escondidas (as que você fixou continuam)') }
     if ($HideRecent) {
         Set-Reg $Exp 'ShowRecent' 0
         if ($isWin11) { Set-Reg $Exp 'ShowRecommendations' 0 }
-        Write-Host '  arquivos recentes escondidos'
+        Write-Host (T '  recent files hidden' '  arquivos recentes escondidos')
     }
     $script:RestartExplorer = $true
 }
@@ -557,7 +567,7 @@ function Hide-HomeAndGallery {
     Set-Reg "$CLSID\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}" 'System.IsPinnedToNameSpaceTree' 0   # Home
     Set-Reg "$CLSID\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}" 'System.IsPinnedToNameSpaceTree' 0   # Gallery
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'LaunchTo' 1      # open in This PC
-    Write-Host '  Início e Galeria removidos da barra lateral; o Explorador abre em "Este Computador"'
+    Write-Host (T '  Home and Gallery removed from the sidebar; File Explorer opens in "This PC"' '  Início e Galeria removidos da barra lateral; o Explorador abre em "Este Computador"')
     $script:RestartExplorer = $true
 }
 
@@ -565,15 +575,15 @@ function Hide-HomeAndGallery {
 # An empty InprocServer32 for this CLSID makes File Explorer skip the new menu. Undo: delete the key.
 function Enable-ClassicContextMenu {
     reg.exe add 'HKCU\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' /ve /f | Out-Null   # /ve without /d = empty default value
-    if ($LASTEXITCODE) { throw 'não foi possível gravar a chave do menu clássico' }
-    Write-Host '  menu de contexto clássico: ligado (sem "Mostrar mais opções")'
+    if ($LASTEXITCODE) { throw (T 'could not write the classic menu key' 'não foi possível gravar a chave do menu clássico') }
+    Write-Host (T '  classic context menu: on (no "Show more options")' '  menu de contexto clássico: ligado (sem "Mostrar mais opções")')
     $script:RestartExplorer = $true
 }
 
 # Shows hidden files and folders (.git, AppData...). Protected system files stay hidden.
 function Show-HiddenFiles {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Hidden' 1
-    Write-Host '  arquivos e pastas ocultos: visíveis (arquivos protegidos do sistema continuam escondidos)'
+    Write-Host (T '  hidden files and folders: visible (protected system files stay hidden)' '  arquivos e pastas ocultos: visíveis (arquivos protegidos do sistema continuam escondidos)')
     $script:RestartExplorer = $true
 }
 
@@ -584,7 +594,7 @@ function Disable-FolderDiscovery {
     $shell = 'HKCU:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\Shell'
     Remove-Item "$shell\Bags", "$shell\BagMRU" -Recurse -Force -ErrorAction SilentlyContinue
     Set-Reg "$shell\Bags\AllFolders\Shell" 'FolderType' 'NotSpecified' 'String'
-    Write-Host '  descoberta automática de tipo de pasta: desligada (visualizações de pasta zeradas)'
+    Write-Host (T '  automatic folder type discovery: off (folder views reset)' '  descoberta automática de tipo de pasta: desligada (visualizações de pasta zeradas)')
     $script:RestartExplorer = $true
 }
 
@@ -592,7 +602,7 @@ function Disable-FolderDiscovery {
 # On older builds the value is simply ignored.
 function Enable-BatteryPercentage {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'IsBatteryPercentageEnabled' 1
-    Write-Host '  porcentagem da bateria na barra de tarefas: ligada (se a sua versão do Windows tiver a opção)'
+    Write-Host (T '  battery percentage on the taskbar: on (if your Windows version has the option)' '  porcentagem da bateria na barra de tarefas: ligada (se a sua versão do Windows tiver a opção)')
     $script:RestartExplorer = $true
 }
 
@@ -600,21 +610,21 @@ function Enable-BatteryPercentage {
 # Windows default: -60. Takes effect after signing out and back in.
 function Set-ThinBorder {
     Set-Reg 'HKCU:\Control Panel\Desktop\WindowMetrics' 'PaddedBorderWidth' '0' 'String'
-    Write-Host '  borda afinada (vale depois de sair da conta e entrar de novo)'
+    Write-Host (T '  border thinned (takes effect after signing out and back in)' '  borda afinada (vale depois de sair da conta e entrar de novo)')
 }
 
 # Taskbar icon alignment (Windows 11 only): TaskbarAl 0 = left, 1 = center (Windows default).
 function Set-TaskbarAlignment([bool]$Left) {
     $value = if ($Left) { 0 } else { 1 }
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarAl' $value
-    Write-Host "  ícones da barra de tarefas: $(if ($Left) { 'à esquerda' } else { 'ao centro' })"
+    Write-Host "  $(T 'taskbar icons' 'ícones da barra de tarefas'): $(if ($Left) { T 'left' 'à esquerda' } else { T 'center' 'ao centro' })"
     $script:RestartExplorer = $true
 }
 
 # Taskbar search (Windows 10 and 11): SearchboxTaskbarMode 0 = hidden, 1 = icon only, 2 = search box.
 function Set-TaskbarSearch([int]$Mode) {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search' 'SearchboxTaskbarMode' $Mode
-    Write-Host "  pesquisa na barra de tarefas: $(@('oculta', 'só o ícone', 'caixa de pesquisa')[$Mode])"
+    Write-Host "  $(T 'taskbar search' 'pesquisa na barra de tarefas'): $(@((T 'hidden' 'oculta'), (T 'icon only' 'só o ícone'), (T 'search box' 'caixa de pesquisa'))[$Mode])"
     $script:RestartExplorer = $true
 }
 
@@ -622,18 +632,18 @@ function Set-TaskbarSearch([int]$Mode) {
 # Win+Tab keeps working either way.
 function Set-TaskViewButton([bool]$Show) {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowTaskViewButton' ([int]$Show)
-    Write-Host "  botão Visão de Tarefas: $(if ($Show) { 'visível' } else { 'oculto (Win+Tab continua funcionando)' })"
+    Write-Host "  $(T 'Task View button' 'botão Visão de Tarefas'): $(if ($Show) { T 'visible' 'visível' } else { T 'hidden (Win+Tab still works)' 'oculto (Win+Tab continua funcionando)' })"
     $script:RestartExplorer = $true
 }
 
 # Unpins every app from the taskbar (Edge, Store, File Explorer and any you pinned yourself).
 # The pin list lives in the Taskband key plus the shortcuts in the "User Pinned\TaskBar" folder.
-# Apps are not uninstalled; pin them again with right-click → "Fixar na barra de tarefas".
+# Apps are not uninstalled; pin them again with right-click → "Pin to taskbar".
 function Clear-TaskbarPins {
     Remove-Item 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Taskband' -Recurse -Force -ErrorAction SilentlyContinue
     Get-ChildItem "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar" -Filter '*.lnk' -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
-    Write-Host '  ícones fixados removidos da barra de tarefas'
+    Write-Host (T '  pinned icons removed from the taskbar' '  ícones fixados removidos da barra de tarefas')
     $script:RestartExplorer = $true
 }
 
@@ -652,7 +662,7 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
     Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
     if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
-    Write-Host '  Explorer reiniciado'
+    Write-Host (T '  File Explorer restarted' '  Explorer reiniciado')
 }
 
 #endregion
@@ -662,24 +672,24 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
 
 function Enable-LongPaths {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1
-    Write-Host '  caminhos longos: permitidos'
+    Write-Host (T '  long paths: allowed' '  caminhos longos: permitidos')
 }
 
 function Enable-EndTask {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings' 'TaskbarEndTask' 1
-    Write-Host '  "Finalizar tarefa" na barra de tarefas: ligado'
+    Write-Host (T '  "End task" on the taskbar: on' '  "Finalizar tarefa" na barra de tarefas: ligado')
     $script:RestartExplorer = $true
 }
 
 # "Inline" mode: the command runs in the same terminal window, like on Linux.
 function Enable-Sudo {
     & "$env:SystemRoot\System32\sudo.exe" config --enable normal | Out-Null
-    Write-Host '  sudo: ativado (modo em linha)'
+    Write-Host (T '  sudo: enabled (inline mode)' '  sudo: ativado (modo em linha)')
 }
 
 function Enable-ClipboardHistory {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Clipboard' 'EnableClipboardHistory' 1
-    Write-Host '  histórico da área de transferência (Win+V): ligado (só neste PC, sem sincronizar)'
+    Write-Host (T '  clipboard history (Win+V): on (this PC only, no sync)' '  histórico da área de transferência (Win+V): ligado (só neste PC, sem sincronizar)')
 }
 
 function Disable-MouseAcceleration {
@@ -687,20 +697,20 @@ function Disable-MouseAcceleration {
     Set-Reg $mouse 'MouseSpeed'      '0' 'String'
     Set-Reg $mouse 'MouseThreshold1' '0' 'String'
     Set-Reg $mouse 'MouseThreshold2' '0' 'String'
-    Write-Host '  precisão do ponteiro aprimorada: desligada (vale depois de sair da conta e entrar de novo)'
+    Write-Host (T '  Enhance pointer precision: off (takes effect after signing out and back in)' '  precisão do ponteiro aprimorada: desligada (vale depois de sair da conta e entrar de novo)')
 }
 
 # 506 = Sticky Keys off and WITHOUT the 5x Shift shortcut (Windows default is 510).
 # The feature is still available in Settings → Accessibility → Keyboard.
 function Disable-StickyKeysShortcut {
     Set-Reg 'HKCU:\Control Panel\Accessibility\StickyKeys' 'Flags' '506' 'String'
-    Write-Host '  atalho das Teclas de Aderência (5x Shift): desligado'
+    Write-Host (T '  Sticky Keys shortcut (5x Shift): off' '  atalho das Teclas de Aderência (5x Shift): desligado')
 }
 
 # Blue screen (BSoD) also shows the technical parameters of the error, which helps to look up the cause.
 function Enable-VerboseBsod {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1
-    Write-Host '  tela azul detalhada: ligada (só aparece se o PC travar)'
+    Write-Host (T '  detailed blue screen: on (only shows up if the PC crashes)' '  tela azul detalhada: ligada (só aparece se o PC travar)')
 }
 
 # Sets the volume of the default playback device (speakers/headphones in use) through the Windows
@@ -757,7 +767,7 @@ namespace CfgWin {
 '@
     }
     [CfgWin.Audio]::SetVolume(1.0)
-    Write-Host "  volume do Windows: $([math]::Round([CfgWin.Audio]::GetVolume() * 100))%"
+    Write-Host "  $(T 'Windows volume' 'volume do Windows'): $([math]::Round([CfgWin.Audio]::GetVolume() * 100))%"
 }
 
 #endregion
@@ -772,7 +782,7 @@ function Set-DNS([string[]]$V4, [string[]]$V6) {
     $base = 'HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\InterfaceSpecificParameters'
     $all = @($V4) + @($V6)
     $adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -ne 'Disabled')
-    if (-not $adapters) { throw 'nenhum adaptador de rede físico encontrado' }
+    if (-not $adapters) { throw (T 'no physical network adapter found' 'nenhum adaptador de rede físico encontrado') }
     foreach ($adapter in $adapters) {
         Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses $all -ErrorAction Stop
         if ($isWin11) {
@@ -781,10 +791,10 @@ function Set-DNS([string[]]$V4, [string[]]$V6) {
             foreach ($ip in $V4) { Set-Reg "$doh\Doh\$ip"  'DohFlags' 1 'QWord' }
             foreach ($ip in $V6) { Set-Reg "$doh\Doh6\$ip" 'DohFlags' 1 'QWord' }
         }
-        Write-Host "  $($adapter.Name): $($all -join ', ')$(if ($isWin11) { ' (criptografado, modelo automático)' })"
+        Write-Host "  $($adapter.Name): $($all -join ', ')$(if ($isWin11) { T ' (encrypted, automatic template)' ' (criptografado, modelo automático)' })"
     }
     Clear-DnsClientCache
-    if (-not $V6) { Write-Host '  IPv6: mantido automático (do roteador).' -ForegroundColor DarkGray }
+    if (-not $V6) { Write-Host (T '  IPv6: kept automatic (from the router).' '  IPv6: mantido automático (do roteador).') -ForegroundColor DarkGray }
 }
 
 #endregion
@@ -810,20 +820,20 @@ function Test-Telemetry {
     $bad = @()
     foreach ($svc in 'DiagTrack', 'dmwappushservice') {
         $s = Get-Service $svc -ErrorAction SilentlyContinue
-        if ($s -and $s.StartType -ne 'Disabled') { $bad += "serviço $svc ligado" }
+        if ($s -and $s.StartType -ne 'Disabled') { $bad += (T "service $svc on" "serviço $svc ligado") }
     }
     foreach ($t in $TelemetryTasks) {
         $task = Get-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue
-        if ($task -and $task.State -ne 'Disabled') { $bad += "tarefa $($t[1]) ligada" }
+        if ($task -and $task.State -ne 'Disabled') { $bad += (T "task $($t[1]) on" "tarefa $($t[1]) ligada") }
     }
-    if ((Get-RegValue "$P\DataCollection" 'AllowTelemetry') -ne 1)          { $bad += 'política de dados de diagnóstico' }
-    if ((Get-RegValue "$P\Windows Search" 'DisableWebSearch') -ne 1)       { $bad += 'Bing na pesquisa' }
-    if ((Get-RegValue "$P\AdvertisingInfo" 'DisabledByGroupPolicy') -ne 1) { $bad += 'ID de anúncios' }
+    if ((Get-RegValue "$P\DataCollection" 'AllowTelemetry') -ne 1)          { $bad += (T 'diagnostic data policy' 'política de dados de diagnóstico') }
+    if ((Get-RegValue "$P\Windows Search" 'DisableWebSearch') -ne 1)       { $bad += (T 'Bing in search' 'Bing na pesquisa') }
+    if ((Get-RegValue "$P\AdvertisingInfo" 'DisabledByGroupPolicy') -ne 1) { $bad += (T 'advertising ID' 'ID de anúncios') }
     if ($isWin11) {
         $widgetsOff = (Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests') -eq 0 -or
                       -not (Get-AppxPackage -AllUsers -Name 'MicrosoftWindows.Client.WebExperience' -ErrorAction SilentlyContinue)
         if (-not $widgetsOff) { $bad += 'Widgets' }
-    } elseif ((Get-RegValue "$P\Windows Feeds" 'EnableFeeds') -ne 0) { $bad += 'Notícias e interesses' }
+    } elseif ((Get-RegValue "$P\Windows Feeds" 'EnableFeeds') -ne 0) { $bad += (T 'News and interests' 'Notícias e interesses') }
     $bad
 }
 
@@ -833,7 +843,7 @@ function Test-Suggestions {
     foreach ($n in 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled') {
         if ((Get-RegValue $CDM $n) -ne 0) { $bad += $n }
     }
-    if ((Get-RegValue "$P\CloudContent" 'DisableWindowsConsumerFeatures') -ne 1) { $bad += 'instalação de apps sugeridos' }
+    if ((Get-RegValue "$P\CloudContent" 'DisableWindowsConsumerFeatures') -ne 1) { $bad += (T 'suggested app installs' 'instalação de apps sugeridos') }
     $bad
 }
 
@@ -844,8 +854,8 @@ function Get-ReturnedApps([string[]]$List) {
 
 function Test-OneDrive {
     $bad = @()
-    if ((Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") -or (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")) { $bad += 'OneDrive instalado de novo' }
-    if ((Get-RegValue "$P\OneDrive" 'DisableFileSyncNGSC') -ne 1) { $bad += 'política que bloqueia o OneDrive' }
+    if ((Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") -or (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")) { $bad += (T 'OneDrive installed again' 'OneDrive instalado de novo') }
+    if ((Get-RegValue "$P\OneDrive" 'DisableFileSyncNGSC') -ne 1) { $bad += (T 'policy that blocks OneDrive' 'política que bloqueia o OneDrive') }
     $bad
 }
 
@@ -860,16 +870,16 @@ function Test-Edge {
 
 function Test-Security {
     $bad = @()
-    try { if ((Get-MpPreference -ErrorAction Stop).PUAProtection -ne 1) { $bad += 'bloqueio de apps indesejados' } } catch { }
-    if ((Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications' 'DisableEnhancedNotifications') -ne 1) { $bad += 'avisos informativos' }
+    try { if ((Get-MpPreference -ErrorAction Stop).PUAProtection -ne 1) { $bad += (T 'potentially unwanted app blocking' 'bloqueio de apps indesejados') } } catch { }
+    if ((Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications' 'DisableEnhancedNotifications') -ne 1) { $bad += (T 'informational notifications' 'avisos informativos') }
     $bad
 }
 
 function Test-RootFolders {
     $bad = @()
     $inetpub = Get-Item "$env:SystemDrive\inetpub" -Force -ErrorAction SilentlyContinue
-    if ($inetpub -and -not ($inetpub.Attributes -band [IO.FileAttributes]::Hidden)) { $bad += 'inetpub visível' }
-    if (Test-Path "$env:SystemDrive\PerfLogs") { $bad += 'PerfLogs de volta' }
+    if ($inetpub -and -not ($inetpub.Attributes -band [IO.FileAttributes]::Hidden)) { $bad += (T 'inetpub visible' 'inetpub visível') }
+    if (Test-Path "$env:SystemDrive\PerfLogs") { $bad += (T 'PerfLogs is back' 'PerfLogs de volta') }
     $bad
 }
 
@@ -881,7 +891,7 @@ function Test-DNS([string[]]$V4) {
     $bad = @()
     foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -ne 'Disabled')) {
         $current = @((Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses)
-        if (($current -join ',') -ne ($V4 -join ',')) { $bad += "$($adapter.Name): $(if ($current) { $current -join ', ' } else { 'automático' })" }
+        if (($current -join ',') -ne ($V4 -join ',')) { $bad += "$($adapter.Name): $(if ($current) { $current -join ', ' } else { T 'automatic' 'automático' })" }
     }
     $bad
 }
@@ -889,29 +899,29 @@ function Test-DNS([string[]]$V4) {
 function Invoke-Check {
     Write-Host "`nConfigure-Windows -Check — $osLabel" -ForegroundColor Green
     if (-not (Test-Path $StateFile)) {
-        Write-Host '  Nenhuma resposta salva. Rode o Configure-Windows primeiro (versões antigas dele não salvavam as respostas).' -ForegroundColor Yellow
+        Write-Host (T '  No saved answers. Run Configure-Windows first (older versions of it did not save the answers).' '  Nenhuma resposta salva. Rode o Configure-Windows primeiro (versões antigas dele não salvavam as respostas).') -ForegroundColor Yellow
         return
     }
     $state = Get-Content $StateFile -Raw | ConvertFrom-Json
     $o = $state.Options
-    Write-Host "  Comparando com as respostas de $(([datetime]$state.Saved).ToString('dd/MM/yyyy HH:mm'))."
-    Write-Host '  Personalização não é conferida: são preferências que você pode ter mudado de propósito.' -ForegroundColor DarkGray
+    Write-Host (T "  Comparing with the answers from $(([datetime]$state.Saved).ToString('yyyy-MM-dd HH:mm'))." "  Comparando com as respostas de $(([datetime]$state.Saved).ToString('dd/MM/yyyy HH:mm')).")
+    Write-Host (T '  Personalization is not checked: those are preferences you may have changed on purpose.' '  Personalização não é conferida: são preferências que você pode ter mudado de propósito.') -ForegroundColor DarkGray
 
     $appList = if ($o.OptionalApps) { $JunkApps + $OptionalApps } else { $JunkApps }
     $returnedApps = @()
     # Name shown, chosen?, test, fix
     $items = @(
-        @{ Name = 'Telemetria';                    On = $o.Telemetry;    Test = { Test-Telemetry };   Fix = { Disable-TelemetryServices; Disable-TelemetryTasks; Set-TelemetryPolicies; Disable-Widgets } }
-        @{ Name = 'Sugestões e anúncios';          On = $o.Suggestions;  Test = { Test-Suggestions }; Fix = { Disable-Suggestions } }
-        @{ Name = 'Apps removidos';                On = $o.Apps;         Test = { $script:returnedApps = Get-ReturnedApps $appList; $script:returnedApps }; Fix = { Remove-Apps $script:returnedApps } }
+        @{ Name = (T 'Telemetry' 'Telemetria');                    On = $o.Telemetry;    Test = { Test-Telemetry };   Fix = { Disable-TelemetryServices; Disable-TelemetryTasks; Set-TelemetryPolicies; Disable-Widgets } }
+        @{ Name = (T 'Suggestions and ads' 'Sugestões e anúncios');          On = $o.Suggestions;  Test = { Test-Suggestions }; Fix = { Disable-Suggestions } }
+        @{ Name = (T 'Removed apps' 'Apps removidos');                On = $o.Apps;         Test = { $script:returnedApps = Get-ReturnedApps $appList; $script:returnedApps }; Fix = { Remove-Apps $script:returnedApps } }
         @{ Name = 'OneDrive';                      On = $o.OneDrive;     Test = { Test-OneDrive };    Fix = { Remove-OneDrive } }
-        @{ Name = 'Políticas do Edge';             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
-        @{ Name = 'Segurança do Windows';          On = $o.Security;     Test = { Test-Security };    Fix = { Set-WindowsSecurity } }
-        @{ Name = 'Pastas do C:';                  On = $o.RootFolders;  Test = { Test-RootFolders }; Fix = { Clear-SystemDriveRoot } }
-        @{ Name = 'Apps de fabricante';            On = $o.NoDeviceApps; Test = { Test-Value 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 'download de apps de fabricante' }; Fix = { Disable-DeviceMetadata } }
-        @{ Name = 'Áreas de conta escondidas';     On = $o.HideAreas;    Test = { Test-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection' 'UILockdown' 1 'Proteção de contas visível' }; Fix = { Hide-SecurityAccountAreas } }
-        @{ Name = 'Caminhos longos';               On = $o.LongPaths;    Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1 'desligado' }; Fix = { Enable-LongPaths } }
-        @{ Name = 'Tela azul detalhada';           On = $o.VerboseBsod;  Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1 'desligada' }; Fix = { Enable-VerboseBsod } }
+        @{ Name = (T 'Edge policies' 'Políticas do Edge');             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
+        @{ Name = (T 'Windows Security' 'Segurança do Windows');          On = $o.Security;     Test = { Test-Security };    Fix = { Set-WindowsSecurity } }
+        @{ Name = (T 'C: folders' 'Pastas do C:');                  On = $o.RootFolders;  Test = { Test-RootFolders }; Fix = { Clear-SystemDriveRoot } }
+        @{ Name = (T 'Manufacturer apps' 'Apps de fabricante');            On = $o.NoDeviceApps; Test = { Test-Value 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 (T 'manufacturer app downloads' 'download de apps de fabricante') }; Fix = { Disable-DeviceMetadata } }
+        @{ Name = (T 'Hidden account areas' 'Áreas de conta escondidas');     On = $o.HideAreas;    Test = { Test-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection' 'UILockdown' 1 (T 'Account protection visible' 'Proteção de contas visível') }; Fix = { Hide-SecurityAccountAreas } }
+        @{ Name = (T 'Long paths' 'Caminhos longos');               On = $o.LongPaths;    Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1 (T 'off' 'desligado') }; Fix = { Enable-LongPaths } }
+        @{ Name = (T 'Detailed blue screen' 'Tela azul detalhada');           On = $o.VerboseBsod;  Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1 (T 'off' 'desligada') }; Fix = { Enable-VerboseBsod } }
         @{ Name = 'DNS';                           On = [bool]@($state.DnsV4).Count; Test = { Test-DNS @($state.DnsV4) }; Fix = { Set-DNS @($state.DnsV4) @($state.DnsV6 | Where-Object { $_ }) } }
     )
 
@@ -922,7 +932,7 @@ function Invoke-Check {
         $problems = @(& $item.Test | Where-Object { $_ })
         if ($problems) {
             $drifted += $item
-            Write-Host '  [VOLTOU] ' -ForegroundColor Yellow -NoNewline
+            Write-Host (T '  [BACK]   ' '  [VOLTOU] ') -ForegroundColor Yellow -NoNewline
             Write-Host $item.Name -NoNewline
             Write-Host "  ($($problems -join '; '))" -ForegroundColor DarkGray
         } else {
@@ -931,15 +941,15 @@ function Invoke-Check {
         }
     }
 
-    if (-not $drifted) { Write-Host "`nTudo continua como você deixou." -ForegroundColor Green; return }
+    if (-not $drifted) { Write-Host (T "`nEverything is still as you left it." "`nTudo continua como você deixou.") -ForegroundColor Green; return }
     Write-Host ''
-    if (-not (Ask "Reaplicar o que voltou ($($drifted.Count) item(ns))?" $true)) { Write-Host 'Nada foi alterado.'; return }
+    if (-not (Ask (T "Reapply what came back ($($drifted.Count) item(s))?" "Reaplicar o que voltou ($($drifted.Count) item(ns))?") $true)) { Write-Host (T 'Nothing was changed.' 'Nada foi alterado.'); return }
     foreach ($item in $drifted) { Invoke-Step $item.Name $item.Fix }
     if ($script:Failures.Count) {
-        Write-Host "`nEtapas que falharam:" -ForegroundColor Yellow
+        Write-Host (T "`nSteps that failed:" "`nEtapas que falharam:") -ForegroundColor Yellow
         $script:Failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
     }
-    Write-Step 'Concluído. Reinicie o computador.'
+    Write-Step (T 'Done. Restart the computer.' 'Concluído. Reinicie o computador.')
 }
 
 if ($Check) { Invoke-Check; return }
@@ -951,118 +961,119 @@ if ($Check) { Invoke-Check; return }
 
 Write-Host "`nConfigure-Windows — $osLabel" -ForegroundColor Green
 if ($cv.EditionID -match 'Core') {
-    Write-Host '  Windows Home: algumas políticas valem só no Pro; o resto funciona normalmente.' -ForegroundColor DarkYellow
+    Write-Host (T '  Windows Home: some policies only work on Pro; the rest works normally.' '  Windows Home: algumas políticas valem só no Pro; o resto funciona normalmente.') -ForegroundColor DarkYellow
 }
-if (-not $NoPrompt) { Write-Host '  Escolha com as setas e Enter. A resposta padrão já vem selecionada.' }
+if (-not $NoPrompt) { Write-Host (T '  Choose with the arrows and Enter. The default answer comes selected.' '  Escolha com as setas e Enter. A resposta padrão já vem selecionada.') }
 
 $opt = [ordered]@{}
 
 # --- Privacy and cleanup
-Write-Host "`n  Privacidade e limpeza" -ForegroundColor Cyan
-$opt.Telemetry    = Ask 'Desativar telemetria (serviço, tarefas e políticas)?' $true
-$opt.Suggestions  = Ask 'Desativar sugestões, anúncios e instalação silenciosa de apps?' $true
-$opt.Apps         = Ask 'Remover apps inúteis (Clipchamp, Bing, Solitaire, Teams, Outlook novo...)?' $true
-$opt.OptionalApps = if ($opt.Apps) { Ask 'Remover também Vincular ao Celular, Sticky Notes, Gravador, Relógio, Assistência Rápida, Media Player e OneNote?' $false } else { $false }
+Write-Host (T "`n  Privacy and cleanup" "`n  Privacidade e limpeza") -ForegroundColor Cyan
+$opt.Telemetry    = Ask (T 'Disable telemetry (service, tasks and policies)?' 'Desativar telemetria (serviço, tarefas e políticas)?') $true
+$opt.Suggestions  = Ask (T 'Disable suggestions, ads and silent app installs?' 'Desativar sugestões, anúncios e instalação silenciosa de apps?') $true
+$opt.Apps         = Ask (T 'Remove junk apps (Clipchamp, Bing, Solitaire, Teams, new Outlook...)?' 'Remover apps inúteis (Clipchamp, Bing, Solitaire, Teams, Outlook novo...)?') $true
+$opt.OptionalApps = if ($opt.Apps) { Ask (T 'Also remove Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote?' 'Remover também Vincular ao Celular, Sticky Notes, Gravador, Relógio, Assistência Rápida, Media Player e OneNote?') $false } else { $false }
 if ($foldersInOneDrive) {
-    Write-Host "  ATENÇÃO: estas pastas estão dentro do OneDrive: $($foldersInOneDrive -join ', ')" -ForegroundColor Yellow
-    Write-Host '  Desligue o backup de pastas no OneDrive antes de removê-lo.' -ForegroundColor Yellow
+    Write-Host (T "  WARNING: these folders are inside OneDrive: $($foldersInOneDrive -join ', ')" "  ATENÇÃO: estas pastas estão dentro do OneDrive: $($foldersInOneDrive -join ', ')") -ForegroundColor Yellow
+    Write-Host (T '  Turn off folder backup in OneDrive before removing it.' '  Desligue o backup de pastas no OneDrive antes de removê-lo.') -ForegroundColor Yellow
 }
-$opt.OneDrive     = Ask 'Remover o OneDrive?' (-not $foldersInOneDrive)
-$opt.Edge         = Ask 'Aplicar políticas do Edge (sem telemetria, segundo plano, barra lateral, compras)?' $true
-$opt.Security     = Ask 'Segurança do Windows: bloquear apps indesejados e esconder avisos sem importância?' $true
-$opt.RootFolders  = Ask 'Esconder a pasta inetpub e apagar a PerfLogs (na raiz do C:)?' $true
-$opt.NoDeviceApps = Ask 'Não baixar apps e ícones de fabricante ao conectar periféricos (Razer, Logitech...; drivers continuam vindo)?' $false
-$opt.HideAreas    = Ask 'Esconder "Proteção de contas" e "Segurança do dispositivo" da Segurança do Windows (só avisam para entrar com conta Microsoft)?' $isLocalAccount
+$opt.OneDrive     = Ask (T 'Remove OneDrive?' 'Remover o OneDrive?') (-not $foldersInOneDrive)
+$opt.Edge         = Ask (T 'Apply Edge policies (no telemetry, background mode, sidebar or shopping)?' 'Aplicar políticas do Edge (sem telemetria, segundo plano, barra lateral, compras)?') $true
+$opt.Security     = Ask (T 'Windows Security: block potentially unwanted apps and hide unimportant notifications?' 'Segurança do Windows: bloquear apps indesejados e esconder avisos sem importância?') $true
+$opt.RootFolders  = Ask (T 'Hide the inetpub folder and delete PerfLogs (in the root of C:)?' 'Esconder a pasta inetpub e apagar a PerfLogs (na raiz do C:)?') $true
+$opt.NoDeviceApps = Ask (T 'Do not download manufacturer apps and icons when connecting devices (Razer, Logitech...; drivers still come)?' 'Não baixar apps e ícones de fabricante ao conectar periféricos (Razer, Logitech...; drivers continuam vindo)?') $false
+$opt.HideAreas    = Ask (T 'Hide "Account protection" and "Device security" from Windows Security (they only ask you to sign in with a Microsoft account)?' 'Esconder "Proteção de contas" e "Segurança do dispositivo" da Segurança do Windows (só avisam para entrar com conta Microsoft)?') $isLocalAccount
 
 # --- Personalization
-Write-Host "`n  Personalização (só para o seu usuário)" -ForegroundColor Cyan
-$themeNames = @('Manter como está', 'Windows (claro)', 'Windows (escuro)')
+Write-Host (T "`n  Personalization (your user only)" "`n  Personalização (só para o seu usuário)") -ForegroundColor Cyan
+$themeNames = @((T 'Keep as is' 'Manter como está'), (T 'Windows (light)' 'Windows (claro)'), (T 'Windows (dark)' 'Windows (escuro)'))
 $themeIds   = @('Keep', 'Light', 'Dark')
-$opt.Theme          = $themeIds[(Choose 'Tema do Windows:' $themeNames 1)]
-$taskbarNames = @('Manter como está', 'Ao centro', 'À esquerda')
+$opt.Theme          = $themeIds[(Choose (T 'Windows theme:' 'Tema do Windows:') $themeNames 1)]
+$taskbarNames = @((T 'Keep as is' 'Manter como está'), (T 'Center' 'Ao centro'), (T 'Left' 'À esquerda'))
 $taskbarIds   = @('Keep', 'Center', 'Left')
-$opt.Taskbar        = if ($isWin11) { $taskbarIds[(Choose 'Ícones da barra de tarefas:' $taskbarNames 0)] } else { 'Keep' }
-$searchNames = @('Manter como está', 'Oculta', 'Só o ícone', 'Caixa de pesquisa')
+$opt.Taskbar        = if ($isWin11) { $taskbarIds[(Choose (T 'Taskbar icons:' 'Ícones da barra de tarefas:') $taskbarNames 0)] } else { 'Keep' }
+$searchNames = @((T 'Keep as is' 'Manter como está'), (T 'Hidden' 'Oculta'), (T 'Icon only' 'Só o ícone'), (T 'Search box' 'Caixa de pesquisa'))
 $searchIds   = @('Keep', 'Hidden', 'Icon', 'Box')
-$opt.Search         = $searchIds[(Choose 'Pesquisa na barra de tarefas:' $searchNames 0)]
-$taskViewNames = @('Manter como está', 'Mostrar', 'Ocultar')
+$opt.Search         = $searchIds[(Choose (T 'Taskbar search:' 'Pesquisa na barra de tarefas:') $searchNames 0)]
+$taskViewNames = @((T 'Keep as is' 'Manter como está'), (T 'Show' 'Mostrar'), (T 'Hide' 'Ocultar'))
 $taskViewIds   = @('Keep', 'Show', 'Hide')
-$opt.TaskView       = $taskViewIds[(Choose 'Botão "Visão de Tarefas" na barra de tarefas:' $taskViewNames 0)]
-$opt.ClearPins      = Ask 'Remover os ícones fixados na barra de tarefas (Edge, Store, Explorador e os que você fixou)?' $false
-$opt.BatteryPercent = if ($isWin11 -and $hasBattery) { Ask 'Mostrar a porcentagem da bateria na barra de tarefas?' $false } else { $false }
-$opt.ShowExtensions = Ask 'Mostrar as extensões dos arquivos (.txt, .exe...)?' $true
-$opt.HideFrequent   = Ask 'Esconder as pastas frequentes do Acesso rápido?' $true
-$opt.HideRecent     = Ask 'Esconder também os arquivos recentes no Explorador?' $false
-$opt.ShowHidden     = Ask 'Mostrar arquivos e pastas ocultos no Explorador (.git, AppData...)?' $false
-$opt.NoFolderSniff  = Ask 'Desligar a descoberta automática de tipo de pasta (pastas grandes abrem mais rápido; zera as visualizações personalizadas)?' $true
-$opt.HideHomeGallery = if ($isWin11) { Ask 'Remover "Início" e "Galeria" da barra lateral do Explorador (ele passa a abrir em "Este Computador")?' $false } else { $false }
-$opt.ClassicMenu    = if ($isWin11) { Ask 'Usar o menu clássico do botão direito (completo, sem precisar clicar em "Mostrar mais opções")?' $false } else { $false }
-$opt.ThinBorder     = Ask 'Afinar a borda de redimensionamento das janelas (evita redimensionar sem querer)?' $false
+$opt.TaskView       = $taskViewIds[(Choose (T '"Task View" button on the taskbar:' 'Botão "Visão de Tarefas" na barra de tarefas:') $taskViewNames 0)]
+$opt.ClearPins      = Ask (T 'Remove the pinned icons from the taskbar (Edge, Store, File Explorer and the ones you pinned)?' 'Remover os ícones fixados na barra de tarefas (Edge, Store, Explorador e os que você fixou)?') $false
+$opt.BatteryPercent = if ($isWin11 -and $hasBattery) { Ask (T 'Show the battery percentage on the taskbar?' 'Mostrar a porcentagem da bateria na barra de tarefas?') $false } else { $false }
+$opt.ShowExtensions = Ask (T 'Show file extensions (.txt, .exe...)?' 'Mostrar as extensões dos arquivos (.txt, .exe...)?') $true
+$opt.HideFrequent   = Ask (T 'Hide frequent folders from Quick access?' 'Esconder as pastas frequentes do Acesso rápido?') $true
+$opt.HideRecent     = Ask (T 'Also hide recent files in File Explorer?' 'Esconder também os arquivos recentes no Explorador?') $false
+$opt.ShowHidden     = Ask (T 'Show hidden files and folders in File Explorer (.git, AppData...)?' 'Mostrar arquivos e pastas ocultos no Explorador (.git, AppData...)?') $false
+$opt.NoFolderSniff  = Ask (T 'Turn off automatic folder type discovery (large folders open faster; resets custom folder views)?' 'Desligar a descoberta automática de tipo de pasta (pastas grandes abrem mais rápido; zera as visualizações personalizadas)?') $true
+$opt.HideHomeGallery = if ($isWin11) { Ask (T 'Remove "Home" and "Gallery" from the File Explorer sidebar (it then opens in "This PC")?' 'Remover "Início" e "Galeria" da barra lateral do Explorador (ele passa a abrir em "Este Computador")?') $false } else { $false }
+$opt.ClassicMenu    = if ($isWin11) { Ask (T 'Use the classic right-click menu (full, without clicking "Show more options")?' 'Usar o menu clássico do botão direito (completo, sem precisar clicar em "Mostrar mais opções")?') $false } else { $false }
+$opt.ThinBorder     = Ask (T 'Thin the window resize border (avoids resizing by accident)?' 'Afinar a borda de redimensionamento das janelas (evita redimensionar sem querer)?') $false
 
 # --- Everyday use
-Write-Host "`n  Uso no dia a dia" -ForegroundColor Cyan
-$opt.LongPaths        = Ask 'Permitir caminhos longos (mais de 260 caracteres; evita erros com node_modules)?' $true
-$opt.EndTask          = if ($hasEndTask) { Ask 'Mostrar "Finalizar tarefa" ao clicar com o direito num app na barra de tarefas?' $true } else { $false }
-$opt.Sudo             = if ($hasSudo)    { Ask 'Ativar o sudo no terminal (rodar comandos como admin sem abrir outra janela)?' $false } else { $false }
-$opt.ClipboardHistory = Ask 'Ativar o histórico da área de transferência (Win+V)?' $true
-$opt.NoMouseAccel     = Ask 'Desligar a "precisão do ponteiro aprimorada" (aceleração do mouse)?' $false
-$opt.NoStickyKeys     = Ask 'Desligar o atalho das Teclas de Aderência (aviso ao apertar Shift 5 vezes)?' $true
-$opt.MaxVolume        = Ask 'Deixar o volume do Windows em 100% (no alto-falante/fone em uso agora)?' $true
-$opt.VerboseBsod      = Ask 'Mostrar detalhes técnicos na tela azul, se o PC travar (ajuda a descobrir a causa)?' $true
+Write-Host (T "`n  Everyday use" "`n  Uso no dia a dia") -ForegroundColor Cyan
+$opt.LongPaths        = Ask (T 'Allow long paths (over 260 characters; avoids errors with node_modules)?' 'Permitir caminhos longos (mais de 260 caracteres; evita erros com node_modules)?') $true
+$opt.EndTask          = if ($hasEndTask) { Ask (T 'Show "End task" when right-clicking an app on the taskbar?' 'Mostrar "Finalizar tarefa" ao clicar com o direito num app na barra de tarefas?') $true } else { $false }
+$opt.Sudo             = if ($hasSudo)    { Ask (T 'Enable sudo in the terminal (run commands as admin without opening another window)?' 'Ativar o sudo no terminal (rodar comandos como admin sem abrir outra janela)?') $false } else { $false }
+$opt.ClipboardHistory = Ask (T 'Turn on clipboard history (Win+V)?' 'Ativar o histórico da área de transferência (Win+V)?') $true
+$opt.NoMouseAccel     = Ask (T 'Turn off "Enhance pointer precision" (mouse acceleration)?' 'Desligar a "precisão do ponteiro aprimorada" (aceleração do mouse)?') $false
+$opt.NoStickyKeys     = Ask (T 'Turn off the Sticky Keys shortcut (prompt when pressing Shift 5 times)?' 'Desligar o atalho das Teclas de Aderência (aviso ao apertar Shift 5 vezes)?') $true
+$opt.MaxVolume        = Ask (T 'Set the Windows volume to 100% (on the speakers/headphones in use now)?' 'Deixar o volume do Windows em 100% (no alto-falante/fone em uso agora)?') $true
+$opt.VerboseBsod      = Ask (T 'Show technical details on the blue screen if the PC crashes (helps find the cause)?' 'Mostrar detalhes técnicos na tela azul, se o PC travar (ajuda a descobrir a causa)?') $true
 
 # --- Network
-Write-Host "`n  Rede" -ForegroundColor Cyan
+Write-Host (T "`n  Network" "`n  Rede") -ForegroundColor Cyan
 $dnsV4 = @(); $dnsV6 = @()
-if (Ask 'Configurar o DNS manualmente (com DNS por HTTPS, modelo automático)?' $false) {
+if (Ask (T 'Set DNS manually (with DNS over HTTPS, automatic template)?' 'Configurar o DNS manualmente (com DNS por HTTPS, modelo automático)?') $false) {
     if (-not $isWin11) {
-        Write-Host '    Aviso: o Windows 10 não tem DNS por HTTPS no sistema. O DNS será definido, mas sem criptografia.' -ForegroundColor Yellow
+        Write-Host (T '    Note: Windows 10 has no system-wide DNS over HTTPS. DNS will be set, but unencrypted.' '    Aviso: o Windows 10 não tem DNS por HTTPS no sistema. O DNS será definido, mas sem criptografia.') -ForegroundColor Yellow
     }
-    $dnsV4 += Read-IP 'DNS preferencial (IPv4):' 'InterNetwork' $false
-    $altV4 = Read-IP 'DNS alternativo (IPv4, Enter para pular):' 'InterNetwork' $true
+    $dnsV4 += Read-IP (T 'Preferred DNS (IPv4):' 'DNS preferencial (IPv4):') 'InterNetwork' $false
+    $altV4 = Read-IP (T 'Alternate DNS (IPv4, Enter to skip):' 'DNS alternativo (IPv4, Enter para pular):') 'InterNetwork' $true
     if ($altV4) { $dnsV4 += $altV4 }
-    Write-Host '    IPv6: se ficar em branco, o DNS IPv6 continua o do roteador, sem criptografia.' -ForegroundColor DarkGray
-    $prefV6 = Read-IP 'DNS preferencial (IPv6, Enter para pular):' 'InterNetworkV6' $true
+    Write-Host (T '    IPv6: if left blank, IPv6 DNS stays the one from the router, unencrypted.' '    IPv6: se ficar em branco, o DNS IPv6 continua o do roteador, sem criptografia.') -ForegroundColor DarkGray
+    $prefV6 = Read-IP (T 'Preferred DNS (IPv6, Enter to skip):' 'DNS preferencial (IPv6, Enter para pular):') 'InterNetworkV6' $true
     if ($prefV6) {
         $dnsV6 += $prefV6
-        $altV6 = Read-IP 'DNS alternativo (IPv6, Enter para pular):' 'InterNetworkV6' $true
+        $altV6 = Read-IP (T 'Alternate DNS (IPv6, Enter to skip):' 'DNS alternativo (IPv6, Enter para pular):') 'InterNetworkV6' $true
         if ($altV6) { $dnsV6 += $altV6 }
     }
     # The "automatic template" only exists for servers Windows knows (Cloudflare, Google, Quad9...)
     if ($isWin11) {
         foreach ($ip in ($dnsV4 + $dnsV6)) {
             if (-not (Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue)) {
-                Write-Host "    Aviso: o Windows não tem modelo automático para $ip. Esse servidor ficará SEM criptografia." -ForegroundColor Yellow
+                Write-Host (T "    Note: Windows has no automatic template for $ip. That server will be UNENCRYPTED." "    Aviso: o Windows não tem modelo automático para $ip. Esse servidor ficará SEM criptografia.") -ForegroundColor Yellow
             }
         }
     }
 }
-$opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'manter' }
+$opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' }
 
 # --- Summary and confirmation
-# Labels shown on screen for each option (in Portuguese, like the questions).
+# Labels shown on screen for each option (in the chosen language, like the questions).
 $labels = @{
-    Telemetry = 'Telemetria'; Suggestions = 'Sugestões'; Apps = 'Apps'; OptionalApps = 'Apps opcionais'
-    OneDrive = 'OneDrive'; Edge = 'Edge'; Security = 'Segurança'; HideAreas = 'Esconder áreas'; RootFolders = 'Pastas do C:'; Theme = 'Tema'; Taskbar = 'Barra de tarefas'
-    Search = 'Pesquisa'; TaskView = 'Visão de Tarefas'; ClearPins = 'Sem fixados'
-    ShowExtensions = 'Extensões'; HideFrequent = 'Sem frequentes'; HideRecent = 'Sem recentes'; HideHomeGallery = 'Sem Início/Galeria'; ClassicMenu = 'Menu clássico'; ThinBorder = 'Borda fina'
-    LongPaths = 'Caminhos longos'; EndTask = 'Finalizar tarefa'; Sudo = 'Sudo'; ClipboardHistory = 'Histórico Win+V'
-    NoMouseAccel = 'Sem aceleração'; NoStickyKeys = 'Sem aderência'; MaxVolume = 'Volume 100%'; DNS = 'DNS'
-    NoDeviceApps = 'Sem apps de periféricos'; BatteryPercent = 'Bateria em %'; ShowHidden = 'Arquivos ocultos'
-    NoFolderSniff = 'Sem descoberta pasta'; VerboseBsod = 'Tela azul detalhada'
+    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais')
+    OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
+    Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados')
+    ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
+    LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
+    NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
+    NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
+    NoFolderSniff = (T 'No folder discovery' 'Sem descoberta pasta'); VerboseBsod = (T 'Detailed blue screen' 'Tela azul detalhada')
 }
 if (-not $NoPrompt) {
-    Write-Host "`n  Resumo:" -ForegroundColor Cyan
+    Write-Host (T "`n  Summary:" "`n  Resumo:") -ForegroundColor Cyan
     foreach ($key in $opt.Keys) {
         $value = $opt[$key]
-        $text = if ($value -is [bool]) { if ($value) { 'sim' } else { 'não' } }
+        $text = if ($value -is [bool]) { if ($value) { T 'yes' 'sim' } else { T 'no' 'não' } }
                 elseif ($key -eq 'Theme')   { $themeNames[[array]::IndexOf($themeIds, $value)] }
                 elseif ($key -eq 'Taskbar') { $taskbarNames[[array]::IndexOf($taskbarIds, $value)] }
                 elseif ($key -eq 'Search')  { $searchNames[[array]::IndexOf($searchIds, $value)] }
                 elseif ($key -eq 'TaskView') { $taskViewNames[[array]::IndexOf($taskViewIds, $value)] }
+                elseif ($key -eq 'DNS' -and $value -eq 'Keep') { T 'keep' 'manter' }
                 else { $value }
         Write-Host ("    {0,-24} {1}" -f $labels[$key], $text)
     }
-    if (-not (Ask 'Aplicar agora?' $true)) { Write-Host 'Nada foi alterado.'; return }
+    if (-not (Ask (T 'Apply now?' 'Aplicar agora?') $true)) { Write-Host (T 'Nothing was changed.' 'Nada foi alterado.'); return }
 }
 
 #endregion
@@ -1071,64 +1082,64 @@ if (-not $NoPrompt) {
 #region ==================== 9. EXECUTION ====================
 
 # --- Save the answers for -Check
-try { Save-State $opt $dnsV4 $dnsV6 } catch { Write-Warning "Não foi possível salvar as respostas para o -Check: $($_.Exception.Message)" }
+try { Save-State $opt $dnsV4 $dnsV6 } catch { Write-Warning (T "Could not save the answers for -Check: $($_.Exception.Message)" "Não foi possível salvar as respostas para o -Check: $($_.Exception.Message)") }
 
 # --- Restore point (if there is already one from the last 24 h, Windows just warns and moves on)
-Write-Step 'Criando ponto de restauração'
+Write-Step (T 'Creating restore point' 'Criando ponto de restauração')
 try {
     Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction SilentlyContinue
-    Checkpoint-Computer -Description 'Antes do Configure-Windows' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+    Checkpoint-Computer -Description (T 'Before Configure-Windows' 'Antes do Configure-Windows') -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
 } catch {
-    Write-Warning "Não foi possível criar o ponto de restauração: $($_.Exception.Message)"
-    if (-not (Ask 'Continuar mesmo assim?' $false)) { Write-Host 'Nada foi alterado.'; return }
+    Write-Warning (T "Could not create the restore point: $($_.Exception.Message)" "Não foi possível criar o ponto de restauração: $($_.Exception.Message)")
+    if (-not (Ask (T 'Continue anyway?' 'Continuar mesmo assim?') $false)) { Write-Host (T 'Nothing was changed.' 'Nada foi alterado.'); return }
 }
 
 # --- Privacy and cleanup
 if ($opt.Telemetry) {
-    Invoke-Step 'Telemetria: serviços'                                { Disable-TelemetryServices }
-    Invoke-Step 'Telemetria: tarefas agendadas (desativa, não apaga)' { Disable-TelemetryTasks }
-    Invoke-Step 'Telemetria: políticas'                               { Set-TelemetryPolicies; Disable-Widgets }
+    Invoke-Step (T 'Telemetry: services' 'Telemetria: serviços')                                { Disable-TelemetryServices }
+    Invoke-Step (T 'Telemetry: scheduled tasks (disables, does not delete)' 'Telemetria: tarefas agendadas (desativa, não apaga)') { Disable-TelemetryTasks }
+    Invoke-Step (T 'Telemetry: policies' 'Telemetria: políticas')                               { Set-TelemetryPolicies; Disable-Widgets }
 }
-if ($opt.Suggestions) { Invoke-Step 'Sugestões, anúncios e instalação silenciosa de apps' { Disable-Suggestions } }
+if ($opt.Suggestions) { Invoke-Step (T 'Suggestions, ads and silent app installs' 'Sugestões, anúncios e instalação silenciosa de apps') { Disable-Suggestions } }
 if ($opt.Apps) {
     $appList = if ($opt.OptionalApps) { $JunkApps + $OptionalApps } else { $JunkApps }
-    Invoke-Step 'Removendo apps (todos os usuários + pacote provisionado)' { Remove-Apps $appList }
+    Invoke-Step (T 'Removing apps (all users + provisioned package)' 'Removendo apps (todos os usuários + pacote provisionado)') { Remove-Apps $appList }
 }
-if ($opt.OneDrive) { Invoke-Step 'Removendo OneDrive'                                          { Remove-OneDrive } }
-if ($opt.Edge)     { Invoke-Step 'Edge: sem telemetria, segundo plano, barra lateral e compras' { Set-EdgePolicies } }
-if ($opt.Security) { Invoke-Step 'Segurança do Windows'                                        { Set-WindowsSecurity } }
-if ($opt.RootFolders) { Invoke-Step 'Pastas na raiz do disco (inetpub e PerfLogs)'          { Clear-SystemDriveRoot } }
-if ($opt.NoDeviceApps) { Invoke-Step 'Apps de fabricante para periféricos'                   { Disable-DeviceMetadata } }
-if ($opt.HideAreas) { Invoke-Step 'Segurança do Windows: escondendo áreas de conta Microsoft'  { Hide-SecurityAccountAreas } }
+if ($opt.OneDrive) { Invoke-Step (T 'Removing OneDrive' 'Removendo OneDrive')                                          { Remove-OneDrive } }
+if ($opt.Edge)     { Invoke-Step (T 'Edge: no telemetry, background mode, sidebar or shopping' 'Edge: sem telemetria, segundo plano, barra lateral e compras') { Set-EdgePolicies } }
+if ($opt.Security) { Invoke-Step (T 'Windows Security' 'Segurança do Windows')                                        { Set-WindowsSecurity } }
+if ($opt.RootFolders) { Invoke-Step (T 'Folders in the drive root (inetpub and PerfLogs)' 'Pastas na raiz do disco (inetpub e PerfLogs)')          { Clear-SystemDriveRoot } }
+if ($opt.NoDeviceApps) { Invoke-Step (T 'Manufacturer apps for devices' 'Apps de fabricante para periféricos')                   { Disable-DeviceMetadata } }
+if ($opt.HideAreas) { Invoke-Step (T 'Windows Security: hiding Microsoft account areas' 'Segurança do Windows: escondendo áreas de conta Microsoft')  { Hide-SecurityAccountAreas } }
 
 # --- Personalization
 if ($opt.Theme -ne 'Keep') {
-    Invoke-Step "Tema $($themeNames[[array]::IndexOf($themeIds, $opt.Theme)])" { Set-Theme ($opt.Theme -eq 'Light') }
+    Invoke-Step "$(T 'Theme' 'Tema') $($themeNames[[array]::IndexOf($themeIds, $opt.Theme)])" { Set-Theme ($opt.Theme -eq 'Light') }
 }
 if ($opt.Taskbar -ne 'Keep') {
-    Invoke-Step 'Alinhamento da barra de tarefas' { Set-TaskbarAlignment ($opt.Taskbar -eq 'Left') }
+    Invoke-Step (T 'Taskbar alignment' 'Alinhamento da barra de tarefas') { Set-TaskbarAlignment ($opt.Taskbar -eq 'Left') }
 }
 if ($opt.Search -ne 'Keep') {
     # Index in $searchIds minus 1 = SearchboxTaskbarMode value (Hidden = 0, Icon = 1, Box = 2)
-    Invoke-Step 'Pesquisa na barra de tarefas' { Set-TaskbarSearch ([array]::IndexOf($searchIds, $opt.Search) - 1) }
+    Invoke-Step (T 'Taskbar search' 'Pesquisa na barra de tarefas') { Set-TaskbarSearch ([array]::IndexOf($searchIds, $opt.Search) - 1) }
 }
 if ($opt.TaskView -ne 'Keep') {
-    Invoke-Step 'Botão Visão de Tarefas' { Set-TaskViewButton ($opt.TaskView -eq 'Show') }
+    Invoke-Step (T 'Task View button' 'Botão Visão de Tarefas') { Set-TaskViewButton ($opt.TaskView -eq 'Show') }
 }
-if ($opt.ClearPins) { Invoke-Step 'Removendo ícones fixados da barra de tarefas' { Clear-TaskbarPins } }
-if ($opt.BatteryPercent) { Invoke-Step 'Porcentagem da bateria' { Enable-BatteryPercentage } }
+if ($opt.ClearPins) { Invoke-Step (T 'Removing pinned icons from the taskbar' 'Removendo ícones fixados da barra de tarefas') { Clear-TaskbarPins } }
+if ($opt.BatteryPercent) { Invoke-Step (T 'Battery percentage' 'Porcentagem da bateria') { Enable-BatteryPercentage } }
 if ($opt.ShowExtensions -or $opt.HideFrequent -or $opt.HideRecent) {
-    Invoke-Step 'Explorador de Arquivos' { Set-Explorer $opt.ShowExtensions $opt.HideFrequent $opt.HideRecent }
+    Invoke-Step (T 'File Explorer' 'Explorador de Arquivos') { Set-Explorer $opt.ShowExtensions $opt.HideFrequent $opt.HideRecent }
 }
-if ($opt.ShowHidden)    { Invoke-Step 'Explorador: arquivos ocultos'               { Show-HiddenFiles } }
-if ($opt.NoFolderSniff) { Invoke-Step 'Explorador: descoberta automática de pasta' { Disable-FolderDiscovery } }
-if ($opt.HideHomeGallery) { Invoke-Step 'Explorador: removendo Início e Galeria' { Hide-HomeAndGallery } }
-if ($opt.ClassicMenu) { Invoke-Step 'Menu de contexto clássico' { Enable-ClassicContextMenu } }
-if ($opt.ThinBorder) { Invoke-Step 'Borda de redimensionamento das janelas' { Set-ThinBorder } }
+if ($opt.ShowHidden)    { Invoke-Step (T 'File Explorer: hidden files' 'Explorador: arquivos ocultos')               { Show-HiddenFiles } }
+if ($opt.NoFolderSniff) { Invoke-Step (T 'File Explorer: automatic folder discovery' 'Explorador: descoberta automática de pasta') { Disable-FolderDiscovery } }
+if ($opt.HideHomeGallery) { Invoke-Step (T 'File Explorer: removing Home and Gallery' 'Explorador: removendo Início e Galeria') { Hide-HomeAndGallery } }
+if ($opt.ClassicMenu) { Invoke-Step (T 'Classic context menu' 'Menu de contexto clássico') { Enable-ClassicContextMenu } }
+if ($opt.ThinBorder) { Invoke-Step (T 'Window resize border' 'Borda de redimensionamento das janelas') { Set-ThinBorder } }
 
 # --- Everyday use
 if ($opt.LongPaths -or $opt.EndTask -or $opt.Sudo -or $opt.ClipboardHistory -or $opt.NoMouseAccel -or $opt.NoStickyKeys) {
-    Invoke-Step 'Ajustes de uso no dia a dia' {
+    Invoke-Step (T 'Everyday use tweaks' 'Ajustes de uso no dia a dia') {
         if ($opt.LongPaths)        { Enable-LongPaths }
         if ($opt.EndTask)          { Enable-EndTask }
         if ($opt.Sudo)             { Enable-Sudo }
@@ -1137,22 +1148,22 @@ if ($opt.LongPaths -or $opt.EndTask -or $opt.Sudo -or $opt.ClipboardHistory -or 
         if ($opt.NoStickyKeys)     { Disable-StickyKeysShortcut }
     }
 }
-if ($opt.MaxVolume) { Invoke-Step 'Volume do Windows em 100%' { Set-MaxVolume } }
-if ($opt.VerboseBsod) { Invoke-Step 'Tela azul detalhada' { Enable-VerboseBsod } }
+if ($opt.MaxVolume) { Invoke-Step (T 'Windows volume at 100%' 'Volume do Windows em 100%') { Set-MaxVolume } }
+if ($opt.VerboseBsod) { Invoke-Step (T 'Detailed blue screen' 'Tela azul detalhada') { Enable-VerboseBsod } }
 
 # --- Network
 if ($dnsV4) { Invoke-Step "DNS: $($opt.DNS)" { Set-DNS $dnsV4 $dnsV6 } }
 
 # --- Apply visuals right away (no need to sign out)
-if ($script:RestartExplorer) { Invoke-Step 'Aplicando visual sem precisar sair da conta' { Restart-Explorer } }
+if ($script:RestartExplorer) { Invoke-Step (T 'Applying visuals without signing out' 'Aplicando visual sem precisar sair da conta') { Restart-Explorer } }
 
 # --- Done
 if ($script:Failures.Count) {
-    Write-Host "`nEtapas que falharam (o resto foi aplicado):" -ForegroundColor Yellow
+    Write-Host (T "`nSteps that failed (the rest was applied):" "`nEtapas que falharam (o resto foi aplicado):") -ForegroundColor Yellow
     $script:Failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
 }
-Write-Step 'Concluído. Reinicie o computador.'
-Write-Host 'Para desfazer: Revert-Configure-Windows.ps1' -ForegroundColor Green
-Write-Host 'Depois de uma atualização grande do Windows, confira com: Configure-Windows.ps1 -Check' -ForegroundColor DarkGray
+Write-Step (T 'Done. Restart the computer.' 'Concluído. Reinicie o computador.')
+Write-Host (T 'To undo: Revert-Configure-Windows.ps1' 'Para desfazer: Revert-Configure-Windows.ps1') -ForegroundColor Green
+Write-Host (T 'After a big Windows update, check with: Configure-Windows.ps1 -Check' 'Depois de uma atualização grande do Windows, confira com: Configure-Windows.ps1 -Check') -ForegroundColor DarkGray
 
 #endregion

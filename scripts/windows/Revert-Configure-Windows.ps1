@@ -4,12 +4,13 @@
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
         powershell -ExecutionPolicy Bypass -File .\Revert-Configure-Windows.ps1
+    Language: asked at the start (English by default); skip the question with -Lang en or -Lang pt.
 
     What does NOT come back on its own:
         - removed apps .............. reinstall from the Microsoft Store
         - OneDrive .................. winget install Microsoft.OneDrive
         - theme, taskbar alignment, search and Task View, extensions, folders ... through Windows Settings
-        - taskbar pins .............. right-click the app → "Fixar na barra de tarefas"
+        - taskbar pins .............. right-click the app → "Pin to taskbar"
         - volume .................... on the taskbar volume icon
         - hidden files, battery % ... through Windows Settings
         - unwanted app and download blocking (Windows Security) stays on: it is only protection
@@ -21,11 +22,63 @@
         3. Execution
 #>
 
+param(
+    [ValidateSet('en', 'pt')]
+    [string]$Lang
+)
+
 $ErrorActionPreference = 'Continue'
 $P = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows'
 
 
 #region ==================== 1. HELPERS ====================
+
+# Text in the chosen language: T 'English text' 'Texto em português'
+function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
+
+# Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
+# The "use the arrows" hint is shown only on the first menu.
+function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
+    Write-Host "  $Question"
+    $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
+    if (-not $arrows) {
+        # No real console (e.g. PowerShell ISE): numbered menu instead
+        for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
+        while ($true) {
+            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
+            if ($answer -eq '') { return $Default }
+            $n = 0
+            if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
+            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+        }
+    }
+    if (-not $script:ArrowHintShown) {
+        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        $script:ArrowHintShown = $true
+    }
+    foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
+    $top = [Console]::CursorTop - $Options.Count
+    $selected = $Default
+    [Console]::CursorVisible = $false
+    try {
+        while ($true) {
+            for ($i = 0; $i -lt $Options.Count; $i++) {
+                [Console]::SetCursorPosition(0, $top + $i)
+                $marker = if ($i -eq $selected) { '  > ' } else { '    ' }
+                $line = ($marker + $Options[$i]).PadRight([Console]::WindowWidth - 1)
+                if ($i -eq $selected) { Write-Host $line -ForegroundColor Cyan -NoNewline } else { Write-Host $line -NoNewline }
+            }
+            $key = [Console]::ReadKey($true).Key
+            if     ($key -eq 'UpArrow')   { $selected = ($selected - 1 + $Options.Count) % $Options.Count }
+            elseif ($key -eq 'DownArrow') { $selected = ($selected + 1) % $Options.Count }
+            elseif ($key -eq 'Enter')     { break }
+        }
+    } finally {
+        [Console]::SetCursorPosition(0, $top + $Options.Count)
+        [Console]::CursorVisible = $true
+    }
+    return $selected
+}
 
 # Deletes registry values (ignores the ones that don't exist).
 function Remove-Reg([string]$Path, [string[]]$Names) {
@@ -34,6 +87,10 @@ function Remove-Reg([string]$Path, [string[]]$Names) {
 
 # Step title in the terminal.
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
+
+# Language: asked once at the start (default English), unless -Lang was given.
+if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
+$script:Lang = $Lang
 
 #endregion
 
@@ -109,7 +166,7 @@ function Restore-Border {
     $wm = 'HKCU:\Control Panel\Desktop\WindowMetrics'
     if ((Get-ItemProperty $wm -Name PaddedBorderWidth -ErrorAction SilentlyContinue).PaddedBorderWidth -eq '0') {
         Set-ItemProperty $wm -Name PaddedBorderWidth -Value '-60'
-        Write-Host '  borda restaurada (vale depois de sair da conta e entrar de novo)'
+        Write-Host (T '  border restored (takes effect after signing out and back in)' '  borda restaurada (vale depois de sair da conta e entrar de novo)')
     }
 }
 
@@ -119,7 +176,7 @@ function Restore-DNS {
     foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue)) {
         Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ResetServerAddresses -ErrorAction SilentlyContinue
         Remove-Item "$base\$($adapter.InterfaceGuid)\DohInterfaceSettings" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "  $($adapter.Name): automático"
+        Write-Host (T "  $($adapter.Name): automatic" "  $($adapter.Name): automático")
     }
     Clear-DnsClientCache
 }
@@ -130,7 +187,7 @@ function Restore-HomeAndGallery {
     Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}' -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'LaunchTo'
     Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}' -Recurse -Force -ErrorAction SilentlyContinue   # classic right-click menu
-    Write-Host '  Início, Galeria e o menu novo do botão direito de volta (aparecem depois de reiniciar)'
+    Write-Host (T '  Home, Gallery and the new right-click menu are back (they show up after restarting)' '  Início, Galeria e o menu novo do botão direito de volta (aparecem depois de reiniciar)')
 }
 
 # Folder type discovery, manufacturer apps for devices and verbose blue screen back to the Windows default.
@@ -146,7 +203,7 @@ function Show-Inetpub {
     if (Test-Path $inetpub) {
         $folder = Get-Item $inetpub -Force
         $folder.Attributes = $folder.Attributes -band -bnot [IO.FileAttributes]::Hidden
-        Write-Host '  inetpub: visível de novo'
+        Write-Host (T '  inetpub: visible again' '  inetpub: visível de novo')
     }
 }
 
@@ -164,17 +221,17 @@ function Remove-SavedAnswers {
 
 #region ==================== 3. EXECUTION ====================
 
-Write-Step 'Serviços de telemetria de volta ao padrão'; Restore-TelemetryServices
-Write-Step 'Reativando tarefas agendadas';             Restore-TelemetryTasks
-Write-Step 'Removendo políticas';                      Remove-WindowsPolicies
-Write-Step 'Sugestões do Windows de volta ao padrão';  Restore-Suggestions
-Write-Step 'Borda das janelas de volta ao padrão';     Restore-Border
-Write-Step 'DNS de volta ao automático (do roteador)'; Restore-DNS
-Write-Step 'Início e Galeria de volta no Explorador';  Restore-HomeAndGallery
-Write-Step 'Pastas, periféricos e tela azul no padrão'; Restore-ExplorerAndDeviceDefaults
-Write-Step 'Pasta inetpub visível de novo';            Show-Inetpub
-Write-Step 'Removendo políticas do Edge';              Remove-EdgePolicies
-Write-Step 'Apagando as respostas salvas (TidyWin)';  Remove-SavedAnswers
-Write-Step 'Concluído. Reinicie o computador.'
+Write-Step (T 'Telemetry services back to default' 'Serviços de telemetria de volta ao padrão'); Restore-TelemetryServices
+Write-Step (T 'Re-enabling scheduled tasks' 'Reativando tarefas agendadas'); Restore-TelemetryTasks
+Write-Step (T 'Removing policies' 'Removendo políticas'); Remove-WindowsPolicies
+Write-Step (T 'Windows suggestions back to default' 'Sugestões do Windows de volta ao padrão'); Restore-Suggestions
+Write-Step (T 'Window border back to default' 'Borda das janelas de volta ao padrão'); Restore-Border
+Write-Step (T 'DNS back to automatic (from the router)' 'DNS de volta ao automático (do roteador)'); Restore-DNS
+Write-Step (T 'Home and Gallery back in File Explorer' 'Início e Galeria de volta no Explorador'); Restore-HomeAndGallery
+Write-Step (T 'Folders, devices and blue screen back to default' 'Pastas, periféricos e tela azul no padrão'); Restore-ExplorerAndDeviceDefaults
+Write-Step (T 'inetpub folder visible again' 'Pasta inetpub visível de novo'); Show-Inetpub
+Write-Step (T 'Removing Edge policies' 'Removendo políticas do Edge'); Remove-EdgePolicies
+Write-Step (T 'Deleting the saved answers (TidyWin)' 'Apagando as respostas salvas (TidyWin)'); Remove-SavedAnswers
+Write-Step (T 'Done. Restart the computer.' 'Concluído. Reinicie o computador.')
 
 #endregion

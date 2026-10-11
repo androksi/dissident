@@ -51,7 +51,7 @@ irm androksi.github.io/tidywin/apps-import | iex
 - Right-click the Start button and choose **Terminal**.
 - Or press <kbd>Win</kbd> + <kbd>R</kbd>, type `powershell` and press <kbd>Enter</kbd>.
 
-The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Prompts and messages are in Brazilian Portuguese.
+The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Each script asks for the language when it starts: English (default) or Portuguese.
 
 ## Scripts
 

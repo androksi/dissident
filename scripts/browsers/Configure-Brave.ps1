@@ -6,6 +6,7 @@
         powershell -ExecutionPolicy Bypass -File .\Configure-Brave.ps1
     UNDO EVERYTHING:
         powershell -ExecutionPolicy Bypass -File .\Configure-Brave.ps1 -Revert
+    Add -Lang en or -Lang pt to skip the language question.
 
     Uses Brave's official policies (support.brave.app → "Group Policy"). They apply even if Brave
     is installed later. Close and reopen Brave to apply. It will show
@@ -20,7 +21,8 @@
         4. Execution
 #>
 param(
-    [switch]$Revert
+    [switch]$Revert,
+    [ValidateSet('en', 'pt')][string]$Lang
 )
 
 $ErrorActionPreference = 'Continue'
@@ -30,6 +32,9 @@ $B = 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave'
 #region ==================== 1. HELPERS ====================
 
 $script:Failures = 0
+
+# Text in the chosen language: T 'English text' 'Texto em português'
+function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 # Writes a policy (DWORD) and prints the result: [OK] or [ERRO].
 function Set-Policy([string]$Name, [int]$Value, [string]$Description) {
@@ -41,7 +46,7 @@ function Set-Policy([string]$Name, [int]$Value, [string]$Description) {
         Write-Host "$Name = $Value" -ForegroundColor DarkGray
     } catch {
         $script:Failures++
-        Write-Host '  [ERRO] ' -ForegroundColor Red -NoNewline
+        Write-Host (T '  [ERROR] ' '  [ERRO] ') -ForegroundColor Red -NoNewline
         Write-Host "$Description ($Name): $($_.Exception.Message)"
     }
 }
@@ -56,14 +61,14 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  Número [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host "  Digite um número de 1 a $($Options.Count)." -ForegroundColor DarkYellow
+            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
         }
     }
-    Write-Host '  (use as setas ↑ ↓ e Enter)' -ForegroundColor DarkGray
+    Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
     $top = [Console]::CursorTop - $Options.Count
     $selected = $Default
@@ -88,46 +93,50 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
     return $selected
 }
 
+# Language: asked once at the start (default English), unless -Lang was given.
+if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
+$script:Lang = $Lang
+
 #endregion
 
 
 #region ==================== 2. POLICIES ====================
 
 function Set-BraveFeatures {
-    Set-Policy 'BraveWalletDisabled'        1 'Wallet (web3, DNS descentralizado): off'
+    Set-Policy 'BraveWalletDisabled'        1 (T 'Wallet (web3, decentralized DNS): off' 'Wallet (web3, DNS descentralizado): off')
     Set-Policy 'BraveVPNDisabled'           1 'VPN: off'
-    Set-Policy 'BraveRewardsDisabled'       1 'Recompensas (BAT e anúncios): off'
-    Set-Policy 'BraveAIChatEnabled'         0 'Leo (assistente de IA): off'
-    Set-Policy 'BraveNewsDisabled'          1 'Brave News na nova guia: off'
-    Set-Policy 'BraveTalkDisabled'          1 'Brave Talk (videochamadas): off'
+    Set-Policy 'BraveRewardsDisabled'       1 (T 'Rewards (BAT and ads): off' 'Recompensas (BAT e anúncios): off')
+    Set-Policy 'BraveAIChatEnabled'         0 (T 'Leo (AI assistant): off' 'Leo (assistente de IA): off')
+    Set-Policy 'BraveNewsDisabled'          1 (T 'Brave News on the new tab: off' 'Brave News na nova guia: off')
+    Set-Policy 'BraveTalkDisabled'          1 (T 'Brave Talk (video calls): off' 'Brave Talk (videochamadas): off')
     Set-Policy 'BravePlaylistEnabled'       0 'Playlist: off'
-    Set-Policy 'BraveWaybackMachineEnabled' 0 'Aviso do Internet Archive em 404: off'
-    Set-Policy 'TorDisabled'                1 'Janela privada com Tor: off'
-    Set-Policy 'BraveSpeedreaderEnabled'    0 'Speedreader (modo leitura): off'
+    Set-Policy 'BraveWaybackMachineEnabled' 0 (T 'Internet Archive prompt on 404 pages: off' 'Aviso do Internet Archive em 404: off')
+    Set-Policy 'TorDisabled'                1 (T 'Private window with Tor: off' 'Janela privada com Tor: off')
+    Set-Policy 'BraveSpeedreaderEnabled'    0 (T 'Speedreader (reader mode): off' 'Speedreader (modo leitura): off')
 }
 
 function Set-BraveTelemetry {
-    Set-Policy 'BraveP3AEnabled'            0 'Análises de uso do produto (P3A): off'
-    Set-Policy 'BraveStatsPingEnabled'      0 'Ping diário de uso: off'
+    Set-Policy 'BraveP3AEnabled'            0 (T 'Product usage analytics (P3A): off' 'Análises de uso do produto (P3A): off')
+    Set-Policy 'BraveStatsPingEnabled'      0 (T 'Daily usage ping: off' 'Ping diário de uso: off')
     Set-Policy 'BraveWebDiscoveryEnabled'   0 'Web Discovery Project: off'
 }
 
 function Set-ChromiumPolicies {
-    Set-Policy 'MetricsReportingEnabled'                 0 'Relatórios de uso e falhas: off'
-    Set-Policy 'UrlKeyedAnonymizedDataCollectionEnabled' 0 'Coleta anônima de URLs: off'
-    Set-Policy 'FeedbackSurveysEnabled'                  0 'Pesquisas de feedback: off'
-    Set-Policy 'PromotionalTabsEnabled'                  0 'Guias promocionais/boas-vindas: off'
-    Set-Policy 'BackgroundModeEnabled'                   0 'Rodar em segundo plano ao fechar: off'
-    Set-Policy 'ShoppingListEnabled'                     0 'Lista de compras: off'
-    Set-Policy 'DefaultBrowserSettingEnabled'            0 'Aviso "não é o navegador padrão": off'
+    Set-Policy 'MetricsReportingEnabled'                 0 (T 'Usage and crash reports: off' 'Relatórios de uso e falhas: off')
+    Set-Policy 'UrlKeyedAnonymizedDataCollectionEnabled' 0 (T 'Anonymous URL collection: off' 'Coleta anônima de URLs: off')
+    Set-Policy 'FeedbackSurveysEnabled'                  0 (T 'Feedback surveys: off' 'Pesquisas de feedback: off')
+    Set-Policy 'PromotionalTabsEnabled'                  0 (T 'Promotional/welcome tabs: off' 'Guias promocionais/boas-vindas: off')
+    Set-Policy 'BackgroundModeEnabled'                   0 (T 'Run in background when closed: off' 'Rodar em segundo plano ao fechar: off')
+    Set-Policy 'ShoppingListEnabled'                     0 (T 'Shopping list: off' 'Lista de compras: off')
+    Set-Policy 'DefaultBrowserSettingEnabled'            0 (T '"Not your default browser" prompt: off' 'Aviso "não é o navegador padrão": off')
 }
 
 # Installing sites as apps (the "monitor with arrow" icon in the address bar), password saving
 # (Bitwarden handles it) and saved payment cards. Chromium policies, also honored by Brave.
 function Set-AppsAndAutofill {
-    Set-Policy 'WebAppInstallByUserEnabled'              0 'Instalar sites como app (ícone na barra): off'
-    Set-Policy 'PasswordManagerEnabled'                  0 'Gerenciador de senhas do Brave: off'
-    Set-Policy 'AutofillCreditCardEnabled'               0 'Salvar/preencher cartões: off'
+    Set-Policy 'WebAppInstallByUserEnabled'              0 (T 'Install sites as apps (address bar icon): off' 'Instalar sites como app (ícone na barra): off')
+    Set-Policy 'PasswordManagerEnabled'                  0 (T 'Brave password manager: off' 'Gerenciador de senhas do Brave: off')
+    Set-Policy 'AutofillCreditCardEnabled'               0 (T 'Save/fill payment cards: off' 'Salvar/preencher cartões: off')
 }
 
 # "Cast" to TV (Chromecast). To find TVs, Brave listens on the local network (mDNS, UDP 5353) the first
@@ -139,7 +148,7 @@ $FirewallRuleName = 'Brave (mDNS-In)'
 
 function Set-CastToTv([bool]$Disable, [string]$BraveExe) {
     if ($Disable) {
-        Set-Policy 'EnableMediaRouter' 0 'Transmitir para TV (Chromecast): off'
+        Set-Policy 'EnableMediaRouter' 0 (T 'Cast to TV (Chromecast): off' 'Transmitir para TV (Chromecast): off')
         Remove-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue
         return
     }
@@ -150,12 +159,12 @@ function Set-CastToTv([bool]$Disable, [string]$BraveExe) {
         New-NetFirewallRule -DisplayName $FirewallRuleName -Direction Inbound -Action Allow `
             -Program $BraveExe -Protocol UDP -LocalPort 5353 -ErrorAction Stop | Out-Null
         Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
-        Write-Host ("{0,-42}" -f 'Transmitir para TV: mantido; firewall liberado') -NoNewline
-        Write-Host "regra '$FirewallRuleName' (UDP 5353)" -ForegroundColor DarkGray
+        Write-Host ("{0,-42}" -f (T 'Cast to TV: kept; firewall allowed' 'Transmitir para TV: mantido; firewall liberado')) -NoNewline
+        Write-Host (T "rule '$FirewallRuleName' (UDP 5353)" "regra '$FirewallRuleName' (UDP 5353)") -ForegroundColor DarkGray
     } catch {
         $script:Failures++
-        Write-Host '  [ERRO] ' -ForegroundColor Red -NoNewline
-        Write-Host "Regra do firewall ($FirewallRuleName): $($_.Exception.Message)"
+        Write-Host (T '  [ERROR] ' '  [ERRO] ') -ForegroundColor Red -NoNewline
+        Write-Host (T "Firewall rule ($FirewallRuleName): $($_.Exception.Message)" "Regra do firewall ($FirewallRuleName): $($_.Exception.Message)")
     }
 }
 
@@ -165,17 +174,17 @@ function Set-CastToTv([bool]$Disable, [string]$BraveExe) {
 #region ==================== 3. REVERT ====================
 
 function Remove-Policies {
-    Write-Step 'Removendo as políticas do Brave'
+    Write-Step (T 'Removing Brave policies' 'Removendo as políticas do Brave')
     if (Test-Path $B) {
-        (Get-Item $B).Property | ForEach-Object { Write-Host "  [removida] $_" -ForegroundColor DarkGray }
+        (Get-Item $B).Property | ForEach-Object { Write-Host (T "  [removed] $_" "  [removida] $_") -ForegroundColor DarkGray }
         Remove-Item $B -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "`nPronto. Feche e abra o Brave." -ForegroundColor Green
+        Write-Host (T "`nDone. Close and reopen Brave." "`nPronto. Feche e abra o Brave.") -ForegroundColor Green
     } else {
-        Write-Host '  Nenhuma política do Brave encontrada; nada a fazer.'
+        Write-Host (T '  No Brave policies found; nothing to do.' '  Nenhuma política do Brave encontrada; nada a fazer.')
     }
     if (Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue) {
         Remove-NetFirewallRule -DisplayName $FirewallRuleName
-        Write-Host "  [removida] regra do firewall '$FirewallRuleName'" -ForegroundColor DarkGray
+        Write-Host (T "  [removed] firewall rule '$FirewallRuleName'" "  [removida] regra do firewall '$FirewallRuleName'") -ForegroundColor DarkGray
     }
 }
 
@@ -192,7 +201,7 @@ $installed = @(
     "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $installed) {
-    Write-Host 'Brave não encontrado. As políticas serão aplicadas mesmo assim e valem quando você instalar.' -ForegroundColor DarkYellow
+    Write-Host (T 'Brave not found. The policies will be applied anyway and take effect when you install it.' 'Brave não encontrado. As políticas serão aplicadas mesmo assim e valem quando você instalar.') -ForegroundColor DarkYellow
     $installed = "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe"   # default install path
 }
 
@@ -200,24 +209,25 @@ Write-Host "`nConfigure-Brave" -ForegroundColor Green
 
 # --- Question
 $castOptions = @(
-    'Manter "Transmitir para TV"',
-    'Desligar "Transmitir para TV"'
+    (T 'Keep "Cast to TV"' 'Manter "Transmitir para TV"'),
+    (T 'Turn off "Cast to TV"' 'Desligar "Transmitir para TV"')
 )
-$disableCast = (Choose 'Transmitir para TV (Chromecast):' $castOptions 0) -eq 1
+$disableCast = (Choose (T 'Cast to TV (Chromecast):' 'Transmitir para TV (Chromecast):') $castOptions 0) -eq 1
 
 # --- Apply
-Write-Step 'Recursos do Brave';     Set-BraveFeatures
-Write-Step 'Telemetria do Brave';   Set-BraveTelemetry
-Write-Step 'Políticas do Chromium'; Set-ChromiumPolicies
-Write-Step 'Apps, senhas e cartões'; Set-AppsAndAutofill
-Write-Step 'Transmitir para TV';    Set-CastToTv $disableCast $installed
+Write-Step (T 'Brave features' 'Recursos do Brave');     Set-BraveFeatures
+Write-Step (T 'Brave telemetry' 'Telemetria do Brave');   Set-BraveTelemetry
+Write-Step (T 'Chromium policies' 'Políticas do Chromium'); Set-ChromiumPolicies
+Write-Step (T 'Apps, passwords and cards' 'Apps, senhas e cartões'); Set-AppsAndAutofill
+Write-Step (T 'Cast to TV' 'Transmitir para TV');    Set-CastToTv $disableCast $installed
 
 # --- Done
-if ($script:Failures) { Write-Host "`n$($script:Failures) política(s) falharam — veja as linhas [ERRO] acima." -ForegroundColor Yellow }
-Write-Host "`nPronto. Feche e abra o Brave (ou confira em brave://policy)." -ForegroundColor Green
+if ($script:Failures) { Write-Host (T "`n$($script:Failures) policy(ies) failed — see the [ERROR] lines above." "`n$($script:Failures) política(s) falharam — veja as linhas [ERRO] acima.") -ForegroundColor Yellow }
+Write-Host (T "`nDone. Close and reopen Brave (or check brave://policy)." "`nPronto. Feche e abra o Brave (ou confira em brave://policy).") -ForegroundColor Green
 if (Get-Process brave -ErrorAction SilentlyContinue) {
-    Write-Host 'O Brave está aberto: feche todas as janelas dele para as mudanças valerem.' -ForegroundColor DarkYellow
+    Write-Host (T 'Brave is open: close all of its windows for the changes to take effect.' 'O Brave está aberto: feche todas as janelas dele para as mudanças valerem.') -ForegroundColor DarkYellow
 }
+if ($script:Lang -eq 'pt') {
 Write-Host @'
 
 Ajustes que não têm política (faça uma vez dentro do Brave):
@@ -226,5 +236,15 @@ Ajustes que não têm política (faça uma vez dentro do Brave):
   - brave://settings/search     -> mecanismo de pesquisa padrão: Google
   - brave://settings/system     -> ligue "Economia de memória"
 '@
+} else {
+Write-Host @'
+
+Settings with no policy (do these once inside Brave):
+  - brave://settings/newTab     -> turn off sponsored images, stats and cards
+  - brave://settings/appearance -> "Show sidebar": Never; turn on "Always show full URLs"
+  - brave://settings/search     -> default search engine: Google
+  - brave://settings/system     -> turn on "Memory Saver"
+'@
+}
 
 #endregion
