@@ -4,81 +4,54 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TidyWin</title>
-<meta name="description" content="Scripts for a Windows without telemetry or junk. One PowerShell command.">
+<meta name="description" content="PowerShell scripts that remove telemetry, ads and preinstalled apps from Windows.">
 <link rel="icon" href="https://raw.githubusercontent.com/androksi/tidywin/main/assets/logo.svg">
 <style>
-  :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --line:#30363d; --card:#161b22; --accent:#3fb950; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
-  main { max-width:760px; margin:0 auto; padding:48px 16px 64px; }
-  h1 { margin:0; font-size:2rem; }
-  .tag { color:var(--muted); margin:4px 0 32px; }
-  h2 { font-size:1rem; color:var(--muted); font-weight:600; margin:32px 0 8px; text-transform:uppercase; letter-spacing:.06em; }
-  .row { display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin:8px 0; }
-  .row code { flex:1; overflow-x:auto; white-space:nowrap; font:14px/1.4 ui-monospace,Consolas,monospace; }
-  .row span { color:var(--muted); font-size:.85rem; white-space:nowrap; }
-  button { background:transparent; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; font:inherit; font-size:.85rem; }
-  button:hover { border-color:var(--accent); }
-  button.ok { color:var(--accent); border-color:var(--accent); }
-  p, li { color:var(--muted); }
-  a { color:var(--fg); }
-  @media (max-width:560px) { .row { flex-wrap:wrap; } .row span { order:3; width:100%; } }
+  body { margin: 0; background: #111; color: #ddd; font: 15px/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  main { max-width: 640px; margin: 0 auto; padding: 64px 16px; }
+  h1 { margin: 0 0 4px; font-size: 22px; color: #fff; }
+  p { margin: 0 0 32px; color: #888; }
+  ul { list-style: none; margin: 0 0 32px; padding: 0; }
+  li { padding: 2px 0; overflow-x: auto; white-space: nowrap; }
+  button { all: unset; cursor: pointer; }
+  button:hover, button:focus-visible { color: #fff; text-decoration: underline; }
+  .copied { color: #7c7; }
+  a { color: #888; }
+  a:hover { color: #fff; }
 </style>
 </head>
 <body>
 <main>
   <h1>TidyWin</h1>
-  <p class="tag">Run a command in PowerShell. Administrator rights are requested automatically.</p>
+  <p>Run in PowerShell. Click a command to copy it.</p>
 
-  <h2>Apply</h2>
-  <div id="apply"></div>
+  <ul id="apply"></ul>
+  <ul id="undo"></ul>
 
-  <h2>Undo</h2>
-  <div id="revert"></div>
-
-  <h2>How it works</h2>
-  <ul>
-    <li>Each address downloads the script to <code>%TEMP%\tidywin</code>, runs it and deletes the folder at the end.</li>
-    <li>The scripts' prompts and messages are in Brazilian Portuguese.</li>
-    <li>Read what each script does first: <a href="https://github.com/androksi/tidywin">github.com/androksi/tidywin</a>.</li>
-    <li>Use at your own risk. Licensed under GPL-3.0.</li>
-  </ul>
+  <a href="https://github.com/androksi/tidywin">github.com/androksi/tidywin</a>
 </main>
 <script>
   const base = "__SHORT__";
-  const apply = [
-    ["windows", "Windows privacy, cleanup and personalization"],
-    ["apps",    "Install apps with WinGet"],
-    ["chrome",  "Chrome without telemetry and AI"],
-    ["brave",   "Brave without Wallet, VPN, Rewards, Leo and telemetry"],
-    ["firefox", "Firefox without telemetry, with uBlock Origin and Bitwarden"],
-  ];
-  const revert = [
-    ["windows-revert", "Undo Windows"],
-    ["chrome-revert",  "Undo Chrome"],
-    ["brave-revert",   "Undo Brave"],
-    ["firefox-revert", "Undo Firefox"],
-  ];
-  function fill(id, list) {
-    const box = document.getElementById(id);
-    for (const [name, desc] of list) {
+  const lists = {
+    apply: ["windows", "apps", "chrome", "brave", "firefox"],
+    undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert"],
+  };
+  for (const [id, names] of Object.entries(lists)) {
+    for (const name of names) {
       const cmd = `irm ${base}/${name} | iex`;
-      const row = document.createElement("div");
-      row.className = "row";
-      row.innerHTML = `<code></code><span></span><button type="button">Copy</button>`;
-      row.querySelector("code").textContent = cmd;
-      row.querySelector("span").textContent = desc;
-      const btn = row.querySelector("button");
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.textContent = cmd;
       btn.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(cmd); btn.textContent = "Copied"; btn.classList.add("ok"); }
-        catch { btn.textContent = "Select and copy"; }
-        setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("ok"); }, 1500);
+        try { await navigator.clipboard.writeText(cmd); } catch { return; }
+        btn.textContent = "copied";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = cmd; btn.classList.remove("copied"); }, 1200);
       });
-      box.appendChild(row);
+      li.appendChild(btn);
+      document.getElementById(id).appendChild(li);
     }
   }
-  fill("apply", apply);
-  fill("revert", revert);
 </script>
 </body>
 </html>
