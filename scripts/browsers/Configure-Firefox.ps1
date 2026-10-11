@@ -14,10 +14,12 @@
     Works on Windows 10 and 11. Safe to run more than once.
 
     Passwords: turns off Firefox's own password manager, so only Bitwarden is used.
-    Three questions: search suggestions, page preloading and HTTPS-Only mode (Enter = default).
+    Address bar: removes the "Add to taskbar" and Picture-in-Picture buttons.
+    Four questions: search suggestions, page preloading, HTTPS-Only mode and page translation
+    (Enter = default).
 
     Does NOT touch: site sign-ins (Google included), tracking protection (stays on the default,
-    which already isolates cookies per site), page translation (runs on your PC) and updates.
+    which already isolates cookies per site) and updates.
 
     FILE LAYOUT
         1. Helpers
@@ -97,12 +99,34 @@ function Set-SponsoredAndRecommendations {
     Set-Policy ''               'NoDefaultBookmarks'         1 'Favoritos de fábrica em perfis novos: off'
 }
 
-# Firefox 149+ (AIControls) and older versions (GenerativeAI). Page translation stays:
-# it runs on your PC without sending anything out.
-function Set-AI {
+# Firefox 149+ (AIControls) and older versions (GenerativeAI). Page translation runs on your PC without
+# sending anything out, so it stays available unless you choose to turn it off (that also hides its
+# address bar icon; there is no way to hide only the icon).
+function Set-AI([bool]$KeepTranslations) {
     Set-Policy 'AIControls\Default'      'Value' 'blocked'   'Recursos de IA (padrão geral): off'  'String'
-    Set-Policy 'AIControls\Translations' 'Value' 'available' 'Tradução de páginas (local): mantida' 'String'
+    if ($KeepTranslations) {
+        Set-Policy 'AIControls\Translations' 'Value' 'available' 'Tradução de páginas (local): mantida' 'String'
+    } else {
+        Set-Policy 'AIControls\Translations' 'Value' 'blocked' 'Tradução de páginas: off'            'String'
+    }
     Set-Policy 'GenerativeAI'   'Enabled'                    0 'Recursos de IA (versões antigas): off'
+}
+
+# Buttons that show up in the address bar when a site allows them. Set through the "Preferences" policy
+# (locked, so Firefox cannot turn them back on):
+#   browser.taskbarTabs.enabled                                   "Add to taskbar" (Windows, Firefox 142+)
+#   media.videocontrols.picture-in-picture.urlbar-button.enabled  Picture-in-Picture button (PiP itself
+#                                                                 keeps working from the video and right-click)
+#   browser.translations.enable                                   translation icon, only if translation is off
+function Set-AddressBarButtons([bool]$KeepTranslations) {
+    $prefs = [ordered]@{
+        'browser.taskbarTabs.enabled'                                  = '"Adicionar à barra de tarefas": off'
+        'media.videocontrols.picture-in-picture.urlbar-button.enabled' = 'Botão de Picture-in-Picture: off'
+    }
+    if (-not $KeepTranslations) { $prefs['browser.translations.enable'] = 'Ícone de tradução: off' }
+    $entries = foreach ($name in $prefs.Keys) { '"{0}":{{"Value":false,"Status":"locked"}}' -f $name }
+    $json = '{' + ($entries -join ',') + '}'
+    Set-Policy '' 'Preferences' @($json) ($prefs.Values -join '; ') 'MultiString'
 }
 
 # Installed automatically from Mozilla's official store and kept up to date.
@@ -184,15 +208,17 @@ if (-not $installed) {
 Write-Host "`nConfigure-Firefox" -ForegroundColor Green
 
 # --- Questions
-Write-Host '  Três escolhas (Enter aceita o padrão):'
+Write-Host '  Quatro escolhas (Enter aceita o padrão):'
 $noSearchSuggestions = Ask 'Desativar as sugestões de pesquisa enquanto digita? (o que você digita vai ao buscador em tempo real)' $false
 $noPrefetch          = Ask 'Desativar o pré-carregamento de páginas? (sites ficam sabendo de links que você nem abriu)' $true
 $httpsOnly           = Ask 'Ligar o modo somente HTTPS? (avisa antes de abrir sites sem conexão segura)' $true
+$keepTranslations    = Ask 'Manter a tradução de páginas? (roda no seu PC; se desligar, o ícone de traduzir some da barra de endereço)' $true
 
 # --- Apply
 Write-Step 'Telemetria';                   Set-Telemetry
 Write-Step 'Patrocinados e recomendações'; Set-SponsoredAndRecommendations
-Write-Step 'Inteligência artificial';      Set-AI
+Write-Step 'Inteligência artificial';      Set-AI $keepTranslations
+Write-Step 'Botões da barra de endereço';  Set-AddressBarButtons $keepTranslations
 Write-Step 'Extensões';                    Set-Extensions
 Write-Step 'Senhas (só o Bitwarden)';      Set-BitwardenOnly
 Write-Step 'Escolhas de privacidade';      Set-OptionalPrivacy $noSearchSuggestions $noPrefetch $httpsOnly

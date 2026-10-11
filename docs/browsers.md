@@ -45,10 +45,12 @@ To undo: run the same script with `-Revert`.
 |---|---|
 | Telemetry | Turns off telemetry, studies, the default browser agent and the "not your default browser" prompt. |
 | Sponsored and recommendations | Removes sponsored content and recommendations from the new tab and the address bar. |
-| AI | Turns off AI features. Local translation keeps working. |
+| AI | Turns off AI features. Local translation keeps working unless you turn it off (asks). |
 | Extensions | Installs uBlock Origin and Bitwarden. |
 | Bitwarden only | Turns off Firefox's password manager and address and card autofill (warns if there are saved passwords). |
 | No nags | Removes address bar tips, invitations to experimental features and the default bookmarks. |
 | Search suggestions | Stops sending what you type to the search engine in real time (asks). |
 | Preloading | Turns off page preloading (asks). |
 | HTTPS-Only | Warns before opening sites without a secure connection (asks). |
+| Address bar buttons | Removes the "Add to taskbar" and Picture-in-Picture buttons. Picture-in-Picture itself keeps working. |
+| Translation | Keep page translation (its icon stays in the address bar) or turn it off (the icon goes away) (asks). |
