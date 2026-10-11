@@ -4,13 +4,13 @@
 #   _site/scripts/    copy of the scripts (the launcher downloads from here)
 #   _site/index.html  page listing the shortcuts
 #
-# Usage: web/build.sh https://androksi.github.io/dissident
+# Usage: web/build.sh https://androksi.github.io/tidywin
 # To add a shortcut: one "shortcut" line below and one entry in web/index.html.
 set -euo pipefail
 
 base="${1:?usage: web/build.sh <site-url>}"
 base="${base%/}"
-short="${base#https://}"     # shown on the page: irm androksi.github.io/dissident/brave | iex
+short="${base#https://}"     # shown on the page: irm androksi.github.io/tidywin/brave | iex
 out=_site
 
 rm -rf "$out"
