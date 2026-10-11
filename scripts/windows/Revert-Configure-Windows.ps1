@@ -187,7 +187,14 @@ function Restore-HomeAndGallery {
     Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}' -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'LaunchTo'
     Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}' -Recurse -Force -ErrorAction SilentlyContinue   # classic right-click menu
-    Write-Host (T '  Home, Gallery and the new right-click menu are back (they show up after restarting)' '  Início, Galeria e o menu novo do botão direito de volta (aparecem depois de reiniciar)')
+    # Music back in Quick access (Windows default), if it is not pinned
+    try {
+        $music = [Environment]::GetFolderPath('MyMusic')
+        $shell = New-Object -ComObject Shell.Application
+        $pinned = $shell.Namespace('shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}').Items() | Where-Object { $_.Path -eq $music }
+        if (-not $pinned -and (Test-Path $music)) { $shell.Namespace($music).Self.InvokeVerb('pintohome') }
+    } catch { }
+    Write-Host (T '  Home, Gallery, Music in Quick access and the new right-click menu are back (some show up after restarting)' '  Início, Galeria, Músicas no Acesso rápido e o menu novo do botão direito de volta (alguns aparecem depois de reiniciar)')
 }
 
 # Folder type discovery, manufacturer apps for devices and verbose blue screen back to the Windows default.

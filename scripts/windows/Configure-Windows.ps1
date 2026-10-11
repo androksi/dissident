@@ -581,6 +581,17 @@ function Enable-ClassicContextMenu {
 }
 
 # Shows hidden files and folders (.git, AppData...). Protected system files stay hidden.
+# Unpins the Music folder from Quick access (the folder itself and its files are not touched).
+# Uses the same "Unpin from Quick access" action as the right-click menu.
+function Unpin-QuickAccessMusic {
+    $music = [Environment]::GetFolderPath('MyMusic')
+    $quick = (New-Object -ComObject Shell.Application).Namespace('shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}')
+    $item  = $quick.Items() | Where-Object { $_.Path -eq $music }
+    if (-not $item) { Write-Host (T '  Music was not pinned to Quick access' '  Músicas já não estava fixada no Acesso rápido'); return }
+    $item.InvokeVerb('unpinfromhome')
+    Write-Host (T '  Music unpinned from Quick access (the folder stays where it is)' '  Músicas desafixada do Acesso rápido (a pasta continua onde está)')
+}
+
 function Show-HiddenFiles {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Hidden' 1
     Write-Host (T '  hidden files and folders: visible (protected system files stay hidden)' '  arquivos e pastas ocultos: visíveis (arquivos protegidos do sistema continuam escondidos)')
@@ -1002,6 +1013,7 @@ $opt.ClearPins      = Ask (T 'Remove the pinned icons from the taskbar (Edge, St
 $opt.BatteryPercent = if ($isWin11 -and $hasBattery) { Ask (T 'Show the battery percentage on the taskbar?' 'Mostrar a porcentagem da bateria na barra de tarefas?') $false } else { $false }
 $opt.ShowExtensions = Ask (T 'Show file extensions (.txt, .exe...)?' 'Mostrar as extensões dos arquivos (.txt, .exe...)?') $true
 $opt.HideFrequent   = Ask (T 'Hide frequent folders from Quick access?' 'Esconder as pastas frequentes do Acesso rápido?') $true
+$opt.UnpinMusic     = Ask (T 'Unpin "Music" from Quick access (the folder stays)?' 'Remover "Músicas" do Acesso rápido (a pasta continua existindo)?') $false
 $opt.HideRecent     = Ask (T 'Also hide recent files in File Explorer?' 'Esconder também os arquivos recentes no Explorador?') $false
 $opt.ShowHidden     = Ask (T 'Show hidden files and folders in File Explorer (.git, AppData...)?' 'Mostrar arquivos e pastas ocultos no Explorador (.git, AppData...)?') $false
 $opt.NoFolderSniff  = Ask (T 'Turn off automatic folder type discovery (large folders open faster; resets custom folder views)?' 'Desligar a descoberta automática de tipo de pasta (pastas grandes abrem mais rápido; zera as visualizações personalizadas)?') $true
@@ -1054,7 +1066,7 @@ $labels = @{
     Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais')
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
     Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados')
-    ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
+    ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
     LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
     NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
     NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
@@ -1134,6 +1146,7 @@ if ($opt.ShowExtensions -or $opt.HideFrequent -or $opt.HideRecent) {
 if ($opt.ShowHidden)    { Invoke-Step (T 'File Explorer: hidden files' 'Explorador: arquivos ocultos')               { Show-HiddenFiles } }
 if ($opt.NoFolderSniff) { Invoke-Step (T 'File Explorer: automatic folder discovery' 'Explorador: descoberta automática de pasta') { Disable-FolderDiscovery } }
 if ($opt.HideHomeGallery) { Invoke-Step (T 'File Explorer: removing Home and Gallery' 'Explorador: removendo Início e Galeria') { Hide-HomeAndGallery } }
+if ($opt.UnpinMusic) { Invoke-Step (T 'Quick access: Music' 'Acesso rápido: Músicas') { Unpin-QuickAccessMusic } }
 if ($opt.ClassicMenu) { Invoke-Step (T 'Classic context menu' 'Menu de contexto clássico') { Enable-ClassicContextMenu } }
 if ($opt.ThinBorder) { Invoke-Step (T 'Window resize border' 'Borda de redimensionamento das janelas') { Set-ThinBorder } }
 

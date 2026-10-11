@@ -41,6 +41,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Battery % | Shows the battery percentage on the taskbar (laptops only). |
 | Extensions | Shows file extensions. |
 | No frequent folders | Hides frequent folders in Quick access. |
+| No Music in Quick access | Unpins the Music folder from Quick access (the folder stays). |
 | No recent files | Hides recent files in File Explorer. |
 | Hidden files | Shows hidden files and folders. |
 | No folder discovery | Large folders open faster. Resets custom folder views. |
@@ -109,5 +110,5 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, Home/Gallery, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
+| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge, Windows Security areas, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
 | Not reverted | Removed apps, OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |
