@@ -272,7 +272,7 @@ function Install-Languages($List) {
 
 # --- Git ----------------------------------------------------------------------
 
-function Set-GitBasics([string]$Name, [string]$Email, [bool]$PullRebase) {
+function Set-GitBasics([string]$Name, [string]$Email) {
     if (-not (Test-Git)) { throw 'o Git não está instalado' }
     if ($Name)  { Set-GitConfig 'user.name'  $Name }
     if ($Email) { Set-GitConfig 'user.email' $Email }
@@ -280,7 +280,6 @@ function Set-GitBasics([string]$Name, [string]$Email, [bool]$PullRebase) {
     Set-GitConfig 'core.longpaths'     'true'     # paths over 260 characters (node_modules)
     Set-GitConfig 'core.autocrlf'      'true'     # Windows line endings in the files, LF in the repository
     Set-GitConfig 'fetch.prune'        'true'     # forget remote branches that were deleted
-    Set-GitConfig 'pull.rebase'        $(if ($PullRebase) { 'true' } else { 'false' })
     if (-not (Get-GitConfig 'credential.helper')) { Set-GitConfig 'credential.helper' 'manager' }
 }
 
@@ -569,8 +568,6 @@ if ($opt.Git) {
         $opt.GitEmail = Read-Text 'E-mail para os commits:' $curEmail '^[^@\s]+@[^@\s]+\.[^@\s]+$' 'E-mail inválido.'
     }
     $opt.Email = if ($opt.GitEmail) { $opt.GitEmail } else { $curEmail }
-    $curRebase = if ($hasGit) { Get-GitConfig 'pull.rebase' }            # the current choice becomes the default
-    $opt.PullRebase = Ask 'git pull com rebase (histórico linear, sem commits de merge automáticos)?' ($curRebase -eq 'true')
     $hasGh = [bool](Get-Command gh -ErrorAction SilentlyContinue)
     $opt.InstallGh = if ($hasGh) { $false } else { Ask 'Instalar o GitHub CLI (gh)? Ele também envia a chave SSH para o GitHub por você.' $true }
     $opt.Gh = $hasGh -or $opt.InstallGh
@@ -639,7 +636,6 @@ $lines = [ordered]@{
     'Editores'           = $(if ($opt.Editors) { ($opt.Editors | ForEach-Object Label) -join ', ' } else { 'nenhum' })
     'Git'                = $(if ($opt.InstallGit) { 'instalar e configurar' } elseif ($opt.Git) { 'configurar' } else { 'não' })
     'Nome e e-mail'      = $(if ($opt.GitName) { "$($opt.GitName) <$($opt.GitEmail)>" } else { 'manter' })
-    'git pull rebase'    = & $yes $opt.PullRebase
     'GitHub CLI'         = $(if ($opt.InstallGh) { 'instalar' } elseif ($opt.Gh) { 'já instalado' } else { 'não' })
     'Chave SSH'          = $(if (-not $opt.Ssh) { 'não' } elseif ($hasKey) { 'usar a existente' } elseif ($opt.Passphrase) { 'criar, com senha' } else { 'criar, sem senha' })
     'Enviar ao GitHub'   = @{ gh = 'pelo GitHub CLI'; manual = 'colar no site'; none = 'não' }[$opt.Upload] + $(if ($opt.RemoveOld) { ', apagando as antigas deste PC' } else { '' })
@@ -663,7 +659,7 @@ $script:NeedsRestart = $false
 
 if ($opt.Editors)   { Invoke-Step 'Editores e IDEs' { Install-Editors $opt.Editors } }
 if ($opt.InstallGit) { Invoke-Step 'Instalando o Git' { Install-App 'Git' 'Git.Git' } }
-if ($opt.Git)       { Invoke-Step 'Configurando o Git' { Set-GitBasics $opt.GitName $opt.GitEmail $opt.PullRebase } }
+if ($opt.Git)       { Invoke-Step 'Configurando o Git' { Set-GitBasics $opt.GitName $opt.GitEmail } }
 if ($opt.InstallGh) { Invoke-Step 'Instalando o GitHub CLI' { Install-App 'GitHub CLI' 'GitHub.cli' } }
 
 $keyReady = $false

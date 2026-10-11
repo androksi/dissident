@@ -12,7 +12,6 @@ Meant to run after Windows, drivers, apps and browsers are set up. Every questio
 |---|---|---|
 | Editors and IDEs | VS Code | Checklist: VS Code (interactive installer), Cursor, Zed, JetBrains Toolbox, Sublime Text, Neovim. |
 | Git | Install if missing | Name and e-mail (kept if already set), `main` branch, long paths, `autocrlf`, `fetch.prune`, credential manager. |
-| git pull with rebase | No | `pull.rebase = true`. |
 | GitHub CLI | Yes | Installs `gh`. |
 | SSH key | Yes | Creates `~\.ssh\id_ed25519` (an existing key is reused, never replaced), with an optional passphrase. |
 | ssh-agent | With the key | Windows ssh-agent service on, key added, Git set to use Windows' OpenSSH. |
