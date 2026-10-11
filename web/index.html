@@ -156,6 +156,9 @@
         I("Edge policies", "Políticas do Edge", "ask", true,
           "Edge stops preloading at startup and running in the background after you close it. Removes the sidebar and the Copilot icon, and turns off diagnostic data, the shopping assistant, recommendations, first-run screens and the news on the new tab page.",
           "O Edge para de pré-carregar ao ligar o PC e de rodar em segundo plano depois de fechado. Tira a barra lateral e o ícone do Copilot, e desliga dados de diagnóstico, assistente de compras, recomendações, telas de primeiro uso e as notícias na nova guia."),
+        I("Recall", "Recall", "ask", true,
+          "Windows 11 only. Recall takes snapshots of the screen so you can search what you saw. It only exists on Copilot+ PCs and is off until you turn it on. If yes, official policies remove it and stop it from being turned on (after a restart). On other PCs nothing changes.",
+          "Só no Windows 11. O Recall tira fotos da tela para você pesquisar o que viu. Só existe em PCs Copilot+ e fica desligado até você ligar. Se sim, políticas oficiais removem e impedem que ele seja ligado (depois de reiniciar). Em outros PCs nada muda."),
         I("Edge desktop shortcut", "Atalho do Edge na Área de Trabalho", "ask", true,
           "Deletes the Edge shortcut from the desktop and, through the official Edge Update policy, stops Edge installs and updates from putting it back.",
           "Apaga o atalho do Edge da Área de Trabalho e, pela política oficial do Edge Update, impede que instalações e atualizações do Edge coloquem de volta."),
@@ -401,8 +404,8 @@
 
     "windows-check": [G("", "", [
       I("What is checked", "O que é conferido", "auto", null,
-        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, OneDrive, Edge policies, Windows Security, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
-        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, OneDrive, políticas do Edge, Segurança do Windows, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
+        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
+        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, OneDrive, políticas do Edge, Segurança do Windows, Recall, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
       I("Reapply", "Reaplicar", "ask", true,
         "Shows each item as OK or as back, with what changed. Then asks whether to reapply only the items that came back. Answering no changes nothing.",
         "Mostra cada item como OK ou como voltou, com o que mudou. Depois pergunta se quer reaplicar só os itens que voltaram. Respondendo não, nada é alterado."),

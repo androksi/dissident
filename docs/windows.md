@@ -25,6 +25,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Optional apps | Also removes Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote. |
 | OneDrive | Uninstalls OneDrive and keeps it from coming back. |
 | Edge | Edge policies: no telemetry, background mode, sidebar, Copilot or shopping. |
+| Recall | Windows 11: removes Recall and stops it from being turned on (official policies). Only exists on Copilot+ PCs. |
 | Edge shortcut | Deletes the Edge desktop shortcut and stops Edge updates from creating it again. |
 | Windows Security | Turns on blocking of potentially unwanted apps and downloads, and hides unimportant notifications. |
 | C: folders | Hides `inetpub` and deletes `PerfLogs`. |
@@ -114,5 +115,5 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, DNS, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
+| Revert | Undoes telemetry, policies, suggestions, border, DNS, Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
 | Not reverted | Removed apps, OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

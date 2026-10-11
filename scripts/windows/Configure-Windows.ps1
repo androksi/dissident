@@ -465,6 +465,14 @@ function Disable-DeviceMetadata {
     Write-Host (T '  manufacturer apps and icons for devices: no longer downloaded (drivers still are)' '  apps e ícones de fabricante para periféricos: não são mais baixados (drivers continuam)')
 }
 
+# Recall (Copilot+ PCs only): official policies that remove it and stop it from being turned on, and
+# stop it from saving snapshots. On other PCs they change nothing.
+function Disable-Recall {
+    Set-Reg "$P\WindowsAI" 'AllowRecallEnablement' 0
+    Set-Reg "$P\WindowsAI" 'DisableAIDataAnalysis' 1
+    Write-Host (T '  Recall: removed and blocked (after restarting; only exists on Copilot+ PCs)' '  Recall: removido e bloqueado (depois de reiniciar; só existe em PCs Copilot+)')
+}
+
 # WPBT (Windows Platform Binary Table): lets the PC's firmware hand Windows a program to run at every
 # boot. Manufacturers use it to reinstall their apps (Armoury Crate, Vantage...) even after a clean install.
 # This stops Windows from running it; the firmware itself is not touched.
@@ -986,6 +994,7 @@ function Invoke-Check {
         @{ Name = (T 'Windows Security' 'Segurança do Windows');          On = $o.Security;     Test = { Test-Security };    Fix = { Set-WindowsSecurity } }
         @{ Name = (T 'C: folders' 'Pastas do C:');                  On = $o.RootFolders;  Test = { Test-RootFolders }; Fix = { Clear-SystemDriveRoot } }
         @{ Name = (T 'Manufacturer apps' 'Apps de fabricante');            On = $o.NoDeviceApps; Test = { Test-Value 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 (T 'manufacturer app downloads' 'download de apps de fabricante') }; Fix = { Disable-DeviceMetadata } }
+        @{ Name = 'Recall';                                                  On = $o.NoRecall;     Test = { Test-Value "$P\WindowsAI" 'AllowRecallEnablement' 0 (T 'allowed' 'permitido') }; Fix = { Disable-Recall } }
         @{ Name = 'WPBT';                                                    On = $o.NoWpbt;       Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' 1 (T 'firmware programs (WPBT) allowed' 'programas do firmware (WPBT) permitidos') }; Fix = { Disable-Wpbt } }
         @{ Name = (T 'Hidden account areas' 'Áreas de conta escondidas');     On = $o.HideAreas;    Test = { Test-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection' 'UILockdown' 1 (T 'Account protection visible' 'Proteção de contas visível') }; Fix = { Hide-SecurityAccountAreas } }
         @{ Name = (T 'Long paths' 'Caminhos longos');               On = $o.LongPaths;    Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1 (T 'off' 'desligado') }; Fix = { Enable-LongPaths } }
@@ -1049,6 +1058,7 @@ if ($foldersInOneDrive) {
 }
 $opt.OneDrive     = Ask (T 'Remove OneDrive?' 'Remover o OneDrive?') (-not $foldersInOneDrive)
 $opt.Edge         = Ask (T 'Apply Edge policies (no telemetry, background mode, sidebar or shopping)?' 'Aplicar políticas do Edge (sem telemetria, segundo plano, barra lateral, compras)?') $true
+$opt.NoRecall     = if ($isWin11) { Ask (T 'Remove and block Recall (screen snapshots; only exists on Copilot+ PCs)?' 'Remover e bloquear o Recall (fotos da tela; só existe em PCs Copilot+)?') $true } else { $false }
 $opt.NoEdgeShortcut = Ask (T 'Delete the Edge shortcut from the desktop (and stop Edge updates from creating it again)?' 'Apagar o atalho do Edge da Área de Trabalho (e impedir que as atualizações do Edge criem de novo)?') $true
 $opt.Security     = Ask (T 'Windows Security: block potentially unwanted apps and hide unimportant notifications?' 'Segurança do Windows: bloquear apps indesejados e esconder avisos sem importância?') $true
 $opt.RootFolders  = Ask (T 'Hide the inetpub folder and delete PerfLogs (in the root of C:)?' 'Esconder a pasta inetpub e apagar a PerfLogs (na raiz do C:)?') $true
@@ -1132,7 +1142,7 @@ $labels = @{
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); ThinBorder = (T 'Thin border' 'Borda fina')
     LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
     NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
-    NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); NoEdgeShortcut = (T 'No Edge shortcut' 'Sem atalho do Edge'); NumLock = 'Num Lock'; NoFastStartup = (T 'No Fast Startup' 'Sem inicialização rápida'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
+    NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); NoRecall = (T 'No Recall' 'Sem Recall'); NoEdgeShortcut = (T 'No Edge shortcut' 'Sem atalho do Edge'); NumLock = 'Num Lock'; NoFastStartup = (T 'No Fast Startup' 'Sem inicialização rápida'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
     NoFolderSniff = (T 'No folder discovery' 'Sem descoberta pasta'); VerboseBsod = (T 'Detailed blue screen' 'Tela azul detalhada')
 }
 if (-not $NoPrompt) {
@@ -1182,6 +1192,7 @@ if ($opt.Apps) {
 }
 if ($opt.OneDrive) { Invoke-Step (T 'Removing OneDrive' 'Removendo OneDrive')                                          { Remove-OneDrive } }
 if ($opt.Edge)     { Invoke-Step (T 'Edge: no telemetry, background mode, sidebar or shopping' 'Edge: sem telemetria, segundo plano, barra lateral e compras') { Set-EdgePolicies } }
+if ($opt.NoRecall) { Invoke-Step 'Recall' { Disable-Recall } }
 if ($opt.NoEdgeShortcut) { Invoke-Step (T 'Edge desktop shortcut' 'Atalho do Edge na Área de Trabalho') { Remove-EdgeDesktopShortcut } }
 if ($opt.Security) { Invoke-Step (T 'Windows Security' 'Segurança do Windows')                                        { Set-WindowsSecurity } }
 if ($opt.RootFolders) { Invoke-Step (T 'Folders in the drive root (inetpub and PerfLogs)' 'Pastas na raiz do disco (inetpub e PerfLogs)')          { Clear-SystemDriveRoot } }

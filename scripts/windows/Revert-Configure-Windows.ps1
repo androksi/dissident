@@ -135,6 +135,8 @@ function Remove-WindowsPolicies {
     Remove-Reg 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableTailoredExperiencesWithDiagnosticData'
     Remove-Reg "$P\Windows Search" 'DisableWebSearch','ConnectedSearchUseWeb','EnableDynamicContentInWSB','AllowCortana'
     Remove-Reg 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions'
+    # Recall
+    Remove-Reg "$P\WindowsAI" 'AllowRecallEnablement','DisableAIDataAnalysis'
     # Widgets / News and interests
     Remove-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests'
     Remove-Reg "$P\Windows Feeds" 'EnableFeeds'
