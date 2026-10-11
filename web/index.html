@@ -8,50 +8,433 @@
 <link rel="icon" href="https://raw.githubusercontent.com/androksi/tidywin/main/assets/logo.svg">
 <style>
   body { margin: 0; background: #111; color: #ddd; font: 15px/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; }
-  main { max-width: 640px; margin: 0 auto; padding: 64px 16px; }
-  h1 { margin: 0 0 4px; font-size: 22px; color: #fff; }
-  p { margin: 0 0 32px; color: #888; }
-  ul { list-style: none; margin: 0 0 32px; padding: 0; }
-  li { padding: 2px 0; overflow-x: auto; white-space: nowrap; }
-  button { all: unset; cursor: pointer; }
-  button:hover, button:focus-visible { color: #fff; text-decoration: underline; }
+  main { max-width: 680px; margin: 0 auto; padding: 56px 16px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 4px; }
+  h1 { margin: 0; font-size: 22px; color: #fff; }
+  .lang { display: flex; gap: 8px; }
+  .lang button { all: unset; cursor: pointer; line-height: 0; opacity: .4; }
+  .lang button[aria-pressed="true"], .lang button:hover { opacity: 1; }
+  .lang button:focus-visible { outline: 1px solid #fff; outline-offset: 3px; }
+  .lang svg { width: 28px; height: 20px; border-radius: 2px; }
+  .intro { margin: 0 0 40px; color: #888; }
+  h2 { margin: 0 0 16px; font-size: 15px; color: #888; font-weight: 400; }
+  ul { list-style: none; margin: 0 0 40px; padding: 0; }
+  li { margin-bottom: 18px; }
+  .cmd { all: unset; cursor: pointer; color: #fff; overflow-wrap: anywhere; }
+  .cmd:hover, .cmd:focus-visible { text-decoration: underline; }
   .copied { color: #7c7; }
+  .desc { margin: 2px 0 0; color: #999; }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; color: #888; width: fit-content; }
+  summary:hover, summary:focus-visible { color: #fff; }
+  details h3 { margin: 14px 0 4px; font-size: 15px; font-weight: 400; color: #fff; }
+  dl { margin: 8px 0 0; padding-left: 16px; border-left: 1px solid #333; }
+  dt { color: #ddd; }
+  .tag { color: #7a9; }
+  dd { margin: 0 0 8px; color: #999; }
   a { color: #888; }
   a:hover { color: #fff; }
 </style>
 </head>
 <body>
 <main>
-  <h1>TidyWin</h1>
-  <p>Run in PowerShell. Click a command to copy it.</p>
+  <header>
+    <h1>TidyWin</h1>
+    <div class="lang">
+      <button type="button" data-lang="en" aria-label="English">
+        <svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" fill="#b22234"/><g fill="#fff"><rect y="1.54" width="28" height="1.54"/><rect y="4.62" width="28" height="1.54"/><rect y="7.69" width="28" height="1.54"/><rect y="10.77" width="28" height="1.54"/><rect y="13.85" width="28" height="1.54"/><rect y="16.92" width="28" height="1.54"/></g><rect width="12" height="10.77" fill="#3c3b6e"/></svg>
+      </button>
+      <button type="button" data-lang="pt" aria-label="Português (Brasil)">
+        <svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" fill="#009c3b"/><path d="M14 2.5 25.5 10 14 17.5 2.5 10z" fill="#ffdf00"/><circle cx="14" cy="10" r="4.4" fill="#002776"/></svg>
+      </button>
+    </div>
+  </header>
+  <p class="intro" data-t="intro"></p>
 
+  <h2 data-t="apply"></h2>
   <ul id="apply"></ul>
+
+  <h2 data-t="undo"></h2>
   <ul id="undo"></ul>
 
   <a href="https://github.com/androksi/tidywin">github.com/androksi/tidywin</a>
 </main>
 <script>
   const base = "__SHORT__";
+
+  const text = {
+    en: {
+      intro: "Run in PowerShell. Click a command to copy it. Administrator rights are requested automatically. The scripts' prompts are in Brazilian Portuguese.",
+      apply: "Apply",
+      undo: "Undo",
+      copied: "copied",
+      options: "What each option does",
+      asks: "asks", yes: "default yes", no: "default no", def: "default", local: "default yes with a local account, no with a Microsoft account",
+      windows: "Turns off telemetry, ads and suggestions, removes preinstalled apps (Clipchamp, Teams, Copilot and others) and OneDrive, and adjusts the taskbar, File Explorer and DNS. Asks before each change and creates a restore point first.",
+      apps: "Shows a list of 100 apps (browsers, games, development, utilities and more). Check the ones you want and they are installed with WinGet.",
+      chrome: "Turns off telemetry, Gemini and other AI features, third-party cookies, sync and background mode. Signing in to Google keeps working.",
+      brave: "Turns off Wallet, VPN, Rewards, Leo (AI), News and usage reports. Ad blocking stays on.",
+      firefox: "Turns off telemetry, sponsored content and AI features, and installs uBlock Origin and Bitwarden.",
+      "windows-revert": "Undoes most of what the windows command changed: telemetry, policies, suggestions and DNS. Removed apps need to be reinstalled from the Microsoft Store.",
+      "chrome-revert": "Removes every Chrome setting applied by TidyWin.",
+      "brave-revert": "Removes every Brave setting applied by TidyWin.",
+      "firefox-revert": "Removes every Firefox setting applied by TidyWin.",
+    },
+    pt: {
+      intro: "Rode no PowerShell. Clique num comando para copiar. A permissão de administrador é pedida automaticamente.",
+      apply: "Aplicar",
+      undo: "Desfazer",
+      copied: "copiado",
+      options: "O que cada opção faz",
+      asks: "pergunta", yes: "padrão sim", no: "padrão não", def: "padrão", local: "padrão sim com conta local, não com conta Microsoft",
+      windows: "Desliga telemetria, anúncios e sugestões, remove apps pré-instalados (Clipchamp, Teams, Copilot e outros) e o OneDrive, e ajusta a barra de tarefas, o Explorador de Arquivos e o DNS. Pergunta antes de cada mudança e cria um ponto de restauração antes.",
+      apps: "Mostra uma lista com 100 apps (navegadores, jogos, programação, utilitários e mais). Marque os que quiser e eles são instalados pelo WinGet.",
+      chrome: "Desliga telemetria, Gemini e outros recursos de IA, cookies de terceiros, sincronização e execução em segundo plano. O login na conta Google continua funcionando.",
+      brave: "Desliga Wallet, VPN, Recompensas, Leo (IA), News e relatórios de uso. O bloqueio de anúncios continua ligado.",
+      firefox: "Desliga telemetria, conteúdo patrocinado e recursos de IA, e instala o uBlock Origin e o Bitwarden.",
+      "windows-revert": "Desfaz a maior parte do que o comando windows mudou: telemetria, políticas, sugestões e DNS. Apps removidos precisam ser reinstalados pela Microsoft Store.",
+      "chrome-revert": "Remove todas as configurações do Chrome aplicadas pelo TidyWin.",
+      "brave-revert": "Remove todas as configurações do Brave aplicadas pelo TidyWin.",
+      "firefox-revert": "Remove todas as configurações do Firefox aplicadas pelo TidyWin.",
+    },
+  };
+
+  // Every option of every script. k: "ask" (yes/no question, d = default), "choice" (menu, d = default label),
+  // "auto" (always applied). Text in both languages. Keep in sync with the scripts.
+  const G = (en, pt, items) => ({ g: { en, pt }, items });
+  const I = (en, pt, k, d, ten, tpt) => ({ n: { en, pt }, k, d, t: { en: ten, pt: tpt } });
+  const options = {
+    windows: [
+      G("Before and after", "Antes e depois", [
+        I("Summary", "Resumo", "auto", null,
+          "After all the questions, shows your answers and asks “Aplicar agora?”. Answering no changes nothing.",
+          "Depois de todas as perguntas, mostra suas respostas e pergunta “Aplicar agora?”. Respondendo não, nada é alterado."),
+        I("Restore point", "Ponto de restauração", "auto", null,
+          "Creates a Windows restore point before changing anything. If that fails, asks whether to continue.",
+          "Cria um ponto de restauração do Windows antes de mudar qualquer coisa. Se não conseguir, pergunta se quer continuar."),
+        I("Restart File Explorer", "Reiniciar o Explorador", "auto", null,
+          "At the end, restarts File Explorer so visual changes show up without signing out.",
+          "No final, reinicia o Explorador para as mudanças visuais aparecerem sem precisar sair da conta."),
+      ]),
+      G("Privacy and cleanup", "Privacidade e limpeza", [
+        I("Telemetry", "Telemetria", "ask", true,
+          "Stops the telemetry services, disables 9 data collection tasks and applies policies: minimum diagnostic data, no error reports, no advertising ID, no activity history, no Bing or web results in Start search, no Cortana, and updates downloaded only from Microsoft (not shared with other PCs). Also turns off Widgets (Windows 11) or News and interests (Windows 10).",
+          "Para os serviços de telemetria, desativa 9 tarefas de coleta de dados e aplica políticas: dados de diagnóstico no mínimo, sem relatório de erros, sem ID de anúncios, sem histórico de atividades, sem Bing e resultados da web na pesquisa do Iniciar, sem Cortana, e atualizações baixadas só da Microsoft (sem compartilhar com outros PCs). Também desliga os Widgets (Windows 11) ou Notícias e interesses (Windows 10)."),
+        I("Suggestions and ads", "Sugestões e anúncios", "ask", true,
+          "Turns off tips, suggestions in Start and Settings, the welcome screen after updates, “Let's finish setting up”, OneDrive ads in File Explorer, Start recommendations (Windows 11) and silent installs of apps like Candy Crush.",
+          "Desliga dicas, sugestões no Iniciar e nas Configurações, a tela de boas-vindas depois de atualizações, o “Vamos terminar de configurar”, propaganda do OneDrive no Explorador, recomendações do Iniciar (Windows 11) e a instalação silenciosa de apps como Candy Crush."),
+        I("Remove preinstalled apps", "Remover apps pré-instalados", "ask", true,
+          "Uninstalls for every user, and keeps them from coming back in new accounts: Clipchamp, Bing News, Weather and Search, Copilot, Get Help, Tips, Microsoft 365, Solitaire, the new Outlook, People, Power Automate, To Do, Dev Home, Feedback Hub, Maps, Mixed Reality, Movies & TV, Cortana, Family and Teams. On Windows 10 also 3D Viewer, Paint 3D, Print 3D, Skype, Wallet, Messaging and Mobile Plans. The regular Paint stays.",
+          "Desinstala para todos os usuários e impede que voltem em contas novas: Clipchamp, Bing Notícias, Clima e Pesquisa, Copilot, Obter Ajuda, Dicas, Microsoft 365, Paciência, o Outlook novo, Pessoas, Power Automate, To Do, Dev Home, Hub de Comentários, Mapas, Realidade Misturada, Filmes e TV, Cortana, Família e Teams. No Windows 10 também Visualizador 3D, Paint 3D, Print 3D, Skype, Carteira, Mensagens e Planos Móveis. O Paint normal fica."),
+        I("Remove optional apps", "Remover apps opcionais", "ask", false,
+          "Only asked if you chose to remove preinstalled apps. Also removes Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote for Windows 10.",
+          "Só é perguntado se você escolheu remover os apps pré-instalados. Remove também Vincular ao Celular, Sticky Notes, Gravador de Som, Relógio, Assistência Rápida, Media Player e OneNote para Windows 10."),
+        I("Remove OneDrive", "Remover o OneDrive", "ask", true,
+          "Closes and uninstalls OneDrive, removes it from startup and blocks it by policy so it doesn't come back. If your Desktop, Documents or Pictures are inside OneDrive, the default becomes no and it warns you to turn off folder backup first.",
+          "Fecha e desinstala o OneDrive, tira ele da inicialização e bloqueia por política para não voltar. Se sua Área de Trabalho, Documentos ou Imagens estiverem dentro do OneDrive, o padrão vira não e ele avisa para desligar o backup de pastas antes."),
+        I("Edge policies", "Políticas do Edge", "ask", true,
+          "Edge stops preloading at startup and running in the background after you close it. Removes the sidebar and the Copilot icon, and turns off diagnostic data, the shopping assistant, recommendations, first-run screens and the news on the new tab page.",
+          "O Edge para de pré-carregar ao ligar o PC e de rodar em segundo plano depois de fechado. Tira a barra lateral e o ícone do Copilot, e desliga dados de diagnóstico, assistente de compras, recomendações, telas de primeiro uso e as notícias na nova guia."),
+        I("Windows Security", "Segurança do Windows", "ask", true,
+          "Turns on blocking of potentially unwanted apps and downloads (adware, installers that bundle extras). Hides informational notifications; important alerts, like a threat found, keep showing. If OneDrive isn't installed, hides the “set up OneDrive for ransomware recovery” card.",
+          "Liga o bloqueio de apps e downloads potencialmente indesejados (adware, instaladores que trazem extras). Esconde avisos informativos; alertas importantes, como ameaça encontrada, continuam aparecendo. Se o OneDrive não estiver instalado, esconde o cartão “configure o OneDrive para recuperação de ransomware”."),
+        I("C: drive folders", "Pastas do C:", "ask", true,
+          "Hides the inetpub folder (created by a security update, so it is not deleted) and deletes the empty PerfLogs folder (Windows recreates it if it needs it).",
+          "Esconde a pasta inetpub (criada por uma atualização de segurança, por isso não é apagada) e apaga a pasta PerfLogs, que fica vazia (o Windows cria de novo se precisar)."),
+        I("Device manufacturer apps", "Apps de fabricante de periféricos", "ask", false,
+          "Stops Windows from downloading manufacturer apps and icons when you plug in a device (Razer, Logitech and others). Drivers keep coming from Windows Update.",
+          "Impede o Windows de baixar apps e ícones do fabricante quando você conecta um periférico (Razer, Logitech e outros). Os drivers continuam vindo pelo Windows Update."),
+        I("Hide account areas", "Esconder áreas de conta", "ask", "local",
+          "Hides “Account protection” and “Device security” in Windows Security, which only ask you to sign in with a Microsoft account. Nothing is turned off: TPM, Secure Boot, memory integrity and Windows Hello keep working.",
+          "Esconde “Proteção de contas” e “Segurança do dispositivo” da Segurança do Windows, que só pedem para entrar com conta Microsoft. Nada é desligado: TPM, Inicialização Segura, integridade de memória e Windows Hello continuam funcionando."),
+      ]),
+      G("Personalization (your user only)", "Personalização (só para o seu usuário)", [
+        I("Theme", "Tema", "choice", { en: "Windows (light)", pt: "Windows (claro)" },
+          "Keep, Windows light or Windows dark. Applies the official theme, turns off Windows Spotlight and sets the theme's wallpaper. The accent color is not changed.",
+          "Manter, Windows claro ou Windows escuro. Aplica o tema oficial, desliga o Destaques do Windows e coloca o papel de parede do tema. A cor de destaque não muda."),
+        I("Taskbar icons", "Ícones da barra de tarefas", "choice", { en: "Keep", pt: "Manter" },
+          "Windows 11 only. Keep, centered or on the left.",
+          "Só no Windows 11. Manter, ao centro ou à esquerda."),
+        I("Taskbar search", "Pesquisa na barra de tarefas", "choice", { en: "Keep", pt: "Manter" },
+          "Keep, hidden, icon only or search box.",
+          "Manter, oculta, só o ícone ou caixa de pesquisa."),
+        I("Task View button", "Botão Visão de Tarefas", "choice", { en: "Keep", pt: "Manter" },
+          "Keep, show or hide the button. Win+Tab works either way.",
+          "Manter, mostrar ou ocultar o botão. O Win+Tab funciona de qualquer jeito."),
+        I("Unpin taskbar icons", "Remover ícones fixados", "ask", false,
+          "Unpins every app from the taskbar (Edge, Store, File Explorer and the ones you pinned). Nothing is uninstalled.",
+          "Tira todos os apps fixados na barra de tarefas (Edge, Store, Explorador e os que você fixou). Nada é desinstalado."),
+        I("Battery percentage", "Porcentagem da bateria", "ask", false,
+          "Windows 11 laptops only. Shows the battery percentage next to the taskbar icon, on Windows versions that have this option.",
+          "Só em notebooks com Windows 11. Mostra a porcentagem ao lado do ícone da bateria, nas versões do Windows que têm essa opção."),
+        I("File extensions", "Extensões de arquivo", "ask", true,
+          "Shows extensions like .txt and .exe in file names.",
+          "Mostra extensões como .txt e .exe no nome dos arquivos."),
+        I("Frequent folders", "Pastas frequentes", "ask", true,
+          "Hides frequent folders in Quick access. Folders you pinned stay.",
+          "Esconde as pastas frequentes do Acesso rápido. As pastas que você fixou continuam."),
+        I("Recent files", "Arquivos recentes", "ask", false,
+          "Hides recent files in File Explorer (and recommendations, on Windows 11).",
+          "Esconde os arquivos recentes no Explorador (e as recomendações, no Windows 11)."),
+        I("Hidden files", "Arquivos ocultos", "ask", false,
+          "Shows hidden files and folders like .git and AppData. Protected system files stay hidden.",
+          "Mostra arquivos e pastas ocultos como .git e AppData. Arquivos protegidos do sistema continuam escondidos."),
+        I("Folder type discovery", "Descoberta de tipo de pasta", "ask", true,
+          "Stops File Explorer from guessing each folder's type (Music, Pictures and so on), so folders with thousands of files open faster. Resets the views you saved for each folder.",
+          "Impede o Explorador de adivinhar o tipo de cada pasta (Músicas, Imagens etc.), então pastas com milhares de arquivos abrem mais rápido. Zera as visualizações que você salvou em cada pasta."),
+        I("Home and Gallery", "Início e Galeria", "ask", false,
+          "Windows 11 only. Removes Home and Gallery from the File Explorer sidebar, and File Explorer opens in This PC.",
+          "Só no Windows 11. Tira Início e Galeria da barra lateral do Explorador, que passa a abrir em Este Computador."),
+        I("Thin window border", "Borda fina nas janelas", "ask", false,
+          "Shrinks the invisible area around windows used for resizing, from about 5 to 1 pixel, so you don't resize by accident. Applies after signing out.",
+          "Diminui a área invisível em volta das janelas usada para redimensionar, de uns 5 para 1 pixel, para não redimensionar sem querer. Vale depois de sair da conta e entrar de novo."),
+      ]),
+      G("Everyday use", "Uso no dia a dia", [
+        I("Long paths", "Caminhos longos", "ask", true,
+          "Allows file paths longer than 260 characters, which avoids errors with node_modules and deep folders.",
+          "Permite caminhos de arquivo com mais de 260 caracteres, o que evita erros com node_modules e pastas muito fundas."),
+        I("End task", "Finalizar tarefa", "ask", true,
+          "Windows 11 23H2 or newer. Adds “End task” when you right-click an app on the taskbar, to close a frozen app.",
+          "Windows 11 23H2 ou mais novo. Adiciona “Finalizar tarefa” ao clicar com o direito num app na barra de tarefas, para fechar um app travado."),
+        I("Sudo", "Sudo", "ask", false,
+          "Only asked if your Windows has sudo (Windows 11 24H2 or newer). Turns it on so you can run a command as administrator in the same terminal window.",
+          "Só é perguntado se o seu Windows tem sudo (Windows 11 24H2 ou mais novo). Liga o sudo para rodar um comando como administrador na mesma janela do terminal."),
+        I("Clipboard history", "Histórico da área de transferência", "ask", true,
+          "Turns on Win+V, which keeps a list of the last things you copied. Stays on this PC only, without syncing.",
+          "Liga o Win+V, que guarda uma lista das últimas coisas que você copiou. Fica só neste PC, sem sincronizar."),
+        I("Mouse acceleration", "Aceleração do mouse", "ask", false,
+          "Turns off “Enhance pointer precision”, so the pointer moves the same distance no matter how fast you move the mouse. Applies after signing out.",
+          "Desliga a “precisão do ponteiro aprimorada”, então o ponteiro anda a mesma distância não importa a velocidade do mouse. Vale depois de sair da conta e entrar de novo."),
+        I("Sticky Keys shortcut", "Atalho das Teclas de Aderência", "ask", true,
+          "Stops the Sticky Keys prompt that appears when you press Shift 5 times. The feature stays available in Settings.",
+          "Acaba com o aviso das Teclas de Aderência que aparece ao apertar Shift 5 vezes. O recurso continua disponível nas Configurações."),
+        I("Volume at 100%", "Volume em 100%", "ask", true,
+          "Sets the speakers or headphones in use right now to 100% volume.",
+          "Coloca o alto-falante ou fone em uso agora com volume em 100%."),
+        I("Detailed blue screen", "Tela azul detalhada", "ask", true,
+          "If the PC crashes, the blue screen also shows the technical error codes, which help find the cause.",
+          "Se o PC travar, a tela azul também mostra os códigos técnicos do erro, que ajudam a achar a causa."),
+      ]),
+      G("Network", "Rede", [
+        I("DNS", "DNS", "ask", false,
+          "If yes, asks for a primary and secondary DNS server (IPv4, and IPv6 if you want) and sets them on every Wi-Fi and Ethernet adapter. On Windows 11 it also turns on encrypted DNS (DNS over HTTPS) for servers Windows knows, like Cloudflare, Google and Quad9, and warns if a server can't be encrypted. Windows 10 has no encrypted DNS.",
+          "Se sim, pede um DNS preferencial e um alternativo (IPv4, e IPv6 se quiser) e coloca em todos os adaptadores Wi-Fi e Ethernet. No Windows 11 também liga o DNS criptografado (DNS por HTTPS) para servidores que o Windows conhece, como Cloudflare, Google e Quad9, e avisa se algum não puder ser criptografado. O Windows 10 não tem DNS criptografado."),
+      ]),
+    ],
+
+    "windows-revert": [
+      G("Undone", "Desfeito", [
+        I("Telemetry", "Telemetria", "auto", null,
+          "Turns the telemetry services and data collection tasks back on.",
+          "Liga de novo os serviços de telemetria e as tarefas de coleta de dados."),
+        I("Policies", "Políticas", "auto", null,
+          "Removes the telemetry, search, Widgets, OneDrive, Edge and Windows Security policies.",
+          "Remove as políticas de telemetria, pesquisa, Widgets, OneDrive, Edge e Segurança do Windows."),
+        I("Suggestions", "Sugestões", "auto", null,
+          "Turns Windows tips, suggestions and recommendations back on.",
+          "Liga de novo as dicas, sugestões e recomendações do Windows."),
+        I("DNS", "DNS", "auto", null,
+          "Goes back to the router's DNS on every adapter, without encryption.",
+          "Volta para o DNS do roteador em todos os adaptadores, sem criptografia."),
+        I("File Explorer and others", "Explorador e outros", "auto", null,
+          "Brings back Home and Gallery, folder type discovery, the default window border, manufacturer apps for devices, the simple blue screen and the visible inetpub folder.",
+          "Traz de volta Início e Galeria, a descoberta de tipo de pasta, a borda padrão das janelas, os apps de fabricante para periféricos, a tela azul simples e a pasta inetpub visível."),
+      ]),
+      G("Not undone", "Não é desfeito", [
+        I("Removed apps and OneDrive", "Apps removidos e OneDrive", "auto", null,
+          "Reinstall apps from the Microsoft Store, and OneDrive with: winget install Microsoft.OneDrive",
+          "Reinstale os apps pela Microsoft Store, e o OneDrive com: winget install Microsoft.OneDrive"),
+        I("Personal settings", "Ajustes pessoais", "auto", null,
+          "Theme, taskbar, pinned icons, file extensions, hidden files, battery percentage and volume. Change them back in Settings.",
+          "Tema, barra de tarefas, ícones fixados, extensões, arquivos ocultos, porcentagem da bateria e volume. Volte pelas Configurações."),
+        I("Unwanted app blocking", "Bloqueio de apps indesejados", "auto", null,
+          "Stays on, since it is only protection.",
+          "Continua ligado, porque é só proteção."),
+      ]),
+    ],
+
+    apps: [
+      G("", "", [
+        I("WinGet", "WinGet", "auto", null,
+          "If WinGet is missing (usually on Windows 10), offers to install it first.",
+          "Se o WinGet não existir (geralmente no Windows 10), oferece instalar antes de tudo."),
+        I("App list", "Lista de apps", "auto", null,
+          "Shows 100 apps in categories: communication, design, games, media, browsers, productivity, development, security and utilities. Apps already on the PC are marked “instalado”. Nothing is installed until you confirm.",
+          "Mostra 100 apps em categorias: comunicação, design, jogos, mídia, navegadores, produtividade, programação, segurança e utilitários. Os que já estão no PC aparecem como “instalado”. Nada é instalado até você confirmar."),
+        I("Keys", "Teclas", "auto", null,
+          "Arrows move, Space checks an app, A checks the whole category, / searches by name, I opens the app's own installer so you choose its options, Enter continues and Esc quits.",
+          "Setas navegam, Espaço marca um app, A marca a categoria inteira, / busca pelo nome, I abre o instalador do próprio app para você escolher as opções, Enter continua e Esc sai."),
+        I("Confirmation and summary", "Confirmação e resumo", "auto", null,
+          "Shows the chosen apps before installing, then lists what was installed, what was already there and what failed.",
+          "Mostra os apps escolhidos antes de instalar e, no fim, lista o que instalou, o que já estava instalado e o que falhou."),
+      ]),
+    ],
+
+    chrome: [
+      G("Questions", "Perguntas", [
+        I("Search suggestions", "Sugestões de pesquisa", "ask", false,
+          "If yes, Chrome stops sending what you type in the address bar to Google in real time. You lose the suggestions while typing.",
+          "Se sim, o Chrome para de enviar ao Google em tempo real o que você digita na barra de endereço. Você perde as sugestões enquanto digita."),
+        I("Page preloading", "Pré-carregamento de páginas", "ask", true,
+          "If yes, Chrome stops loading pages it guesses you will open. Sites no longer learn about links you didn't click; pages may open a little slower.",
+          "Se sim, o Chrome para de carregar páginas que ele acha que você vai abrir. Os sites deixam de saber de links que você nem clicou; as páginas podem abrir um pouco mais devagar."),
+      ]),
+      G("Always applied", "Sempre aplicado", [
+        I("Telemetry", "Telemetria", "auto", null,
+          "Turns off usage and crash reports, sending visited URLs, cloud spell check (local spell check stays), suggestions on error pages, surveys and feedback to Google.",
+          "Desliga relatórios de uso e falhas, envio das URLs visitadas, correção ortográfica na nuvem (a local continua), sugestões em páginas de erro, pesquisas e feedback ao Google."),
+        I("AI", "IA", "auto", null,
+          "Turns off Gemini, Gemini acting on pages, AI Mode and third-party AI in the address bar, Help me write, tab comparison, AI history search, AI themes, AI autofill and the download of the local AI model (several GB).",
+          "Desliga o Gemini, o Gemini agindo nas páginas, o Modo IA e IAs de terceiros na barra de endereço, o “Me ajude a escrever”, a comparação de abas, a busca no histórico com IA, temas com IA, o preenchimento com IA e o download do modelo de IA local (vários GB)."),
+        I("Third-party cookies", "Cookies de terceiros", "auto", null,
+          "Blocks cookies that track you across sites, except Google's, so “Sign in with Google” and embedded Drive keep working.",
+          "Bloqueia cookies que te rastreiam entre sites, menos os do Google, para o “Fazer login com o Google” e o Drive dentro de outros sites continuarem funcionando."),
+        I("Sync", "Sincronização", "auto", null,
+          "Blocks syncing your browser data to the Google account. You can still sign in to Google sites.",
+          "Bloqueia a sincronização dos dados do navegador com a conta Google. O login nos sites do Google continua."),
+        I("Extras", "Extras", "auto", null,
+          "Safe Browsing in Standard mode, no running in the background after closing, no shopping list and no “not your default browser” prompt.",
+          "Navegação Segura no modo Padrão, sem rodar em segundo plano depois de fechar, sem lista de compras e sem o aviso “não é o navegador padrão”."),
+      ]),
+    ],
+
+    brave: [
+      G("Questions", "Perguntas", [
+        I("Cast to TV", "Transmitir para TV", "choice", { en: "Keep", pt: "Manter" },
+          "Keep: creates a Windows Firewall rule so Brave can find TVs on the network without a firewall prompt. Turn off: disables casting and removes the rule.",
+          "Manter: cria uma regra no Firewall do Windows para o Brave achar TVs na rede sem o aviso do firewall. Desligar: desativa a transmissão e remove a regra."),
+      ]),
+      G("Always applied", "Sempre aplicado", [
+        I("Brave features", "Recursos do Brave", "auto", null,
+          "Turns off Wallet (crypto), VPN, Rewards (BAT and Brave ads), Leo (AI assistant), News on the new tab, Talk (video calls), Playlist, the Internet Archive prompt on missing pages, private windows with Tor and Speedreader.",
+          "Desliga Wallet (cripto), VPN, Recompensas (BAT e anúncios do Brave), Leo (assistente de IA), News na nova guia, Talk (videochamadas), Playlist, o aviso do Internet Archive em páginas que não existem, janelas privadas com Tor e Speedreader."),
+        I("Telemetry", "Telemetria", "auto", null,
+          "Turns off product usage analytics (P3A), the daily usage ping and the Web Discovery Project.",
+          "Desliga as análises de uso do produto (P3A), o ping diário de uso e o Web Discovery Project."),
+        I("Chromium extras", "Extras do Chromium", "auto", null,
+          "Turns off usage reports, URL collection, surveys, promotional tabs, running in the background after closing, the shopping list and the “not your default browser” prompt.",
+          "Desliga relatórios de uso, coleta de URLs, pesquisas, guias promocionais, rodar em segundo plano depois de fechar, a lista de compras e o aviso “não é o navegador padrão”."),
+        I("Apps, passwords and cards", "Apps, senhas e cartões", "auto", null,
+          "Blocks installing sites as apps, Brave's password manager (use Bitwarden) and saving payment cards. Ad blocking (Shields) is not touched.",
+          "Bloqueia instalar sites como app, o gerenciador de senhas do Brave (use o Bitwarden) e salvar cartões. O bloqueio de anúncios (Shields) não é mexido."),
+      ]),
+    ],
+
+    firefox: [
+      G("Questions", "Perguntas", [
+        I("Search suggestions", "Sugestões de pesquisa", "ask", false,
+          "If yes, Firefox stops sending what you type to the search engine in real time. You lose the suggestions while typing.",
+          "Se sim, o Firefox para de enviar ao buscador em tempo real o que você digita. Você perde as sugestões enquanto digita."),
+        I("Page preloading", "Pré-carregamento de páginas", "ask", true,
+          "If yes, Firefox stops loading pages it guesses you will open, so sites don't learn about links you didn't click.",
+          "Se sim, o Firefox para de carregar páginas que ele acha que você vai abrir, então os sites não ficam sabendo de links que você nem clicou."),
+        I("HTTPS-Only mode", "Modo somente HTTPS", "ask", true,
+          "If yes, Firefox warns you before opening a site without a secure connection.",
+          "Se sim, o Firefox avisa antes de abrir um site sem conexão segura."),
+      ]),
+      G("Always applied", "Sempre aplicado", [
+        I("Telemetry", "Telemetria", "auto", null,
+          "Turns off telemetry, studies and remote experiments, the default browser agent task and the “not your default browser” prompt.",
+          "Desliga a telemetria, os estudos e experimentos remotos, a tarefa do agente de navegador padrão e o aviso “não é o navegador padrão”."),
+        I("Sponsored content and nags", "Patrocinados e avisos", "auto", null,
+          "Removes sponsored shortcuts and stories and recommended stories from the new tab, sponsored and Mozilla suggestions from the address bar, sending what you type to Mozilla, extension and feature recommendations, “More from Mozilla”, welcome screens, address bar tips, Firefox Labs invitations and the default bookmarks in new profiles.",
+          "Tira da nova aba os atalhos e matérias patrocinados e as matérias recomendadas; da barra de endereço, as sugestões patrocinadas e da Mozilla; e também o envio do que você digita para a Mozilla, recomendações de extensões e recursos, o “Mais da Mozilla”, telas de boas-vindas, dicas na barra de endereço, convites do Firefox Labs e os favoritos de fábrica em perfis novos."),
+        I("AI", "IA", "auto", null,
+          "Blocks the AI features. Page translation keeps working, since it runs on your PC.",
+          "Bloqueia os recursos de IA. A tradução de páginas continua, porque roda no seu PC."),
+        I("Extensions", "Extensões", "auto", null,
+          "Installs uBlock Origin (ad blocker) and Bitwarden (password manager) from Mozilla's store and keeps them updated. They also work in private windows; you can disable them but not remove them.",
+          "Instala o uBlock Origin (bloqueador de anúncios) e o Bitwarden (gerenciador de senhas) pela loja da Mozilla e mantém atualizados. Funcionam também em janelas privadas; dá para desativar, mas não remover."),
+        I("Bitwarden only", "Só o Bitwarden", "auto", null,
+          "Turns off Firefox's own password manager, the offer to save passwords and address and card autofill. If Firefox has saved passwords, it warns you and explains how to move them to Bitwarden; they are hidden, not deleted.",
+          "Desliga o gerenciador de senhas do próprio Firefox, a oferta de salvar senhas e o preenchimento de endereços e cartões. Se o Firefox tiver senhas salvas, ele avisa e explica como levar para o Bitwarden; elas ficam ocultas, não são apagadas."),
+      ]),
+    ],
+
+    "chrome-revert": [G("", "", [I("Policies", "Políticas", "auto", null,
+      "Removes every Chrome policy set by TidyWin. Close and reopen Chrome.",
+      "Remove todas as políticas do Chrome aplicadas pelo TidyWin. Feche e abra o Chrome.")])],
+    "brave-revert": [G("", "", [I("Policies", "Políticas", "auto", null,
+      "Removes every Brave policy set by TidyWin and the Cast to TV firewall rule. Close and reopen Brave.",
+      "Remove todas as políticas do Brave aplicadas pelo TidyWin e a regra de firewall do Transmitir para TV. Feche e abra o Brave.")])],
+    "firefox-revert": [G("", "", [I("Policies", "Políticas", "auto", null,
+      "Removes every Firefox policy set by TidyWin. If uBlock Origin or Bitwarden are still there and you don't want them, remove them in about:addons.",
+      "Remove todas as políticas do Firefox aplicadas pelo TidyWin. Se o uBlock Origin ou o Bitwarden continuarem lá e você não quiser, remova em about:addons.")])],
+  };
+
   const lists = {
     apply: ["windows", "apps", "chrome", "brave", "firefox"],
     undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert"],
   };
-  for (const [id, names] of Object.entries(lists)) {
-    for (const name of names) {
-      const cmd = `irm ${base}/${name} | iex`;
-      const li = document.createElement("li");
-      const btn = document.createElement("button");
-      btn.textContent = cmd;
-      btn.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(cmd); } catch { return; }
-        btn.textContent = "copied";
-        btn.classList.add("copied");
-        setTimeout(() => { btn.textContent = cmd; btn.classList.remove("copied"); }, 1200);
-      });
-      li.appendChild(btn);
-      document.getElementById(id).appendChild(li);
+
+  let lang = "en";
+  try { lang = localStorage.getItem("lang") || (navigator.language.toLowerCase().startsWith("pt") ? "pt" : "en"); } catch {}
+
+  function render() {
+    const t = text[lang];
+    document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
+    document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
+    document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+
+    for (const [id, names] of Object.entries(lists)) {
+      const ul = document.getElementById(id);
+      ul.replaceChildren();
+      for (const name of names) {
+        const cmd = `irm ${base}/${name} | iex`;
+        const li = document.createElement("li");
+        const btn = document.createElement("button");
+        btn.className = "cmd";
+        btn.textContent = cmd;
+        btn.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(cmd); } catch { return; }
+          btn.textContent = t.copied;
+          btn.classList.add("copied");
+          setTimeout(() => { btn.textContent = cmd; btn.classList.remove("copied"); }, 1200);
+        });
+        const p = document.createElement("p");
+        p.className = "desc";
+        p.textContent = t[name];
+        li.append(btn, p);
+        const groupsFor = options[name];
+        if (groupsFor) {
+          const det = document.createElement("details");
+          const sum = document.createElement("summary");
+          sum.textContent = t.options;
+          det.appendChild(sum);
+          for (const g of groupsFor) {
+            if (g.g[lang]) { const h = document.createElement("h3"); h.textContent = g.g[lang]; det.appendChild(h); }
+            const dl = document.createElement("dl");
+            for (const it of g.items) {
+              const dt = document.createElement("dt");
+              dt.textContent = it.n[lang];
+              if (it.k !== "auto") {
+                const tag = document.createElement("span");
+                tag.className = "tag";
+                const def = it.k === "choice" ? `${t.def}: ${it.d[lang]}`
+                          : it.d === "local" ? t.local : (it.d ? t.yes : t.no);
+                tag.textContent = ` (${t.asks}, ${def})`;
+                dt.appendChild(tag);
+              }
+              const dd = document.createElement("dd");
+              dd.textContent = it.t[lang];
+              dl.append(dt, dd);
+            }
+            det.appendChild(dl);
+          }
+          li.appendChild(det);
+        }
+        ul.appendChild(li);
+      }
     }
   }
+
+  document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => {
+    lang = b.dataset.lang;
+    try { localStorage.setItem("lang", lang); } catch {}
+    render();
+  }));
+
+  render();
 </script>
 </body>
 </html>
