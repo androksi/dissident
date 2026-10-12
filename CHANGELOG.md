@@ -15,6 +15,7 @@
 - **Backup-Apps** (shortcuts `apps-export` and `apps-import`): saves the installed apps list and reinstalls it after formatting.
 - **Configure-Windows**: optional classic right-click menu on Windows 11, an option to block programs installed by the firmware (WPBT), and options for Snap windows, the Xbox apps, Recall, the Edge desktop shortcut, Num Lock at startup and Fast Startup.
 - **Configure-Windows**: optional removal of the Snipping Tool, which also frees the Print Screen key for apps like ShareX.
+- **Configure-Windows**: optional screen, sleep and hibernation times, plugged in and on battery.
 - **Configure-Firefox**: removes the "Add to taskbar" and Picture-in-Picture buttons from the address bar, asks whether to keep page translation and, optionally, removes the Reader View icon.
 - **Get-Wallpapers** (shortcut `wallpapers`): pick wallpapers from a list and download them, with a preview gallery in `docs/wallpapers.md` kept up to date by `tools/Update-WallpaperGallery.ps1`.
 - **Configure-Apps**: adds Cloudflare One (WARP / 1.1.1.1), Unified Remote and the Visual C++ Redistributables (2015-2022 and 2005-2013, x64 + x86), 104 apps in total. One entry can install several packages.

@@ -23,7 +23,7 @@
         2. System detection .......... Windows version and available features
         3. Privacy and cleanup ....... telemetry, suggestions, apps, OneDrive, Edge, Windows Security, C:\ root folders, device apps
         4. Personalization ........... theme, taskbar (alignment, search, Task View, pins, battery %), File Explorer (hidden files, folder discovery, Home/Gallery), window border
-        5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, volume, verbose BSoD
+        5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, volume, verbose BSoD, screen/sleep times
         6. Network ................... DNS with DNS over HTTPS
         7. Check ..................... -Check: compares the PC with the saved answers
         8. Questions ................. what to apply
@@ -877,6 +877,55 @@ namespace CfgWin {
     Write-Host "  $(T 'Windows volume' 'volume do Windows'): $([math]::Round([CfgWin.Audio]::GetVolume() * 100))%"
 }
 
+# --- Power: screen and sleep times ------------------------------------------
+# Same as Settings → System → Power, in the active power plan. Minutes; 0 = never.
+# AC = plugged in, DC = on battery.
+
+$ScreenChoices    = 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 0
+$SleepChoices     = 5, 10, 15, 20, 30, 45, 60, 120, 180, 0
+$HibernateChoices = 30, 60, 120, 180, 240, 360, 0
+
+# Current value in minutes. "powercfg /q" is translated, but its numbers aren't: the last two are
+# the AC and DC values, in seconds.
+function Get-PowerTimeout([string]$Sub, [string]$Setting, [bool]$Battery) {
+    $hex = @(powercfg /q SCHEME_CURRENT $Sub $Setting | Select-String '0x[0-9a-fA-F]+' -AllMatches | ForEach-Object { $_.Matches.Value })
+    if ($hex.Count -lt 2) { return $null }
+    return [int][math]::Round([Convert]::ToInt64($hex[$(if ($Battery) { -1 } else { -2 })], 16) / 60)
+}
+
+# Hibernation turned on in this PC (HibernateEnabled, or Windows' default when it was never changed).
+function Test-HibernateEnabled {
+    $power = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -ErrorAction SilentlyContinue
+    $value = if ($null -ne $power.HibernateEnabled) { $power.HibernateEnabled } else { $power.HibernateEnabledDefault }
+    return $value -eq 1
+}
+
+function Format-Minutes([int]$Minutes) {
+    if ($Minutes -eq 0) { return (T 'never' 'nunca') }
+    if ($Minutes % 60 -eq 0) { $h = $Minutes / 60; return (T "$h hour$(if ($h -gt 1) { 's' })" "$h hora$(if ($h -gt 1) { 's' })") }
+    return "$Minutes min"
+}
+
+# Menu of times with the current one selected (added to the list when it isn't one of the usual values).
+function Select-Minutes([string]$Question, [int[]]$Choices, $Current) {
+    $values = @($Choices)
+    if ($null -ne $Current -and $values -notcontains $Current) {
+        $values = @($values + $Current | Sort-Object { if ($_ -eq 0) { [int]::MaxValue } else { $_ } })
+    }
+    $names = @($values | ForEach-Object { (Format-Minutes $_) + $(if ($_ -eq $Current) { T '  (current)' '  (atual)' } else { '' }) })
+    $default = if ($null -ne $Current) { [array]::IndexOf($values, [int]$Current) } else { 0 }
+    return $values[(Choose $Question $names $default)]
+}
+
+# $Values: "powercfg /change" names (monitor-timeout-ac, standby-timeout-dc...) -> minutes.
+function Set-PowerTimeouts($Values) {
+    foreach ($name in $Values.Keys) {
+        powercfg /change $name $Values[$name]
+        if ($LASTEXITCODE -ne 0) { throw "powercfg /change $name" }
+    }
+    Write-Host (T '  times set in the active power plan' '  tempos ajustados no plano de energia ativo')
+}
+
 #endregion
 
 
@@ -1156,6 +1205,30 @@ $opt.NoFastStartup    = Ask (T 'Turn off Fast Startup? ("Shut down" really shuts
 $opt.MaxVolume        = Ask (T 'Set the Windows volume to 100% (on the speakers/headphones in use now)?' 'Deixar o volume do Windows em 100% (no alto-falante/fone em uso agora)?') $true
 $opt.VerboseBsod      = Ask (T 'Show technical details on the blue screen if the PC crashes (helps find the cause)?' 'Mostrar detalhes técnicos na tela azul, se o PC travar (ajuda a descobrir a causa)?') $true
 
+# --- Power: one question to keep everything as is; otherwise screen, sleep and hibernation times,
+# plugged in and (laptops) on battery, each menu starting at the current value.
+# Hibernation is only asked if it is turned on: turning it on is not this script's call (hiberfil.sys).
+Write-Host (T "`n  Power (screen and sleep)" "`n  Energia (tela e suspensão)") -ForegroundColor Cyan
+$power = [ordered]@{}
+$opt.Power = 'Keep'
+if ((Choose (T 'Screen, sleep and hibernation times:' 'Tempo da tela, da suspensão e da hibernação:') @((T 'Keep as is' 'Manter como está'), (T 'Choose the times' 'Escolher os tempos')) 0) -eq 1) {
+    $canHibernate = Test-HibernateEnabled
+    $modes = @(@{ Key = 'ac'; Battery = $false; Label = $(if ($hasBattery) { T ' (plugged in)' ' (na tomada)' } else { '' }) })
+    if ($hasBattery) { $modes += @{ Key = 'dc'; Battery = $true; Label = (T ' (on battery)' ' (na bateria)') } }
+    $parts = @()
+    foreach ($m in $modes) {
+        $power["monitor-timeout-$($m.Key)"] = Select-Minutes (T "Turn off the screen after$($m.Label):" "Desligar a tela após$($m.Label):") $ScreenChoices (Get-PowerTimeout SUB_VIDEO VIDEOIDLE $m.Battery)
+        $power["standby-timeout-$($m.Key)"] = Select-Minutes (T "Sleep after$($m.Label):" "Suspender após$($m.Label):") $SleepChoices (Get-PowerTimeout SUB_SLEEP STANDBYIDLE $m.Battery)
+        $text = (T 'screen ' 'tela ') + (Format-Minutes $power["monitor-timeout-$($m.Key)"]) + (T ', sleep ' ', suspensão ') + (Format-Minutes $power["standby-timeout-$($m.Key)"])
+        if ($canHibernate) {
+            $power["hibernate-timeout-$($m.Key)"] = Select-Minutes (T "Hibernate after$($m.Label):" "Hibernar após$($m.Label):") $HibernateChoices (Get-PowerTimeout SUB_SLEEP HIBERNATEIDLE $m.Battery)
+            $text += (T ', hibernation ' ', hibernação ') + (Format-Minutes $power["hibernate-timeout-$($m.Key)"])
+        }
+        $parts += $(if ($m.Label) { "$($m.Label.Trim(' ()')): $text" } else { $text })
+    }
+    $opt.Power = $parts -join '; '
+}
+
 # --- Network
 Write-Host (T "`n  Network" "`n  Rede") -ForegroundColor Cyan
 $dnsV4 = @(); $dnsV6 = @()
@@ -1194,7 +1267,7 @@ $labels = @{
     LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
     NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
     NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); NoRecall = (T 'No Recall' 'Sem Recall'); NoEdgeShortcut = (T 'No Edge shortcut' 'Sem atalho do Edge'); NumLock = 'Num Lock'; NoFastStartup = (T 'No Fast Startup' 'Sem inicialização rápida'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
-    NoFolderSniff = (T 'No folder discovery' 'Sem descoberta pasta'); VerboseBsod = (T 'Detailed blue screen' 'Tela azul detalhada')
+    NoFolderSniff = (T 'No folder discovery' 'Sem descoberta pasta'); VerboseBsod = (T 'Detailed blue screen' 'Tela azul detalhada'); Power = (T 'Power' 'Energia')
 }
 if (-not $NoPrompt) {
     Write-Host (T "`n  Summary:" "`n  Resumo:") -ForegroundColor Cyan
@@ -1205,7 +1278,7 @@ if (-not $NoPrompt) {
                 elseif ($key -eq 'Taskbar') { $taskbarNames[[array]::IndexOf($taskbarIds, $value)] }
                 elseif ($key -eq 'Search')  { $searchNames[[array]::IndexOf($searchIds, $value)] }
                 elseif ($key -eq 'TaskView') { $taskViewNames[[array]::IndexOf($taskViewIds, $value)] }
-                elseif ($key -eq 'DNS' -and $value -eq 'Keep') { T 'keep' 'manter' }
+                elseif (($key -eq 'DNS' -or $key -eq 'Power') -and $value -eq 'Keep') { T 'keep' 'manter' }
                 else { $value }
         Write-Host ("    {0,-24} {1}" -f $labels[$key], $text)
     }
@@ -1297,6 +1370,7 @@ if ($opt.MaxVolume) { Invoke-Step (T 'Windows volume at 100%' 'Volume do Windows
 if ($opt.NumLock)       { Invoke-Step 'Num Lock' { Enable-NumLockAtStartup } }
 if ($opt.NoFastStartup) { Invoke-Step (T 'Fast Startup' 'Inicialização rápida') { Disable-FastStartup } }
 if ($opt.VerboseBsod) { Invoke-Step (T 'Detailed blue screen' 'Tela azul detalhada') { Enable-VerboseBsod } }
+if ($power.Count) { Invoke-Step (T 'Screen, sleep and hibernation times' 'Tempo da tela, da suspensão e da hibernação') { Set-PowerTimeouts $power } }
 
 # --- Network
 if ($dnsV4) { Invoke-Step "DNS: $($opt.DNS)" { Set-DNS $dnsV4 $dnsV6 } }

@@ -69,6 +69,11 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Volume 100% | Sets the current audio device volume to 100%. |
 | Verbose blue screen | Shows the technical error details on the blue screen. |
 
+## Power
+| Feature | What it does |
+|---|---|
+| Screen, sleep and hibernation | Default: keep as is. Or choose when to turn off the screen, sleep and hibernate, plugged in and (laptops) on battery, from 1 minute to never. Each menu starts at the current value. Hibernation is only asked if it is turned on. Applies to the active power plan, like Settings → System → Power. |
+
 ## Network
 | Feature | What it does |
 |---|---|
@@ -119,4 +124,4 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 | Feature | What it does |
 |---|---|
 | Revert | Undoes telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
-| Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |
+| Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, screen and sleep times, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |
