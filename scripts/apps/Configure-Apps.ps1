@@ -225,6 +225,7 @@ $Apps = @(
     New-App (T 'Utilities' 'Utilitários')   'UniGetUI'              'Devolutions.UniGetUI'              'winget'  $false (T 'interface for WinGet; updates everything (open source)' 'interface para o WinGet; atualiza tudo (open source)')
     New-App (T 'Utilities' 'Utilitários')   'Bulk Crap Uninstaller' 'Klocman.BulkCrapUninstaller'       'winget'  $false (T 'uninstalls and cleans up leftovers (open source)' 'desinstala e limpa os restos (open source)')
     New-App (T 'Utilities' 'Utilitários')   'CrystalDiskInfo'       'CrystalDewWorld.CrystalDiskInfo'   'winget'  $false (T 'SSD/HDD health (open source)' 'saúde do SSD/HD (open source)')
+    New-App (T 'Utilities' 'Utilitários')   'Unified Remote'        'UnifiedIntents.UnifiedRemote'      'winget'  $false (T 'control the PC from your phone (server; the app goes on the phone)' 'controlar o PC pelo celular (servidor; o app vai no celular)')
 )
 
 #endregion

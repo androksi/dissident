@@ -9,7 +9,7 @@
 | Feature | What it does |
 |---|---|
 | Install WinGet | If WinGet is missing (usually on Windows 10), offers to install it first. |
-| App list | 101 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
+| App list | 102 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
 | Already installed | Shows "instalado" (installed) next to apps already on the PC. |
 | Check category | A key: checks every app in the category (again: unchecks). |
 | Search | / key: type the name and the cursor jumps to the app. Enter confirms, Esc cancels. |
@@ -34,7 +34,7 @@
 ## Full list
 
 <details>
-<summary>See all 101 apps</summary>
+<summary>See all 102 apps</summary>
 
 ### Communication (8)
 
@@ -162,7 +162,7 @@
 | Cloudflare One | Cloudflare's WARP and 1.1.1.1 client; free VPN and Zero Trust access | `Cloudflare.Warp` |
 | Malwarebytes | anti-malware (second opinion to Defender) | `Malwarebytes.Malwarebytes` |
 
-### Utilities (15)
+### Utilities (16)
 
 | App | What it is | ID |
 |---|---|---|
@@ -181,6 +181,7 @@
 | UniGetUI | interface for WinGet; updates everything (open source) | `Devolutions.UniGetUI` |
 | Bulk Crap Uninstaller | uninstalls and cleans up leftovers (open source) | `Klocman.BulkCrapUninstaller` |
 | CrystalDiskInfo | SSD/HDD health (open source) | `CrystalDewWorld.CrystalDiskInfo` |
+| Unified Remote | control the PC from your phone (server; the app goes on the phone) | `UnifiedIntents.UnifiedRemote` |
 
 </details>
 

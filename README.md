@@ -61,7 +61,7 @@ The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Each scr
 | Command | What it does |
 |---|---|
 | `windows` | Telemetry, preinstalled apps, OneDrive, Edge, taskbar, File Explorer and DNS. Creates a restore point first. |
-| `apps` | Pick and install from 101 apps with WinGet. |
+| `apps` | Pick and install from 102 apps with WinGet. |
 | `fonts` | Pick and install fonts for code, the terminal (Nerd Fonts) and text, for every user. [List](docs/fonts.md). |
 | `chrome` | Turns off telemetry and AI features and blocks third-party cookies. |
 | `brave` | Turns off Wallet, VPN, Rewards, Leo, News and telemetry. |
