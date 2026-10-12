@@ -190,6 +190,7 @@ $Apps = @(
     New-App (T 'Security' 'Segurança')     'Bitwarden'             'Bitwarden.Bitwarden'               'winget'  $false (T 'password manager (open source)' 'gerenciador de senhas (open source)')
     New-App (T 'Security' 'Segurança')     'KeePassXC'             'KeePassXCTeam.KeePassXC'           'winget'  $false (T 'offline password manager (open source)' 'gerenciador de senhas offline (open source)')
     New-App (T 'Security' 'Segurança')     'Proton VPN'            'Proton.ProtonVPN'                  'winget'  $false (T 'VPN with a free plan (open source)' 'VPN com plano grátis (open source)')
+    New-App (T 'Security' 'Segurança')     'Cloudflare One'        'Cloudflare.Warp'                   'winget'  $false (T 'Cloudflare''s WARP and 1.1.1.1 client; free VPN and Zero Trust access' 'cliente WARP e 1.1.1.1 da Cloudflare; VPN grátis e acesso Zero Trust')
     New-App (T 'Security' 'Segurança')     'Malwarebytes'          'Malwarebytes.Malwarebytes'         'winget'  $false (T 'anti-malware (second opinion to Defender)' 'antimalware (segunda opinião ao Defender)')
 
     New-App (T 'Utilities' 'Utilitários')   '7-Zip'                 '7zip.7zip'                         'winget'  $false (T 'file archiver (open source)' 'compactador de arquivos (open source)')

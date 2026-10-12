@@ -9,7 +9,7 @@
 | Feature | What it does |
 |---|---|
 | Install WinGet | If WinGet is missing (usually on Windows 10), offers to install it first. |
-| App list | 100 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
+| App list | 101 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
 | Already installed | Shows "instalado" (installed) next to apps already on the PC. |
 | Check category | A key: checks every app in the category (again: unchecks). |
 | Search | / key: type the name and the cursor jumps to the app. Enter confirms, Esc cancels. |
@@ -33,7 +33,7 @@
 ## Full list
 
 <details>
-<summary>See all 100 apps</summary>
+<summary>See all 101 apps</summary>
 
 ### Communication (8)
 
@@ -151,13 +151,14 @@
 | MongoDB Compass | MongoDB client | `MongoDB.Compass.Full` |
 | Ollama | runs AI models on your own PC (open source) | `Ollama.Ollama` |
 
-### Security (4)
+### Security (5)
 
 | App | What it is | ID |
 |---|---|---|
 | Bitwarden | password manager (open source) | `Bitwarden.Bitwarden` |
 | KeePassXC | offline password manager (open source) | `KeePassXCTeam.KeePassXC` |
 | Proton VPN | VPN with a free plan (open source) | `Proton.ProtonVPN` |
+| Cloudflare One | Cloudflare's WARP and 1.1.1.1 client; free VPN and Zero Trust access | `Cloudflare.Warp` |
 | Malwarebytes | anti-malware (second opinion to Defender) | `Malwarebytes.Malwarebytes` |
 
 ### Utilities (15)
