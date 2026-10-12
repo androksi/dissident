@@ -13,6 +13,7 @@
 - **Configure-Dev** (shortcuts `dev` and `dev-revert`): editors, Git, SSH key for GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL.
 - **Repair-Windows** (shortcut `repair`): DISM, sfc and an online disk check, with a restore point first.
 - **Reset-Network** (shortcut `network-reset`): quick (DNS/ARP caches and a new IP) or full (Winsock and TCP/IP) network reset with Windows' own commands, keeping DNS servers set by hand and DNS over HTTPS.
+- **Get-Report** (shortcut `report`): read-only HTML report on the Desktop (Windows and activation, TPM/Secure Boot/Memory integrity, hardware, disks, battery, updates, devices without a driver, crashes, network), with a summary of what needs attention, a Copy as text button and no personal data.
 - **Backup-Apps** (shortcuts `apps-export` and `apps-import`): saves the installed apps list and reinstalls it after formatting.
 - **Backup-Drivers** (shortcuts `drivers-export` and `drivers-import`): pick the drivers to save before formatting (in use come checked) and install back only the ones Windows didn't bring back by itself.
 - **Configure-Windows**: optional classic right-click menu on Windows 11, an option to block programs installed by the firmware (WPBT), and options for Snap windows, the Xbox apps, Recall, the Edge desktop shortcut, Num Lock at startup and Fast Startup.

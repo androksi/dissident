@@ -115,6 +115,26 @@ Measures each item, asks before deleting each one and shows how much space was f
 
 For when Windows acts strange. Creates a restore point, checks the Windows image with DISM and repairs it from Windows Update only if it is damaged, runs `sfc /scannow`, and checks the disk online (asks before scheduling a fix at the next restart). Only Windows' own tools; your files, apps and settings are not touched. Takes 10 to 30 minutes.
 
+## Report
+
+```powershell
+irm androksi.github.io/tidywin/report | iex
+```
+
+**Only reads**: nothing on the PC is changed. Saves an HTML report to the Desktop and opens it in the browser (`-OutFile <path>` saves elsewhere). At the top, a summary of what needs attention and what to do; then every item marked **OK**, **Attention**, **Problem** or **Info**. A **Copy as text** button copies it for a forum, Discord or a message.
+
+| Section | What it shows |
+|---|---|
+| Windows | Edition, version and build, install date, activation, computer model, motherboard and BIOS, boot mode (UEFI/Legacy), time since the last restart, power plan. |
+| Security and anti-cheat | TPM 2.0, Secure Boot, Memory integrity, test signing/debug mode (what VALORANT and FACEIT check), antivirus, firewall and UAC. |
+| Hardware | CPU; RAM size, type and speed, dual channel and whether XMP/EXPO is off; each graphics card with its driver version and age (or a warning when there is no driver), resolution and refresh rate. |
+| Disks | Health, wear, temperature and hours of each disk, and free space on each drive. |
+| Battery | Laptops: health compared with the original capacity, and charge cycles (from `powercfg /batteryreport`). |
+| Updates and stability | Restart pending, last update, devices with a problem (missing driver...), blue screens and unexpected shutdowns in the last 30 days, programs at startup. |
+| Network | Connected adapters and speed (warns about a cable stuck at 100 Mbps), DNS, and whether the internet works. |
+
+No personal data: no user or PC name, serial numbers, Windows key, IP or MAC addresses, or Wi-Fi names, so it can be sent when asking for help.
+
 ## Network reset
 
 ```powershell

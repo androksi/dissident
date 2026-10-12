@@ -73,6 +73,7 @@
       dev: "For programmers, after everything else: editors and IDEs, Git, SSH key sent to GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL. Never overwrites an existing key or Git identity.",
       "dev-revert": "Undoes the Windows settings changed by dev: Developer Mode, default terminal and Windows Terminal settings (from the backup). Apps, Git and SSH keys stay.",
       check: "Maintenance",
+      report: "Only reads: creates a report on the Desktop and opens it in the browser. Windows and activation, TPM and Secure Boot (what VALORANT checks), disks, battery, RAM, graphics driver, devices without a driver and recent crashes. No personal data, so it can be sent when asking for help.",
       uninstall: "Pick installed programs and uninstall them with their own official uninstaller. Then shows what they left behind (folders, registry, shortcuts, tasks) and deletes only what you confirm, with a backup.",
       repair: "Checks and repairs Windows system files and the disk with Windows' own tools (DISM, sfc and disk check). Use it when Windows acts strange. Creates a restore point first.",
       "network-reset": "For “connected, no internet” or sites that don't open. Quick (no restart) or full (resets Winsock and TCP/IP), with Windows' own commands. Your DNS is kept.",
@@ -105,6 +106,7 @@
       dev: "Para quem programa, depois de todo o resto: editores e IDEs, Git, chave SSH enviada ao GitHub, commits assinados, Windows Terminal com Nerd Font, Modo de Desenvolvedor, linguagens e WSL. Nunca sobrescreve uma chave ou identidade do Git que já existam.",
       "dev-revert": "Desfaz os ajustes do Windows feitos pelo dev: Modo de Desenvolvedor, terminal padrão e configurações do Windows Terminal (pelo backup). Apps, Git e chaves SSH ficam.",
       check: "Manutenção",
+      report: "Só lê: cria um relatório na Área de Trabalho e abre no navegador. Windows e ativação, TPM e Secure Boot (o que o VALORANT confere), discos, bateria, RAM, driver de vídeo, dispositivos sem driver e travamentos recentes. Sem dados pessoais, então pode ser enviado ao pedir ajuda.",
       uninstall: "Escolha programas instalados e desinstale com o desinstalador oficial de cada um. Depois mostra o que sobrou (pastas, registro, atalhos, tarefas) e apaga só o que você confirmar, com backup.",
       repair: "Verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc e verificação de disco). Use quando o Windows estiver estranho. Cria um ponto de restauração antes.",
       "network-reset": "Para “conectado, sem internet” ou sites que não abrem. Rápido (sem reiniciar) ou completo (redefine o Winsock e o TCP/IP), com os comandos do próprio Windows. Seu DNS é mantido.",
@@ -491,6 +493,20 @@
         "Shows the result of each step and whether you need to restart. Takes 10 to 30 minutes in total.",
         "Mostra o resultado de cada etapa e se precisa reiniciar. Leva de 10 a 30 minutos no total."),
     ])],
+    report: [G("", "", [
+      I("Where", "Onde", "auto", null,
+        "Saves an HTML file to the Desktop and opens it in the browser. Changes nothing on the PC.",
+        "Salva um arquivo HTML na Área de Trabalho e abre no navegador. Não muda nada no PC."),
+      I("Summary", "Resumo", "auto", null,
+        "At the top: everything that needs attention, with what to do. Then each item marked OK, Attention, Problem or Info.",
+        "No topo: tudo o que precisa de atenção, com o que fazer. Depois, cada item marcado como OK, Atenção, Problema ou Info."),
+      I("What it checks", "O que confere", "auto", null,
+        "Windows version and activation; TPM, Secure Boot, Memory integrity and test signing; antivirus, firewall and UAC; CPU, RAM (dual channel, XMP), graphics driver and refresh rate; disk health and free space; battery wear; restart pending, last update, devices without a driver, blue screens and unexpected shutdowns; network speed and internet.",
+        "Versão e ativação do Windows; TPM, Secure Boot, Integridade da memória e assinatura de teste; antivírus, firewall e UAC; CPU, RAM (dual channel, XMP), driver de vídeo e taxa de atualização; saúde e espaço dos discos; desgaste da bateria; reinício pendente, última atualização, dispositivos sem driver, telas azuis e desligamentos inesperados; velocidade da rede e internet."),
+      I("Sharing", "Compartilhar", "auto", null,
+        "A Copy as text button. No user or PC name, serial numbers, Windows key, IP/MAC addresses or Wi-Fi names.",
+        "Um botão Copiar como texto. Sem nome de usuário ou do PC, números de série, chave do Windows, endereços IP/MAC nem nomes de Wi-Fi."),
+    ])],
     uninstall: [G("", "", [
       I("Programs", "Programas", "auto", null,
         "The same list as Settings → Apps → Installed apps, without system components and updates, with publisher, version, size and install date. None comes checked; / searches by name. Microsoft Store apps are not listed.",
@@ -676,7 +692,7 @@
 
   const lists = {
     apply: ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev"],
-    check: ["windows-check", "uninstall", "cleanup", "repair", "network-reset", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
+    check: ["report", "windows-check", "uninstall", "cleanup", "repair", "network-reset", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
     undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
   };
 

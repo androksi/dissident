@@ -63,6 +63,10 @@ SSH keys don't need a backup: `dev` creates a new one and deletes the old key of
     ```powershell
     irm androksi.github.io/tidywin/cleanup | iex
     ```
+20. **`report`**: checks that everything is in place (activation, drivers, TPM/Secure Boot, disks). Only reads; the summary at the top lists anything left to fix.
+    ```powershell
+    irm androksi.github.io/tidywin/report | iex
+    ```
 
 ## From time to time
 
@@ -71,12 +75,13 @@ SSH keys don't need a backup: `dev` creates a new one and deletes the old key of
 | `windows-check` | After a big Windows update, to see whether anything came back. |
 | `apps-export` | Every now and then, so the list is current for the next reinstall. |
 | `repair` | Only when Windows acts strange. |
+| `report` | Before asking for help: send the report (it has no personal data). |
 
 The scripts request administrator rights on their own, so a normal PowerShell is enough (right-click Start → Terminal).
 
 ## Games with anti-cheat
 
-None of the scripts touch TPM, Secure Boot, Memory integrity or test signing. If a game like VALORANT complains (VAN 9001/9003), check the BIOS: updating or resetting it sometimes turns TPM or Secure Boot off.
+None of the scripts touch TPM, Secure Boot, Memory integrity or test signing. If a game like VALORANT complains (VAN 9001/9003), run `report`: its *Security and anti-cheat* section shows all four. Or check the BIOS: updating or resetting it sometimes turns TPM or Secure Boot off.
 
 - TPM: <kbd>Win</kbd> + <kbd>R</kbd> → `tpm.msc` → *The TPM is ready for use*.
 - Secure Boot: <kbd>Win</kbd> + <kbd>R</kbd> → `msinfo32` → *Secure Boot State* = **On**.

@@ -39,6 +39,7 @@ To run another one, replace `windows` with any command from the table below. Eve
 
 | Command | What it does |
 |---|---|
+| `report` | Only reads: an HTML report on the Desktop with Windows, activation, TPM/Secure Boot, disks, battery, drivers and crashes. Safe to share. [Details](docs/windows.md#report) |
 | `windows-check` | After a big Windows update: finds what came back and reapplies it. |
 | `uninstall` | Uninstalls the programs you pick with their official uninstaller, then shows the leftovers before deleting them. [Details](docs/apps.md#uninstalling) |
 | `cleanup` | Frees disk space, asking before each item. |
