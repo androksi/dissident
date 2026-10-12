@@ -199,7 +199,15 @@ Export saves `tidywin-apps-<PC>-<date>.json` with every app WinGet knows (Deskto
 ## Uninstalling
 
 ```powershell
-winget uninstall --id <ID>
+irm androksi.github.io/tidywin/uninstall | iex
 ```
 
-**Bulk Crap Uninstaller** (in the list) also removes leftover folders and registry keys.
+| Step | What it does |
+|---|---|
+| Programs | The same list as Settings → Apps → Installed apps, without system components and updates. ↑ ↓ moves, Space checks, / searches. |
+| Uninstall | Warns about programs still open, creates a restore point, then runs each program's **official uninstaller**, one at a time, with its own window. Nothing is forced; cancelling keeps the program. |
+| Leftovers | After you close the uninstaller windows, looks for what the removed programs left behind. **Checked**: the install folder that remained (under 1 GB), broken shortcuts, empty Start menu folders and scheduled tasks of the program. **Unchecked**: folders and registry keys with the program's name, big install folders (usually your data), folders named after the publisher, anything of a program whose uninstaller was missing, and anything too big for the Recycle Bin. |
+| Never touched | Windows, Program Files/ProgramData/AppData themselves, Common Files, Microsoft folders, your Desktop/Documents/Downloads, links, and anything an installed program still uses. |
+| Delete | Only after confirming. Folders and shortcuts go to the **Recycle Bin**; what doesn't fit asks again, one by one, before being deleted for good. Registry keys and scheduled tasks are exported first to `%ProgramData%\TidyWin\uninstall-backup\<date>`, with a `deleted.txt` listing everything: double-click a `.reg` file to put a key back. |
+
+Microsoft Store apps are not listed: remove them from Settings, or with the `windows` command.

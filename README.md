@@ -40,6 +40,7 @@ To run another one, replace `windows` with any command from the table below. Eve
 | Command | What it does |
 |---|---|
 | `windows-check` | After a big Windows update: finds what came back and reapplies it. |
+| `uninstall` | Uninstalls the programs you pick with their official uninstaller, then shows the leftovers before deleting them. [Details](docs/apps.md#uninstalling) |
 | `cleanup` | Frees disk space, asking before each item. |
 | `repair` | Repairs system files and the disk with Windows' own tools. |
 | `network-reset` | Fixes "connected, no internet" with Windows' own commands, keeping your DNS. [Details](docs/windows.md#network-reset) |

@@ -47,6 +47,7 @@ shortcut apps-import    scripts/apps/Backup-Apps.ps1             -Import
 shortcut drivers-export scripts/drivers/Backup-Drivers.ps1       -Export
 shortcut drivers-import scripts/drivers/Backup-Drivers.ps1       -Import
 shortcut apps           scripts/apps/Configure-Apps.ps1
+shortcut uninstall      scripts/apps/Uninstall-Apps.ps1
 shortcut fonts          scripts/fonts/Install-Fonts.ps1
 shortcut fonts-revert   scripts/fonts/Install-Fonts.ps1          -Revert
 shortcut chrome         scripts/browsers/Configure-Chrome.ps1

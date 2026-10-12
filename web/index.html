@@ -73,6 +73,7 @@
       dev: "For programmers, after everything else: editors and IDEs, Git, SSH key sent to GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL. Never overwrites an existing key or Git identity.",
       "dev-revert": "Undoes the Windows settings changed by dev: Developer Mode, default terminal and Windows Terminal settings (from the backup). Apps, Git and SSH keys stay.",
       check: "Maintenance",
+      uninstall: "Pick installed programs and uninstall them with their own official uninstaller. Then shows what they left behind (folders, registry, shortcuts, tasks) and deletes only what you confirm, with a backup.",
       repair: "Checks and repairs Windows system files and the disk with Windows' own tools (DISM, sfc and disk check). Use it when Windows acts strange. Creates a restore point first.",
       "network-reset": "For “connected, no internet” or sites that don't open. Quick (no restart) or full (resets Winsock and TCP/IP), with Windows' own commands. Your DNS is kept.",
       "apps-export": "Before formatting: saves the list of your installed apps to a file. Save it on OneDrive, Google Drive or a USB drive.",
@@ -104,6 +105,7 @@
       dev: "Para quem programa, depois de todo o resto: editores e IDEs, Git, chave SSH enviada ao GitHub, commits assinados, Windows Terminal com Nerd Font, Modo de Desenvolvedor, linguagens e WSL. Nunca sobrescreve uma chave ou identidade do Git que já existam.",
       "dev-revert": "Desfaz os ajustes do Windows feitos pelo dev: Modo de Desenvolvedor, terminal padrão e configurações do Windows Terminal (pelo backup). Apps, Git e chaves SSH ficam.",
       check: "Manutenção",
+      uninstall: "Escolha programas instalados e desinstale com o desinstalador oficial de cada um. Depois mostra o que sobrou (pastas, registro, atalhos, tarefas) e apaga só o que você confirmar, com backup.",
       repair: "Verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc e verificação de disco). Use quando o Windows estiver estranho. Cria um ponto de restauração antes.",
       "network-reset": "Para “conectado, sem internet” ou sites que não abrem. Rápido (sem reiniciar) ou completo (redefine o Winsock e o TCP/IP), com os comandos do próprio Windows. Seu DNS é mantido.",
       "apps-export": "Antes de formatar: salva a lista dos seus apps instalados num arquivo. Guarde no OneDrive, Google Drive ou pendrive.",
@@ -489,6 +491,20 @@
         "Shows the result of each step and whether you need to restart. Takes 10 to 30 minutes in total.",
         "Mostra o resultado de cada etapa e se precisa reiniciar. Leva de 10 a 30 minutos no total."),
     ])],
+    uninstall: [G("", "", [
+      I("Programs", "Programas", "auto", null,
+        "The same list as Settings → Apps → Installed apps, without system components and updates, with publisher, version, size and install date. None comes checked; / searches by name. Microsoft Store apps are not listed.",
+        "A mesma lista de Configurações → Aplicativos → Aplicativos instalados, sem componentes do sistema e atualizações, com editor, versão, tamanho e data de instalação. Nenhum vem marcado; / busca pelo nome. Apps da Microsoft Store não aparecem."),
+      I("Uninstall", "Desinstalar", "ask", true,
+        "Warns about programs still open and asks to confirm, creates a restore point, then runs each program's official uninstaller with its own window, one at a time. Nothing is forced: cancelling keeps the program.",
+        "Avisa dos programas ainda abertos e pede confirmação, cria um ponto de restauração e roda o desinstalador oficial de cada programa com a janela dele, um por vez. Nada é forçado: cancelar mantém o programa."),
+      I("Leftovers", "Resquícios", "auto", null,
+        "After you close the uninstaller windows. Checked: the install folder that remained (under 1 GB), broken shortcuts, empty Start menu folders and scheduled tasks of the program. Unchecked: folders and registry keys with the program's name, big install folders (usually your data), folders named after the publisher and anything too big for the Recycle Bin. Never touches Windows, Common Files, Microsoft folders, your personal folders or anything an installed program still uses.",
+        "Depois que você fecha as janelas de desinstalação. Marcados: a pasta de instalação que ficou (até 1 GB), atalhos quebrados, pastas vazias do Menu Iniciar e tarefas agendadas do programa. Desmarcados: pastas e chaves de registro com o nome do programa, pastas de instalação grandes (normalmente seus dados), pastas com o nome do editor e o que não cabe na Lixeira. Nunca mexe no Windows, em Common Files, em pastas da Microsoft, nas suas pastas pessoais nem em nada que um programa instalado ainda usa."),
+      I("Delete", "Apagar", "ask", false,
+        "Shows what will be deleted and asks. Folders and shortcuts go to the Recycle Bin; what doesn't fit asks again, one by one, before being deleted for good. Registry keys and scheduled tasks are exported first to %ProgramData%\\TidyWin\\uninstall-backup, with a deleted.txt listing everything (double-click a .reg file to put a key back).",
+        "Mostra o que vai ser apagado e pergunta. Pastas e atalhos vão para a Lixeira; o que não cabe pergunta de novo, um a um, antes de ser apagado de vez. Chaves de registro e tarefas agendadas são exportadas antes para %ProgramData%\\TidyWin\\uninstall-backup, com um deleted.txt listando tudo (clique duas vezes num .reg para devolver uma chave)."),
+    ])],
     "network-reset": [G("", "", [
       I("Adapters", "Adaptadores", "auto", null,
         "Shows each network adapter: connected or not, automatic or manual IP, and the DNS that will be kept.",
@@ -660,7 +676,7 @@
 
   const lists = {
     apply: ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev"],
-    check: ["windows-check", "cleanup", "repair", "network-reset", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
+    check: ["windows-check", "uninstall", "cleanup", "repair", "network-reset", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
     undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
   };
 

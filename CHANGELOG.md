@@ -20,6 +20,7 @@
 - **Configure-Windows**: optional screen, sleep and hibernation times, plugged in and on battery.
 - **Configure-Firefox**: removes the "Add to taskbar" and Picture-in-Picture buttons from the address bar, asks whether to keep page translation and, optionally, removes the Reader View icon.
 - **Get-Wallpapers** (shortcut `wallpapers`): pick wallpapers from a list and download them, with a preview gallery in `docs/wallpapers.md` kept up to date by `tools/Update-WallpaperGallery.ps1`.
+- **Uninstall-Apps** (shortcut `uninstall`): pick programs and uninstall them with their official uninstaller, then delete the leftovers you confirm (folders and shortcuts to the Recycle Bin, registry keys and scheduled tasks backed up first).
 - **Configure-Apps**: adds Cloudflare One (WARP / 1.1.1.1), Unified Remote and the Visual C++ Redistributables (2015-2022 and 2005-2013, x64 + x86), 104 apps in total. One entry can install several packages.
 - **Configure-Apps**: Firefox and Thunderbird follow the Windows display language instead of always installing Portuguese (Brazil).
 - **Install-Fonts** (shortcuts `fonts` and `fonts-revert`): pick from 19 fonts (code, Nerd Fonts and text) and install them for every user from their official sources; the revert removes only what it installed.
