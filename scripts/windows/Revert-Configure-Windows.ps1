@@ -248,7 +248,10 @@ function Remove-EdgePolicies {
 
 # Answers saved by Configure-Windows for -Check.
 function Remove-SavedAnswers {
-    Remove-Item (Join-Path $env:ProgramData 'TidyWin') -Recurse -Force -ErrorAction SilentlyContinue
+    # Only this file: the folder also holds fonts.json (Install-Fonts' record for fonts-revert)
+    $dir = Join-Path $env:ProgramData 'TidyWin'
+    Remove-Item (Join-Path $dir 'windows.json') -Force -ErrorAction SilentlyContinue
+    if (-not (Get-ChildItem $dir -Force -ErrorAction SilentlyContinue)) { Remove-Item $dir -Force -ErrorAction SilentlyContinue }
 }
 
 #endregion

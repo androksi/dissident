@@ -16,6 +16,8 @@
 - **Configure-Windows**: optional classic right-click menu on Windows 11, an option to block programs installed by the firmware (WPBT), and options for Snap windows, the Xbox apps, Recall, the Edge desktop shortcut, Num Lock at startup and Fast Startup.
 - **Configure-Firefox**: removes the "Add to taskbar" and Picture-in-Picture buttons from the address bar, asks whether to keep page translation and, optionally, removes the Reader View icon.
 - **Get-Wallpapers** (shortcut `wallpapers`): pick wallpapers from a list and download them, with a preview gallery in `docs/wallpapers.md` kept up to date by `tools/Update-WallpaperGallery.ps1`.
+- **Install-Fonts** (shortcuts `fonts` and `fonts-revert`): pick from 19 fonts (code, Nerd Fonts and text) and install them for every user from their official sources; the revert removes only what it installed.
+- **Revert-Configure-Windows**: deletes only its own saved answers from `%ProgramData%\TidyWin`.
 
 ## v1.0.0 — 2026-10-10
 

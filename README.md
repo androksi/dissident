@@ -20,6 +20,7 @@ Open PowerShell and run one of the commands:
 ```powershell
 irm androksi.github.io/tidywin/windows | iex
 irm androksi.github.io/tidywin/apps | iex
+irm androksi.github.io/tidywin/fonts | iex
 irm androksi.github.io/tidywin/chrome | iex
 irm androksi.github.io/tidywin/brave | iex
 irm androksi.github.io/tidywin/firefox | iex
@@ -34,6 +35,7 @@ irm androksi.github.io/tidywin/chrome-revert | iex
 irm androksi.github.io/tidywin/brave-revert | iex
 irm androksi.github.io/tidywin/firefox-revert | iex
 irm androksi.github.io/tidywin/dev-revert | iex
+irm androksi.github.io/tidywin/fonts-revert | iex
 ```
 
 ### Maintenance
@@ -60,6 +62,7 @@ The script is downloaded to `%TEMP%\tidywin` and deleted after it runs. Each scr
 |---|---|
 | `windows` | Telemetry, preinstalled apps, OneDrive, Edge, taskbar, File Explorer and DNS. Creates a restore point first. |
 | `apps` | Pick and install from 100 apps with WinGet. |
+| `fonts` | Pick and install fonts for code, the terminal (Nerd Fonts) and text, for every user. [List](docs/fonts.md). |
 | `chrome` | Turns off telemetry and AI features and blocks third-party cookies. |
 | `brave` | Turns off Wallet, VPN, Rewards, Leo, News and telemetry. |
 | `firefox` | Turns off telemetry, sponsored content and AI. Installs uBlock Origin and Bitwarden. |
@@ -96,6 +99,7 @@ Run as Administrator. Browser scripts accept `-Revert`.
 - [Reinstalling Windows, step by step](docs/reinstall.md)
 - [Windows options](docs/windows.md)
 - [App list](docs/apps.md)
+- [Fonts](docs/fonts.md)
 - [Browser policies](docs/browsers.md)
 - [Developer setup](docs/dev.md)
 - [Wallpapers](docs/wallpapers.md)

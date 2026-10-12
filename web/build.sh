@@ -44,6 +44,8 @@ shortcut repair         scripts/windows/Repair-Windows.ps1
 shortcut apps-export    scripts/apps/Backup-Apps.ps1             -Export
 shortcut apps-import    scripts/apps/Backup-Apps.ps1             -Import
 shortcut apps           scripts/apps/Configure-Apps.ps1
+shortcut fonts          scripts/fonts/Install-Fonts.ps1
+shortcut fonts-revert   scripts/fonts/Install-Fonts.ps1          -Revert
 shortcut chrome         scripts/browsers/Configure-Chrome.ps1
 shortcut chrome-revert  scripts/browsers/Configure-Chrome.ps1  -Revert
 shortcut brave          scripts/browsers/Configure-Brave.ps1

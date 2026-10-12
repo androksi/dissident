@@ -84,6 +84,8 @@
       asks: "asks", yes: "default yes", no: "default no", def: "default", local: "default yes with a local account, no with a Microsoft account",
       windows: "Turns off telemetry, ads and suggestions, removes preinstalled apps (Clipchamp, Teams, Copilot and others) and OneDrive, and adjusts the taskbar, File Explorer and DNS. Asks before each change and creates a restore point first.",
       apps: "Shows a list of 100 apps (browsers, games, development, utilities and more). Check the ones you want and they are installed with WinGet.",
+      fonts: "Shows a list of 19 free fonts: for code (JetBrains Mono, Fira Code and others), with terminal icons (Nerd Fonts) and for text (Inter, Roboto and others). Check the ones you want and they are installed for every user, ready to use.",
+      "fonts-revert": "Removes the fonts installed by the fonts command. Fonts you installed some other way stay.",
       chrome: "Turns off telemetry, Gemini and other AI features, third-party cookies, sync and background mode. Signing in to Google keeps working.",
       brave: "Turns off Wallet, VPN, Rewards, Leo (AI), News and usage reports. Ad blocking stays on.",
       firefox: "Turns off telemetry, sponsored content and AI features, and installs uBlock Origin and Bitwarden.",
@@ -110,6 +112,8 @@
       asks: "pergunta", yes: "padrão sim", no: "padrão não", def: "padrão", local: "padrão sim com conta local, não com conta Microsoft",
       windows: "Desliga telemetria, anúncios e sugestões, remove apps pré-instalados (Clipchamp, Teams, Copilot e outros) e o OneDrive, e ajusta a barra de tarefas, o Explorador de Arquivos e o DNS. Pergunta antes de cada mudança e cria um ponto de restauração antes.",
       apps: "Mostra uma lista com 100 apps (navegadores, jogos, programação, utilitários e mais). Marque os que quiser e eles são instalados pelo WinGet.",
+      fonts: "Mostra uma lista com 19 fontes gratuitas: para código (JetBrains Mono, Fira Code e outras), com ícones para o terminal (Nerd Fonts) e para texto (Inter, Roboto e outras). Marque as que quiser e elas são instaladas para todos os usuários, prontas para usar.",
+      "fonts-revert": "Remove as fontes instaladas pelo comando fonts. Fontes que você instalou de outro jeito ficam.",
       chrome: "Desliga telemetria, Gemini e outros recursos de IA, cookies de terceiros, sincronização e execução em segundo plano. O login na conta Google continua funcionando.",
       brave: "Desliga Wallet, VPN, Recompensas, Leo (IA), News e relatórios de uso. O bloqueio de anúncios continua ligado.",
       firefox: "Desliga telemetria, conteúdo patrocinado e recursos de IA, e instala o uBlock Origin e o Bitwarden.",
@@ -485,6 +489,25 @@
         "Pick one of the downloaded wallpapers to set as the desktop background (Fill), or leave it as is. Nothing else changes.",
         "Escolha um dos wallpapers baixados para virar o plano de fundo (Preencher), ou deixe como está. Nada mais muda."),
     ])],
+    fonts: [G("", "", [
+      I("Which ones", "Quais", "auto", null,
+        "Checklist of 19 fonts. Code: JetBrains Mono, Fira Code, Geist Mono, Source Code Pro, IBM Plex Mono, Hack. With icons (Nerd Fonts, for terminal prompts): JetBrainsMono, CaskaydiaCove, FiraCode, MesloLGS. Text: Inter, Geist, IBM Plex Sans, Roboto, Open Sans, Noto Sans, Lato, Montserrat, Poppins. Fonts already installed are marked.",
+        "Lista para marcar com 19 fontes. Código: JetBrains Mono, Fira Code, Geist Mono, Source Code Pro, IBM Plex Mono, Hack. Com ícones (Nerd Fonts, para prompts de terminal): JetBrainsMono, CaskaydiaCove, FiraCode, MesloLGS. Texto: Inter, Geist, IBM Plex Sans, Roboto, Open Sans, Noto Sans, Lato, Montserrat, Poppins. As que já estão instaladas aparecem indicadas."),
+      I("Where from", "De onde", "auto", null,
+        "Each font's official source: the latest release of its project on GitHub, or the Google Fonts repository. Nerd Fonts are large downloads (30 to 130 MB each).",
+        "A fonte oficial de cada uma: a versão mais recente do projeto no GitHub, ou o repositório do Google Fonts. As Nerd Fonts são downloads grandes (30 a 130 MB cada)."),
+      I("Install", "Instalar", "auto", null,
+        "In C:\\Windows\\Fonts, for every user, usable right away without restarting. Files that already exist are never replaced. What was installed is recorded so fonts-revert removes only that.",
+        "Em C:\\Windows\\Fonts, para todos os usuários, prontas para usar sem reiniciar. Arquivos que já existem nunca são substituídos. O que foi instalado fica registrado para o fonts-revert remover só isso."),
+    ])],
+    "fonts-revert": [G("", "", [
+      I("Which ones", "Quais", "auto", null,
+        "Lists the fonts installed by the fonts command, all checked. Uncheck the ones to keep.",
+        "Lista as fontes instaladas pelo comando fonts, todas marcadas. Desmarque as que quiser manter."),
+      I("Remove", "Remover", "auto", null,
+        "Unregisters them and deletes their files. A file in use is left for later: restart the PC and run fonts-revert again.",
+        "Tira do registro e apaga os arquivos. Um arquivo em uso fica para depois: reinicie o PC e rode o fonts-revert de novo."),
+    ])],
     "apps-export": [G("", "", [
       I("Where to save", "Onde salvar", "choice", { en: "OneDrive, if you have it", pt: "OneDrive, se tiver" },
         "Desktop, Documents, Downloads, OneDrive or a folder you type. The file is tidywin-apps-<PC>-<date>.json.",
@@ -586,9 +609,9 @@
   };
 
   const lists = {
-    apply: ["windows", "apps", "chrome", "brave", "firefox", "dev"],
+    apply: ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev"],
     check: ["windows-check", "cleanup", "repair", "apps-export", "apps-import", "wallpapers"],
-    undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert"],
+    undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
   };
 
   let lang = "en";
