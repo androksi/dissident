@@ -4,9 +4,11 @@
 
 All three use each browser's official policies: they apply to every profile, even if the browser is installed later. Close and reopen the browser to apply them (it will show "Managed by your organization" — that's normal with policies). Check them at `brave://policy`, `chrome://policy` or `about:policies`.
 
-To undo: run the same script with `-Revert`.
+To undo: menu → **Undo → Chrome**, **Brave** or **Firefox**, or run the same script with `-Revert`.
 
 ## Brave
+
+In the [TidyWin menu](../README.md#quick-start): **Set up → Brave**. From a local copy:
 
 ```powershell
 .\scripts\browsers\Configure-Brave.ps1
@@ -22,6 +24,8 @@ To undo: run the same script with `-Revert`.
 
 ## Chrome
 
+In the [TidyWin menu](../README.md#quick-start): **Set up → Chrome**. From a local copy:
+
 ```powershell
 .\scripts\browsers\Configure-Chrome.ps1
 ```
@@ -36,6 +40,8 @@ To undo: run the same script with `-Revert`.
 | Extras | Blocks sync, background mode, shopping list and the "not your default browser" prompt. Safe Browsing in Standard mode. |
 
 ## Firefox
+
+In the [TidyWin menu](../README.md#quick-start): **Set up → Firefox**. From a local copy:
 
 ```powershell
 .\scripts\browsers\Configure-Firefox.ps1

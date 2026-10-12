@@ -2,9 +2,7 @@
 
 # Fonts
 
-```powershell
-irm androksi.github.io/tidywin/fonts | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Set up → Install fonts**.
 
 Check the fonts you want and they are installed for every user of the PC, ready to use without restarting (apps that were already open may need to be reopened). Each font is downloaded from its official source. Fonts already installed are marked in the list, and files that already exist are never replaced.
 
@@ -30,7 +28,7 @@ Code fonts with thousands of extra icons, needed by terminal prompts such as Oh 
 | FiraCode Nerd Font | Fira Code | ~30 MB |
 | MesloLGS Nerd Font | Menlo; the one Oh My Posh and Powerlevel10k recommend | ~110 MB |
 
-The `dev` script can also install CaskaydiaCove or JetBrainsMono Nerd Font and set it in Windows Terminal.
+The Development option can also install CaskaydiaCove or JetBrainsMono Nerd Font and set it in Windows Terminal.
 
 ## Text
 
@@ -56,11 +54,9 @@ Every font on the list is free to use and share (SIL Open Font License; Hack und
 
 ## Revert
 
-```powershell
-irm androksi.github.io/tidywin/fonts-revert | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Undo → Fonts**.
 
-Lists the fonts installed by `fonts`, all checked; uncheck the ones to keep. Fonts installed some other way are never touched. A font file in use can't be deleted: restart the PC and run it again.
+Lists the fonts installed by Install fonts, all checked; uncheck the ones to keep. Fonts installed some other way are never touched. A font file in use can't be deleted: restart the PC and run it again.
 
 ## Adding a font
 

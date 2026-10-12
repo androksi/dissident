@@ -2,6 +2,8 @@
 
 # Apps
 
+In the [TidyWin menu](../README.md#quick-start): **Set up → Install apps**. From a local copy:
+
 ```powershell
 .\scripts\apps\Configure-Apps.ps1
 ```
@@ -189,6 +191,8 @@
 
 ## Moving apps to another PC
 
+In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Before: save my app list** and **After: install the saved apps**. From a local copy:
+
 ```powershell
 .\scripts\apps\Backup-Apps.ps1 -Export   # before formatting
 .\scripts\apps\Backup-Apps.ps1 -Import   # after formatting
@@ -198,9 +202,7 @@ Export saves `tidywin-apps-<PC>-<date>.json` with every app WinGet knows (Deskto
 
 ## Uninstalling
 
-```powershell
-irm androksi.github.io/tidywin/uninstall | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Maintenance → Uninstall programs**.
 
 | Step | What it does |
 |---|---|
@@ -210,4 +212,4 @@ irm androksi.github.io/tidywin/uninstall | iex
 | Never touched | Windows, Program Files/ProgramData/AppData themselves, Common Files, Microsoft folders, your Desktop/Documents/Downloads, links, and anything an installed program still uses. |
 | Delete | Only after confirming. Folders and shortcuts go to the **Recycle Bin**; what doesn't fit asks again, one by one, before being deleted for good. Registry keys and scheduled tasks are exported first to `%ProgramData%\TidyWin\uninstall-backup\<date>`, with a `deleted.txt` listing everything: double-click a `.reg` file to put a key back. |
 
-Microsoft Store apps are not listed: remove them from Settings, or with the `windows` command.
+Microsoft Store apps are not listed: remove them from Settings, or with the menu's Windows option.

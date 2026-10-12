@@ -198,7 +198,7 @@ function Repair-SystemFiles {
     $failed   = @($sr | Where-Object { $_ -match 'Cannot repair' }).Count
 
     if ($failed) {
-        Write-Result 'WARN' (T "$failed file(s) could not be repaired. Restart the PC and run the repair again." "$failed arquivo(s) não puderam ser reparados. Reinicie o PC e rode o repair de novo.")
+        Write-Result 'WARN' (T "$failed file(s) could not be repaired. Restart the PC and run the repair again." "$failed arquivo(s) não puderam ser reparados. Reinicie o PC e rode de novo.")
         Add-Summary (T 'System files: some not repaired' 'Arquivos do sistema: alguns não reparados') 'Issue'
     } elseif ($repaired) {
         Write-Result 'FIXED' (T 'damaged system files were replaced. Restart the PC.' 'arquivos do sistema danificados foram substituídos. Reinicie o PC.')

@@ -12,51 +12,47 @@ TidyWin **cleans up** Windows 10 and 11 (telemetry, preinstalled apps, ads), **i
 
 ## Quick Start
 
-1. Right-click the Start button and choose **Terminal** (or PowerShell).
-2. Run a command. For example, to clean up Windows:
+Right-click the Start button, choose **Terminal** (or PowerShell) and run:
 
 ```powershell
-irm androksi.github.io/tidywin/windows | iex
+irm androksi.github.io/tidywin/run | iex
 ```
 
-To run another one, replace `windows` with any command from the table below. Every command, with a copy button: [androksi.github.io/tidywin](https://androksi.github.io/tidywin).
+It asks for administrator rights and the language (English or Portuguese), then opens the menu: pick an option with the arrows and press <kbd>Enter</kbd>. When it finishes, you're back in the menu.
 
 > [!TIP]
-> Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the commands in the right order.
+> Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the menu options in the right order.
 
-## Commands
+## What's in the menu
 
-| Command | What it does | Details |
+| Option | What it does | Details |
 |---|---|---|
-| `windows` | Removes telemetry, ads, preinstalled apps and OneDrive; adjusts the taskbar, File Explorer, power and DNS. Asks before each change. | [Options](docs/windows.md) |
-| `apps` | Pick from 104 apps and install them with WinGet. | [List](docs/apps.md) |
-| `fonts` | Pick fonts for code, the terminal and text, and install them. | [List](docs/fonts.md) |
-| `chrome` `brave` `firefox` | Privacy settings: no telemetry, AI features or ads. | [Policies](docs/browsers.md) |
-| `dev` | Editors, Git, SSH key for GitHub, Windows Terminal, languages and WSL. | [Steps](docs/dev.md) |
-| `wallpapers` | Pick wallpapers and download them. | [Gallery](docs/wallpapers.md) |
-
-**Maintenance**
-
-| Command | What it does |
-|---|---|
-| `report` | Only reads: an HTML report on the Desktop with Windows, activation, TPM/Secure Boot, disks, battery, drivers and crashes. Safe to share. [Details](docs/windows.md#report) |
-| `windows-check` | After a big Windows update: finds what came back and reapplies it. |
-| `uninstall` | Uninstalls the programs you pick with their official uninstaller, then shows the leftovers before deleting them. [Details](docs/apps.md#uninstalling) |
-| `cleanup` | Frees disk space, asking before each item. |
-| `repair` | Repairs system files and the disk with Windows' own tools. |
-| `network-reset` | Fixes "connected, no internet" with Windows' own commands, keeping your DNS. [Details](docs/windows.md#network-reset) |
-| `apps-export` / `apps-import` | Saves your app list before formatting and installs it back afterwards. |
-| `drivers-export` / `drivers-import` | Saves the drivers you pick before formatting and installs back the ones Windows didn't. [Details](docs/drivers.md) |
-
-**Undo:** add `-revert` to `windows`, `chrome`, `brave`, `firefox`, `dev` or `fonts`, as in `irm androksi.github.io/tidywin/windows-revert | iex`.
+| **Set up** | | |
+| Windows | Removes telemetry, ads, preinstalled apps and OneDrive; adjusts the taskbar, File Explorer, power and DNS. Asks before each change. | [Options](docs/windows.md) |
+| Install apps | Pick from 104 apps and install them with WinGet. | [List](docs/apps.md) |
+| Install fonts | Pick fonts for code, the terminal and text, and install them. | [List](docs/fonts.md) |
+| Chrome · Brave · Firefox | Privacy settings: no telemetry, AI features or ads. | [Policies](docs/browsers.md) |
+| Development | Editors, Git, SSH key for GitHub, Windows Terminal, languages and WSL. | [Steps](docs/dev.md) |
+| Wallpapers | Pick wallpapers and download them. | [Gallery](docs/wallpapers.md) |
+| **Maintenance** | | |
+| PC report | Only reads: a page with Windows, activation, TPM/Secure Boot, disks, battery, drivers and crashes. Safe to share. | [Details](docs/windows.md#report) |
+| Check after a Windows update | Finds what a big update brought back and reapplies it. | [Details](docs/windows.md#check) |
+| Uninstall programs | With their official uninstaller, then shows the leftovers before deleting them. | [Details](docs/apps.md#uninstalling) |
+| Free up disk space | Temporary files, update downloads and more, asking before each item. | [Details](docs/windows.md#cleanup) |
+| Repair Windows | Repairs system files and the disk with Windows' own tools. | [Details](docs/windows.md#repair) |
+| Reset the network | Fixes "connected, no internet" with Windows' own commands, keeping your DNS. | [Details](docs/windows.md#network-reset) |
+| **Formatting the PC** | | |
+| Before / After: apps | Saves your app list before formatting and installs it back afterwards. | [Details](docs/apps.md#moving-apps-to-another-pc) |
+| Before / After: drivers | Saves the drivers you pick and installs back the ones Windows didn't. | [Details](docs/drivers.md) |
+| **Undo** | Windows, the browsers, Development and fonts. | |
 
 ## Good to know
 
 - Needs Windows 10 or 11 and Administrator rights (requested automatically). Windows PowerShell 5.1 comes with Windows.
-- `windows` creates a restore point before changing anything.
+- Every option asks before changing anything; Windows creates a restore point first.
 - Windows Defender, Firewall, Windows Update and Safe Browsing are never touched.
-- Every command can be run again safely and asks for the language first: English or Portuguese.
-- Nothing stays on the PC: the script is downloaded to `%TEMP%\tidywin` and deleted after it runs.
+- Everything can be run again safely.
+- Nothing stays on the PC: the scripts are downloaded to `%TEMP%\tidywin` and deleted when the menu closes.
 
 <details>
 <summary>Run from a local copy</summary>
@@ -65,10 +61,10 @@ To run another one, replace `windows` with any command from the table below. Eve
 git clone https://github.com/androksi/tidywin
 cd tidywin
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\scripts\windows\Configure-Windows.ps1
+.\scripts\TidyWin.ps1
 ```
 
-Run as Administrator. The browser, `dev` and `fonts` scripts accept `-Revert`; `windows` is undone by `Revert-Configure-Windows.ps1`.
+Run as Administrator. The menu uses the scripts next to it instead of downloading them. Each script also runs on its own (for example `.\scripts\windows\Get-Report.ps1`); the browser, `dev` and `fonts` scripts accept `-Revert`, and `windows` is undone by `Revert-Configure-Windows.ps1`.
 
 </details>
 

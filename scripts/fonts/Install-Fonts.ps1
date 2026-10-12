@@ -472,6 +472,6 @@ if ($failures) {
     Write-Host (T "`nNot installed: $($failures -join ', '). Run again to retry." "`nNão instaladas: $($failures -join ', '). Rode de novo para tentar outra vez.") -ForegroundColor Yellow
 }
 Write-Host (T "`nDone. The fonts can be used now; apps that were already open may need to be reopened to see them." "`nPronto. As fontes já podem ser usadas; apps que já estavam abertos podem precisar ser reabertos para vê-las.") -ForegroundColor Green
-Write-Host (T '  To remove them: irm androksi.github.io/tidywin/fonts-revert | iex' '  Para remover: irm androksi.github.io/tidywin/fonts-revert | iex') -ForegroundColor DarkGray
+Write-Host (T '  To remove them: TidyWin menu → Undo → Fonts' '  Para remover: menu do TidyWin → Desfazer → Fontes') -ForegroundColor DarkGray
 
 #endregion

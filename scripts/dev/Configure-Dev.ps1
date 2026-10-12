@@ -560,7 +560,7 @@ if ($Revert) { Invoke-Revert; return }
 
 Write-Host "`nConfigure-Dev" -ForegroundColor Green
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host (T 'WinGet is not installed. Run apps (irm androksi.github.io/tidywin/apps | iex), which offers to install it, and try again.' 'O WinGet não está instalado. Rode o apps (irm androksi.github.io/tidywin/apps | iex), que oferece instalar, e tente de novo.') -ForegroundColor Yellow
+    Write-Host (T 'WinGet is not installed. In the TidyWin menu, choose "Install apps", which offers to install it, and try again.' 'O WinGet não está instalado. No menu do TidyWin, escolha "Instalar apps", que oferece instalar, e tente de novo.') -ForegroundColor Yellow
     return
 }
 Write-Host (T '  All questions come first; nothing changes before the summary and the confirmation.' '  Todas as perguntas vêm primeiro; nada muda antes do resumo e da confirmação.')

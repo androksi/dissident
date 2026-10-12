@@ -2,6 +2,8 @@
 
 # Windows
 
+In the [TidyWin menu](../README.md#quick-start): **Set up → Windows**. From a local copy:
+
 ```powershell
 .\scripts\windows\Configure-Windows.ps1
 ```
@@ -81,6 +83,8 @@ To use only the defaults, with no questions: `-NoPrompt`.
 
 ## Check
 
+In the [TidyWin menu](../README.md#quick-start): **Maintenance → Check after a Windows update**. From a local copy:
+
 ```powershell
 .\scripts\windows\Configure-Windows.ps1 -Check
 ```
@@ -88,6 +92,8 @@ To use only the defaults, with no questions: `-NoPrompt`.
 Compares the PC with the answers saved the last time you ran `Configure-Windows` (in `%ProgramData%\TidyWin`), shows what came back after a Windows update and asks whether to reapply only that. Personalization is not checked.
 
 ## Cleanup
+
+In the [TidyWin menu](../README.md#quick-start): **Maintenance → Free up disk space**. From a local copy:
 
 ```powershell
 .\scripts\windows\Clean-Windows.ps1
@@ -109,6 +115,8 @@ Measures each item, asks before deleting each one and shows how much space was f
 
 ## Repair
 
+In the [TidyWin menu](../README.md#quick-start): **Maintenance → Repair Windows**. From a local copy:
+
 ```powershell
 .\scripts\windows\Repair-Windows.ps1
 ```
@@ -117,9 +125,7 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 ## Report
 
-```powershell
-irm androksi.github.io/tidywin/report | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Maintenance → PC report**.
 
 **Only reads**: nothing on the PC is changed. Saves an HTML report to the Desktop and opens it in the browser (`-OutFile <path>` saves elsewhere). At the top, a summary of what needs attention and what to do; then every item marked **OK**, **Attention**, **Problem** or **Info**. A **Copy as text** button copies it for a forum, Discord or a message.
 
@@ -137,9 +143,7 @@ No personal data: no user or PC name, serial numbers, Windows key, IP or MAC add
 
 ## Network reset
 
-```powershell
-irm androksi.github.io/tidywin/network-reset | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Maintenance → Reset the network**.
 
 For "connected, no internet", sites that don't open or a connection that keeps dropping. Shows the network adapters (automatic or manual IP, and the DNS that will be kept), then asks how far to go:
 
@@ -151,6 +155,8 @@ For "connected, no internet", sites that don't open or a connection that keeps d
 Full: DNS servers set by hand and DNS over HTTPS are saved to `%ProgramData%\TidyWin\network-reset` first and put back right after the reset. Not used: Settings' *Network reset* (it removes the adapters and VPNs) and proxy resets. The connection drops for a few seconds; the internet is tested at the end.
 
 ## Revert
+
+In the [TidyWin menu](../README.md#quick-start): **Undo → Windows**. From a local copy:
 
 ```powershell
 .\scripts\windows\Revert-Configure-Windows.ps1

@@ -2,6 +2,8 @@
 
 # Developer setup
 
+In the [TidyWin menu](../README.md#quick-start): **Set up → Development**. From a local copy:
+
 ```powershell
 .\scripts\dev\Configure-Dev.ps1
 ```
@@ -26,6 +28,8 @@ Meant to run after Windows, drivers, apps and browsers are set up. Every questio
 | WSL | No | With Ubuntu, Debian or no distribution. Needs a restart. |
 
 ## Revert
+
+In the [TidyWin menu](../README.md#quick-start): **Undo → Development**. From a local copy:
 
 ```powershell
 .\scripts\dev\Configure-Dev.ps1 -Revert

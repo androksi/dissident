@@ -274,14 +274,14 @@ function Get-StorageInfo {
         $status = 'ok'; $hint = ''
         if ("$($d.HealthStatus)" -eq 'Unhealthy' -or $predict.Count) { $status = 'bad'; $hint = T 'The disk reports it may fail: back up your files now and plan to replace it.' 'O disco avisa que pode falhar: faça backup dos seus arquivos agora e planeje trocar.' }
         elseif ("$($d.HealthStatus)" -eq 'Warning' -or $r.Wear -ge 80) { $status = 'warn'; $hint = T 'The disk is wearing out: keep backups up to date.' 'O disco está se desgastando: mantenha os backups em dia.' }
-        elseif ($r.ReadErrorsUncorrected -gt 0) { $status = 'warn'; $hint = T 'The disk had read errors: keep backups up to date and run repair.' 'O disco teve erros de leitura: mantenha backups em dia e rode o repair.' }
+        elseif ($r.ReadErrorsUncorrected -gt 0) { $status = 'warn'; $hint = T 'The disk had read errors: keep backups up to date and run "Repair Windows" in the TidyWin menu.' 'O disco teve erros de leitura: mantenha backups em dia e rode "Reparar o Windows" no menu do TidyWin.' }
         Add-Row $s $d.FriendlyName $value $status $hint
     }
     foreach ($v in @(Get-Volume -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter -and $_.DriveType -eq 'Fixed' -and $_.Size } | Sort-Object DriveLetter)) {
         $pct = [int](100 * $v.SizeRemaining / $v.Size)
         $status = if ($pct -lt 5) { 'bad' } elseif ($pct -lt 10) { 'warn' } else { 'ok' }
         $name = if ($v.FileSystemLabel) { " ($($v.FileSystemLabel))" } else { '' }
-        Add-Row $s "$($v.DriveLetter):$name" ((T "$(Format-Size $v.SizeRemaining) free of $(Format-Size $v.Size) ($pct%)" "$(Format-Size $v.SizeRemaining) livres de $(Format-Size $v.Size) ($pct%)")) $status (T 'Little free space slows Windows and blocks updates: run cleanup.' 'Pouco espaço livre deixa o Windows lento e trava atualizações: rode o cleanup.')
+        Add-Row $s "$($v.DriveLetter):$name" ((T "$(Format-Size $v.SizeRemaining) free of $(Format-Size $v.Size) ($pct%)" "$(Format-Size $v.SizeRemaining) livres de $(Format-Size $v.Size) ($pct%)")) $status (T 'Little free space slows Windows and blocks updates: use "Free up disk space" in the TidyWin menu.' 'Pouco espaço livre deixa o Windows lento e trava atualizações: use "Liberar espaço" no menu do TidyWin.')
     }
 }
 
@@ -329,14 +329,14 @@ function Get-HealthInfo {
         $why = if ($codes.ContainsKey($code)) { $codes[$code] } else { (T 'code ' 'código ') + $code }
         $name = if ($d.Name) { $d.Name } else { $d.PNPClass }
         $status = if ($code -eq 22) { 'info' } else { 'bad' }
-        Add-Row $s (T 'Device with a problem' 'Dispositivo com problema') "$name · $why" $status (T 'Install its driver (Windows Update → Advanced options → Optional updates, or the manufacturer''s site), or run drivers-import.' 'Instale o driver dele (Windows Update → Opções avançadas → Atualizações opcionais, ou o site do fabricante), ou rode o drivers-import.')
+        Add-Row $s (T 'Device with a problem' 'Dispositivo com problema') "$name · $why" $status (T 'Install its driver (Windows Update → Advanced options → Optional updates, or the manufacturer''s site), or "After: install the saved drivers" in the TidyWin menu.' 'Instale o driver dele (Windows Update → Opções avançadas → Atualizações opcionais, ou o site do fabricante), ou "Depois: instalar os drivers salvos" no menu do TidyWin.')
     }
 
     # Crashes in the last 30 days: blue screens and unexpected shutdowns
     $since = (Get-Date).AddDays(-30)
     $bsod = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-WER-SystemErrorReporting'; Id = 1001; StartTime = $since } -ErrorAction SilentlyContinue)
     $power = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Kernel-Power'; Id = 41; StartTime = $since } -ErrorAction SilentlyContinue)
-    Add-Row $s (T 'Blue screens (30 days)' 'Telas azuis (30 dias)') "$($bsod.Count)$(if ($bsod) { ' · ' + (T 'last ' 'última ') + (Format-Date $bsod[0].TimeCreated) })" $(if ($bsod) { 'warn' } else { 'ok' }) (T 'Repeated blue screens usually come from a driver, RAM or overheating. Run repair; send this report when asking for help.' 'Telas azuis repetidas costumam vir de driver, RAM ou superaquecimento. Rode o repair; mande este relatório ao pedir ajuda.')
+    Add-Row $s (T 'Blue screens (30 days)' 'Telas azuis (30 dias)') "$($bsod.Count)$(if ($bsod) { ' · ' + (T 'last ' 'última ') + (Format-Date $bsod[0].TimeCreated) })" $(if ($bsod) { 'warn' } else { 'ok' }) (T 'Repeated blue screens usually come from a driver, RAM or overheating. Run "Repair Windows" in the TidyWin menu; send this report when asking for help.' 'Telas azuis repetidas costumam vir de driver, RAM ou superaquecimento. Rode "Reparar o Windows" no menu do TidyWin; mande este relatório ao pedir ajuda.')
     Add-Row $s (T 'Unexpected shutdowns (30 days)' 'Desligamentos inesperados (30 dias)') "$($power.Count)" $(if ($power.Count -ge 3) { 'warn' } else { 'ok' }) (T 'The PC turned off without shutting down: power supply, overheating, or a crash.' 'O PC desligou sem desligar: fonte, superaquecimento ou travamento.')
 
     # Startup programs
@@ -364,7 +364,7 @@ function Get-NetworkInfo {
     $ok = $false
     try { $ok = (Invoke-WebRequest 'http://www.msftconnecttest.com/connecttest.txt' -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop).Content -match 'Microsoft Connect Test' } catch { }
     if ($ok) { Add-Row $s (T 'Internet' 'Internet') (T 'working' 'funcionando') 'ok' }
-    else { Add-Row $s (T 'Internet' 'Internet') (T 'not working' 'sem conexão') 'bad' (T 'Try network-reset.' 'Tente o network-reset.') }
+    else { Add-Row $s (T 'Internet' 'Internet') (T 'not working' 'sem conexão') 'bad' (T 'Try "Reset the network" in the TidyWin menu.' 'Tente "Redefinir a rede" no menu do TidyWin.') }
 }
 
 #endregion

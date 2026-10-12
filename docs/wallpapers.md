@@ -2,9 +2,7 @@
 
 # Wallpapers
 
-```powershell
-irm androksi.github.io/tidywin/wallpapers | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Set up → Wallpapers**.
 
 Check the ones you want, choose the folder (`Pictures\Wallpapers` by default) and they are downloaded at the end. Optionally sets one of them as the desktop background. Click a preview to open the full image.
 
@@ -18,7 +16,7 @@ Check the ones you want, choose the folder (`Pictures\Wallpapers` by default) an
 
 1. Put the image (`.jpg` or `.png`) in [`wallpapers/`](../wallpapers). Use a short lowercase name with hyphens, such as `mountain-night.jpg`.
 2. Run `.\tools\Update-WallpaperGallery.ps1`. It creates the previews and updates the gallery above.
-3. Commit. The list used by the `wallpapers` shortcut is built from the folder when the site is published.
+3. Commit. The list used by the Wallpapers option is built from the folder when the site is published.
 
 ## Rights
 

@@ -6,9 +6,7 @@ Save the PC's drivers before formatting and install them back afterwards, so you
 
 ## Before formatting
 
-```powershell
-irm androksi.github.io/tidywin/drivers-export | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Before: save my drivers**.
 
 1. A list of the drivers that didn't come with Windows, by type (video, audio, network, Bluetooth...), with the device that uses each one, the version and the size.
    - **Checked**: drivers in use, and add-ons to other drivers (audio effects, manufacturer settings).
@@ -17,16 +15,14 @@ irm androksi.github.io/tidywin/drivers-export | iex
 2. Choose where to save. USB drives and other disks come first; they survive formatting. Video drivers take 2 to 3 GB each, so OneDrive is not a good place.
 3. A `tidywin-drivers-<PC>-<date>` folder is created with:
    - one folder per driver;
-   - `drivers.json`, the list that `drivers-import` reads;
+   - `drivers.json`, the list that the import reads;
    - `README.txt`, explaining how to install them by hand.
 
 ## After formatting
 
 Run **Windows Update** first: it brings back many drivers by itself. Then:
 
-```powershell
-irm androksi.github.io/tidywin/drivers-import | iex
-```
+In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → After: install the saved drivers**.
 
 1. Finds the `tidywin-drivers-*` folder on USB drives, other disks, Desktop, Documents, Downloads and OneDrive (or asks for the path).
 2. Shows the same list, marking what Windows already installed (same version or newer). **Only the missing ones come checked.**

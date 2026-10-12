@@ -137,7 +137,7 @@ function Invoke-Export {
     $ids = Get-PackageIds $file
     Write-Host (T "`nDone: $($ids.Count) apps saved to" "`nPronto: $($ids.Count) apps salvos em") -ForegroundColor Green
     Write-Host "  $file"
-    Write-Host (T 'After formatting, run apps-import to install everything back.' 'Depois de formatar, rode o apps-import para instalar tudo de volta.') -ForegroundColor DarkGray
+    Write-Host (T 'After formatting, choose "After: install the saved apps" in the TidyWin menu.' 'Depois de formatar, escolha "Depois: instalar os apps salvos" no menu do TidyWin.') -ForegroundColor DarkGray
 }
 
 #endregion
@@ -183,7 +183,7 @@ function Invoke-Import {
 #region ==================== 4. EXECUTION ====================
 
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host (T 'WinGet is not installed. Run apps (irm androksi.github.io/tidywin/apps | iex), which offers to install it, and try again.' 'O WinGet não está instalado. Rode o apps (irm androksi.github.io/tidywin/apps | iex), que oferece instalar, e tente de novo.') -ForegroundColor Yellow
+    Write-Host (T 'WinGet is not installed. In the TidyWin menu, choose "Install apps", which offers to install it, and try again.' 'O WinGet não está instalado. No menu do TidyWin, escolha "Instalar apps", que oferece instalar, e tente de novo.') -ForegroundColor Yellow
     return
 }
 

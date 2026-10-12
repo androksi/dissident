@@ -16,7 +16,14 @@
   .lang button[aria-pressed="true"], .lang button:hover { opacity: 1; }
   .lang button:focus-visible { outline: 1px solid #fff; outline-offset: 3px; }
   .lang svg { width: 28px; height: 20px; border-radius: 2px; }
-  .intro { margin: 0 0 40px; color: #888; }
+  .intro { margin: 0 0 20px; color: #888; }
+  .run { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; color: #fff; font-size: 17px;
+         padding: 16px 18px; border: 1px solid #444; border-radius: 6px; overflow-wrap: anywhere; }
+  .run:hover, .run:focus-visible { border-color: #888; }
+  .run.copied { color: #7c7; border-color: #7c7; }
+  .run-hint { margin: 8px 0 48px; color: #888; }
+  .menu-intro { margin: 0 0 24px; color: #888; }
+  .name { color: #fff; }
   h2 { margin: 0 0 16px; font-size: 15px; color: #888; font-weight: 400; }
   ul { list-style: none; margin: 0 0 40px; padding: 0; }
   li { margin-bottom: 18px; }
@@ -50,12 +57,18 @@
     </div>
   </header>
   <p class="intro" data-t="intro"></p>
+  <button class="run" id="run" type="button"></button>
+  <p class="run-hint" data-t="runHint"></p>
 
-  <h2 data-t="apply"></h2>
-  <ul id="apply"></ul>
+  <p class="menu-intro" data-t="menu"></p>
+  <h2 data-t="setup"></h2>
+  <ul id="setup"></ul>
 
-  <h2 data-t="check"></h2>
-  <ul id="check"></ul>
+  <h2 data-t="care"></h2>
+  <ul id="care"></ul>
+
+  <h2 data-t="format"></h2>
+  <ul id="format"></ul>
 
   <h2 data-t="undo"></h2>
   <ul id="undo"></ul>
@@ -67,12 +80,15 @@
 
   const text = {
     en: {
-      intro: "Run in PowerShell. Click a command to copy it. Administrator rights are requested automatically. Each script asks for the language when it starts: English (default) or Portuguese.",
-      apply: "Apply",
+      intro: "Cleans up Windows, installs apps and fonts, configures browsers for privacy and keeps the PC in shape. Open PowerShell (right-click Start → Terminal) and run:",
+      runHint: "Click to copy. It asks for administrator rights and the language (English or Portuguese), then opens the menu below. Every option asks before changing anything.",
+      menu: "What's in the menu:",
+      setup: "Set up",
+      care: "Maintenance",
+      format: "Formatting the PC",
       undo: "Undo",
       dev: "For programmers, after everything else: editors and IDEs, Git, SSH key sent to GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL. Never overwrites an existing key or Git identity.",
-      "dev-revert": "Undoes the Windows settings changed by dev: Developer Mode, default terminal and Windows Terminal settings (from the backup). Apps, Git and SSH keys stay.",
-      check: "Maintenance",
+      "dev-revert": "Undoes the Windows settings changed by Development: Developer Mode, default terminal and Windows Terminal settings (from the backup). Apps, Git and SSH keys stay.",
       report: "Only reads: creates a report on the Desktop and opens it in the browser. Windows and activation, TPM and Secure Boot (what VALORANT checks), disks, battery, RAM, graphics driver, devices without a driver and recent crashes. No personal data, so it can be sent when asking for help.",
       uninstall: "Pick installed programs and uninstall them with their own official uninstaller. Then shows what they left behind (folders, registry, shortcuts, tasks) and deletes only what you confirm, with a backup.",
       repair: "Checks and repairs Windows system files and the disk with Windows' own tools (DISM, sfc and disk check). Use it when Windows acts strange. Creates a restore point first.",
@@ -83,29 +99,32 @@
       "drivers-import": "After formatting: finds that folder and installs only the drivers Windows didn't bring back by itself.",
       cleanup: "Frees disk space: temporary files, Windows Update downloads, error reports and more. Shows how much each item takes and asks before deleting each one.",
       wallpapers: "Lists the TidyWin wallpapers, lets you check the ones you want and downloads them to Pictures\\Wallpapers. Can also set one as the desktop background.",
-      "windows-check": "Checks whether a Windows update brought back anything the windows command changed (telemetry, removed apps, OneDrive, policies) and offers to reapply only that.",
+      "windows-check": "Checks whether a Windows update brought back anything the Windows option changed (telemetry, removed apps, OneDrive, policies) and offers to reapply only that.",
       copied: "copied",
       options: "What each option does",
       asks: "asks", yes: "default yes", no: "default no", def: "default", local: "default yes with a local account, no with a Microsoft account",
       windows: "Turns off telemetry, ads and suggestions, removes preinstalled apps (Clipchamp, Teams, Copilot and others) and OneDrive, and adjusts the taskbar, File Explorer and DNS. Asks before each change and creates a restore point first.",
       apps: "Shows a list of 104 apps (browsers, games, development, utilities and more). Check the ones you want and they are installed with WinGet.",
       fonts: "Shows a list of 19 free fonts: for code (JetBrains Mono, Fira Code and others), with terminal icons (Nerd Fonts) and for text (Inter, Roboto and others). Check the ones you want and they are installed for every user, ready to use.",
-      "fonts-revert": "Removes the fonts installed by the fonts command. Fonts you installed some other way stay.",
+      "fonts-revert": "Removes the fonts installed by Install fonts. Fonts you installed some other way stay.",
       chrome: "Turns off telemetry, Gemini and other AI features, third-party cookies, sync and background mode. Signing in to Google keeps working.",
       brave: "Turns off Wallet, VPN, Rewards, Leo (AI), News and usage reports. Ad blocking stays on.",
       firefox: "Turns off telemetry, sponsored content and AI features, and installs uBlock Origin and Bitwarden.",
-      "windows-revert": "Undoes most of what the windows command changed: telemetry, policies, suggestions and DNS. Removed apps need to be reinstalled from the Microsoft Store.",
+      "windows-revert": "Undoes most of what the Windows option changed: telemetry, policies, suggestions and DNS. Removed apps need to be reinstalled from the Microsoft Store.",
       "chrome-revert": "Removes every Chrome setting applied by TidyWin.",
       "brave-revert": "Removes every Brave setting applied by TidyWin.",
       "firefox-revert": "Removes every Firefox setting applied by TidyWin.",
     },
     pt: {
-      intro: "Rode no PowerShell. Clique num comando para copiar. A permissão de administrador é pedida automaticamente. Cada script pergunta o idioma ao começar: inglês (padrão) ou português.",
-      apply: "Aplicar",
+      intro: "Limpa o Windows, instala apps e fontes, configura os navegadores para privacidade e mantém o PC em ordem. Abra o PowerShell (botão direito no Iniciar → Terminal) e rode:",
+      runHint: "Clique para copiar. Ele pede permissão de administrador e o idioma (inglês ou português) e abre o menu abaixo. Toda opção pergunta antes de mudar qualquer coisa.",
+      menu: "O que tem no menu:",
+      setup: "Configurar",
+      care: "Manutenção",
+      format: "Formatar o PC",
       undo: "Desfazer",
       dev: "Para quem programa, depois de todo o resto: editores e IDEs, Git, chave SSH enviada ao GitHub, commits assinados, Windows Terminal com Nerd Font, Modo de Desenvolvedor, linguagens e WSL. Nunca sobrescreve uma chave ou identidade do Git que já existam.",
-      "dev-revert": "Desfaz os ajustes do Windows feitos pelo dev: Modo de Desenvolvedor, terminal padrão e configurações do Windows Terminal (pelo backup). Apps, Git e chaves SSH ficam.",
-      check: "Manutenção",
+      "dev-revert": "Desfaz os ajustes do Windows feitos por Programação: Modo de Desenvolvedor, terminal padrão e configurações do Windows Terminal (pelo backup). Apps, Git e chaves SSH ficam.",
       report: "Só lê: cria um relatório na Área de Trabalho e abre no navegador. Windows e ativação, TPM e Secure Boot (o que o VALORANT confere), discos, bateria, RAM, driver de vídeo, dispositivos sem driver e travamentos recentes. Sem dados pessoais, então pode ser enviado ao pedir ajuda.",
       uninstall: "Escolha programas instalados e desinstale com o desinstalador oficial de cada um. Depois mostra o que sobrou (pastas, registro, atalhos, tarefas) e apaga só o que você confirmar, com backup.",
       repair: "Verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc e verificação de disco). Use quando o Windows estiver estranho. Cria um ponto de restauração antes.",
@@ -116,18 +135,18 @@
       "drivers-import": "Depois de formatar: acha essa pasta e instala só os drivers que o Windows não trouxe de volta sozinho.",
       cleanup: "Libera espaço no disco: arquivos temporários, downloads do Windows Update, relatórios de erro e mais. Mostra quanto cada item ocupa e pergunta antes de apagar cada um.",
       wallpapers: "Lista os wallpapers do TidyWin, você marca os que quer e eles são baixados para Imagens\\Wallpapers. Também pode definir um como plano de fundo.",
-      "windows-check": "Confere se alguma atualização do Windows trouxe de volta algo que o comando windows mudou (telemetria, apps removidos, OneDrive, políticas) e oferece reaplicar só isso.",
+      "windows-check": "Confere se alguma atualização do Windows trouxe de volta algo que a opção Windows mudou (telemetria, apps removidos, OneDrive, políticas) e oferece reaplicar só isso.",
       copied: "copiado",
       options: "O que cada opção faz",
       asks: "pergunta", yes: "padrão sim", no: "padrão não", def: "padrão", local: "padrão sim com conta local, não com conta Microsoft",
       windows: "Desliga telemetria, anúncios e sugestões, remove apps pré-instalados (Clipchamp, Teams, Copilot e outros) e o OneDrive, e ajusta a barra de tarefas, o Explorador de Arquivos e o DNS. Pergunta antes de cada mudança e cria um ponto de restauração antes.",
       apps: "Mostra uma lista com 104 apps (navegadores, jogos, programação, utilitários e mais). Marque os que quiser e eles são instalados pelo WinGet.",
       fonts: "Mostra uma lista com 19 fontes gratuitas: para código (JetBrains Mono, Fira Code e outras), com ícones para o terminal (Nerd Fonts) e para texto (Inter, Roboto e outras). Marque as que quiser e elas são instaladas para todos os usuários, prontas para usar.",
-      "fonts-revert": "Remove as fontes instaladas pelo comando fonts. Fontes que você instalou de outro jeito ficam.",
+      "fonts-revert": "Remove as fontes instaladas por Instalar fontes. Fontes que você instalou de outro jeito ficam.",
       chrome: "Desliga telemetria, Gemini e outros recursos de IA, cookies de terceiros, sincronização e execução em segundo plano. O login na conta Google continua funcionando.",
       brave: "Desliga Wallet, VPN, Recompensas, Leo (IA), News e relatórios de uso. O bloqueio de anúncios continua ligado.",
       firefox: "Desliga telemetria, conteúdo patrocinado e recursos de IA, e instala o uBlock Origin e o Bitwarden.",
-      "windows-revert": "Desfaz a maior parte do que o comando windows mudou: telemetria, políticas, sugestões e DNS. Apps removidos precisam ser reinstalados pela Microsoft Store.",
+      "windows-revert": "Desfaz a maior parte do que a opção Windows mudou: telemetria, políticas, sugestões e DNS. Apps removidos precisam ser reinstalados pela Microsoft Store.",
       "chrome-revert": "Remove todas as configurações do Chrome aplicadas pelo TidyWin.",
       "brave-revert": "Remove todas as configurações do Brave aplicadas pelo TidyWin.",
       "firefox-revert": "Remove todas as configurações do Firefox aplicadas pelo TidyWin.",
@@ -432,8 +451,8 @@
 
     "windows-check": [G("", "", [
       I("What is checked", "O que é conferido", "auto", null,
-        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, Xbox apps, Snipping Tool, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
-        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, apps do Xbox, Captura de Tela, OneDrive, políticas do Edge, Segurança do Windows, Recall, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
+        "Only what you answered yes to the last time you ran the Windows option: telemetry, suggestions, removed apps, Xbox apps, Snipping Tool, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
+        "Só o que você respondeu sim na última vez que rodou a opção Windows: telemetria, sugestões, apps removidos, apps do Xbox, Captura de Tela, OneDrive, políticas do Edge, Segurança do Windows, Recall, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
       I("Reapply", "Reaplicar", "ask", true,
         "Shows each item as OK or as back, with what changed. Then asks whether to reapply only the items that came back. Answering no changes nothing.",
         "Mostra cada item como OK ou como voltou, com o que mudou. Depois pergunta se quer reaplicar só os itens que voltaram. Respondendo não, nada é alterado."),
@@ -560,13 +579,13 @@
         "Each font's official source: the latest release of its project on GitHub, or the Google Fonts repository. Nerd Fonts are large downloads (30 to 130 MB each).",
         "A fonte oficial de cada uma: a versão mais recente do projeto no GitHub, ou o repositório do Google Fonts. As Nerd Fonts são downloads grandes (30 a 130 MB cada)."),
       I("Install", "Instalar", "auto", null,
-        "In C:\\Windows\\Fonts, for every user, usable right away without restarting. Files that already exist are never replaced. What was installed is recorded so fonts-revert removes only that.",
-        "Em C:\\Windows\\Fonts, para todos os usuários, prontas para usar sem reiniciar. Arquivos que já existem nunca são substituídos. O que foi instalado fica registrado para o fonts-revert remover só isso."),
+        "In C:\\Windows\\Fonts, for every user, usable right away without restarting. Files that already exist are never replaced. What was installed is recorded so Undo → Fonts removes only that.",
+        "Em C:\\Windows\\Fonts, para todos os usuários, prontas para usar sem reiniciar. Arquivos que já existem nunca são substituídos. O que foi instalado fica registrado para Desfazer → Fontes remover só isso."),
     ])],
     "fonts-revert": [G("", "", [
       I("Which ones", "Quais", "auto", null,
-        "Lists the fonts installed by the fonts command, all checked. Uncheck the ones to keep.",
-        "Lista as fontes instaladas pelo comando fonts, todas marcadas. Desmarque as que quiser manter."),
+        "Lists the fonts installed by Install fonts, all checked. Uncheck the ones to keep.",
+        "Lista as fontes instaladas por Instalar fontes, todas marcadas. Desmarque as que quiser manter."),
       I("Remove", "Remover", "auto", null,
         "Unregisters them and deletes their files. A file in use is left for later: restart the PC and run fonts-revert again.",
         "Tira do registro e apaga os arquivos. Um arquivo em uso fica para depois: reinicie o PC e rode o fonts-revert de novo."),
@@ -690,10 +709,34 @@
       "Remove todas as políticas do Firefox aplicadas pelo TidyWin e, se o ícone do modo leitura foi tirado, os arquivos do AutoConfig. Se o uBlock Origin ou o Bitwarden continuarem lá e você não quiser, remova em about:addons.")])],
   };
 
+  // Same groups, order and names as the menu in scripts/TidyWin.ps1. Keep in sync.
   const lists = {
-    apply: ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev"],
-    check: ["report", "windows-check", "uninstall", "cleanup", "repair", "network-reset", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
-    undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
+    setup:  ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev", "wallpapers"],
+    care:   ["report", "windows-check", "uninstall", "cleanup", "repair", "network-reset"],
+    format: ["apps-export", "drivers-export", "drivers-import", "apps-import"],
+    undo:   ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
+  };
+  const names = {
+    en: {
+      windows: "Windows", apps: "Install apps", fonts: "Install fonts", chrome: "Chrome", brave: "Brave", firefox: "Firefox",
+      dev: "Development", wallpapers: "Wallpapers",
+      report: "PC report", "windows-check": "Check after a Windows update", uninstall: "Uninstall programs",
+      cleanup: "Free up disk space", repair: "Repair Windows", "network-reset": "Reset the network",
+      "apps-export": "Before: save my app list", "drivers-export": "Before: save my drivers",
+      "drivers-import": "After: install the saved drivers", "apps-import": "After: install the saved apps",
+      "windows-revert": "Windows", "chrome-revert": "Chrome", "brave-revert": "Brave", "firefox-revert": "Firefox",
+      "dev-revert": "Development", "fonts-revert": "Fonts",
+    },
+    pt: {
+      windows: "Windows", apps: "Instalar apps", fonts: "Instalar fontes", chrome: "Chrome", brave: "Brave", firefox: "Firefox",
+      dev: "Programação", wallpapers: "Papéis de parede",
+      report: "Relatório do PC", "windows-check": "Conferir após atualização do Windows", uninstall: "Desinstalar programas",
+      cleanup: "Liberar espaço", repair: "Reparar o Windows", "network-reset": "Redefinir a rede",
+      "apps-export": "Antes: salvar minha lista de apps", "drivers-export": "Antes: salvar meus drivers",
+      "drivers-import": "Depois: instalar os drivers salvos", "apps-import": "Depois: instalar os apps salvos",
+      "windows-revert": "Windows", "chrome-revert": "Chrome", "brave-revert": "Brave", "firefox-revert": "Firefox",
+      "dev-revert": "Programação", "fonts-revert": "Fontes",
+    },
   };
 
   let lang = "en";
@@ -705,25 +748,18 @@
     document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
     document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
 
-    for (const [id, names] of Object.entries(lists)) {
+    for (const [id, ids] of Object.entries(lists)) {
       const ul = document.getElementById(id);
       ul.replaceChildren();
-      for (const name of names) {
-        const cmd = `irm ${base}/${name} | iex`;
+      for (const name of ids) {
         const li = document.createElement("li");
-        const btn = document.createElement("button");
-        btn.className = "cmd";
-        btn.textContent = cmd;
-        btn.addEventListener("click", async () => {
-          try { await navigator.clipboard.writeText(cmd); } catch { return; }
-          btn.textContent = t.copied;
-          btn.classList.add("copied");
-          setTimeout(() => { btn.textContent = cmd; btn.classList.remove("copied"); }, 1200);
-        });
+        const strong = document.createElement("strong");
+        strong.className = "name";
+        strong.textContent = names[lang][name];
         const p = document.createElement("p");
         p.className = "desc";
         p.textContent = t[name];
-        li.append(btn, p);
+        li.append(strong, p);
         const groupsFor = options[name];
         if (groupsFor) {
           const det = document.createElement("details");
@@ -756,6 +792,17 @@
       }
     }
   }
+
+  // The one command: copy on click
+  const run = document.getElementById("run");
+  const cmd = `irm ${base}/run | iex`;
+  run.textContent = cmd;
+  run.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(cmd); } catch { return; }
+    run.textContent = text[lang].copied;
+    run.classList.add("copied");
+    setTimeout(() => { run.textContent = cmd; run.classList.remove("copied"); }, 1200);
+  });
 
   document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => {
     lang = b.dataset.lang;
