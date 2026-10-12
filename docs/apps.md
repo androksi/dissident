@@ -17,6 +17,7 @@
 | Confirmation | Shows the chosen apps: "Retornar" (back, default) returns to the list, "Instalar apps" installs. |
 | Summary | Shows what was installed, what was already installed and what failed. |
 | Adding apps | One line in the script's `$Apps` list (find the ID with `winget search <name>`). |
+| Firefox and Thunderbird | Installed in the Windows display language (`Mozilla.Firefox.pt-BR`, `Mozilla.Firefox.de`...). English (US) when Mozilla has no version in that language. Already installed in any language counts as installed. |
 
 ## Keys
 
@@ -42,7 +43,7 @@
 | Discord | voice and text chat | `Discord.Discord` |
 | Telegram | messenger | `Telegram.TelegramDesktop` |
 | Signal | encrypted messenger (open source) | `OpenWhisperSystems.Signal` |
-| Thunderbird (pt-BR) | email client (open source) | `Mozilla.Thunderbird.pt-BR` |
+| Thunderbird | email client, in the Windows language (open source) | `Mozilla.Thunderbird.<language>` |
 | WhatsApp | WhatsApp for desktop (Microsoft Store) | `9NKSQGP7F2NH` (Store) |
 | Zoom | video calls | `Zoom.Zoom` |
 | Slack | work chat | `SlackTechnologies.Slack` |
@@ -98,7 +99,7 @@
 |---|---|---|
 | Brave | browser with an ad blocker | `Brave.Brave` |
 | Chrome | Google's browser | `Google.Chrome` |
-| Firefox (pt-BR) | Mozilla's browser | `Mozilla.Firefox.pt-BR` |
+| Firefox | Mozilla's browser, in the Windows language | `Mozilla.Firefox.<language>` |
 | Opera GX | Opera's "gamer" browser | `Opera.OperaGX` |
 | Zen Browser | Firefox-based browser with a modern look (open source) | `Zen-Team.Zen-Browser` |
 | LibreWolf | privacy-focused Firefox (open source) | `LibreWolf.LibreWolf` |

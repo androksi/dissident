@@ -98,10 +98,27 @@ function New-App($Category, $Name, $Id, $Source, $Interactive, $Description) {
     }
 }
 
+# Firefox and Thunderbird have one WinGet package per language (Mozilla.Firefox.pt-BR, Mozilla.Firefox.de...);
+# the ID without a suffix is English (US). Picks the Windows display language: exact match (pt-BR), then the
+# language alone (de-DE -> de), then the same language in another region (es-CO -> es-AR). Otherwise English.
+$FirefoxLocales     = 'ach af an ar ast az be bg bn br bs ca ca-valencia cak cs cy da de dsb el en-CA en-GB eo es-AR es-CL es-ES es-MX et eu fa ff fi fr fur fy-NL ga-IE gd gl gn gu-IN he hi-IN hr hsb hu hy-AM ia id is it ja ka kab kk km kn ko lij lt lv mk mr ms my nb-NO ne-NP nl nn-NO oc pa-IN pl pt-BR pt-PT rm ro ru sc sco si sk sl son sq sr sv-SE szl ta te tg th tl tr trs uk ur uz vi xh zh-CN zh-TW' -split ' '
+$ThunderbirdLocales = 'af ar ast be bg br ca cak cs cy da de dsb el en-CA en-GB es-AR es-ES es-MX et eu fi fr fy-NL ga-IE gd gl he hr hsb hu hy-AM id is it ja ka kab kk ko lt lv ms nb-NO nl nn-NO pa-IN pl pt-BR pt-PT rm ro ru sk sl sq sr sv-SE th tr uk uz vi zh-CN zh-TW' -split ' '
+function Get-MozillaLocale([string[]]$Locales) {
+    $ui = [Globalization.CultureInfo]::CurrentUICulture.Name -replace '^zh-(HK|MO)$', 'zh-TW'   # Traditional Chinese
+    $lang = ($ui -split '-')[0]
+    $match = @($Locales | Where-Object { $_ -eq $ui })
+    if (-not $match -and $lang -ne 'en') {
+        $match = @($Locales | Where-Object { $_ -eq $lang }) + @($Locales | Where-Object { $_ -like "$lang-*" })
+    }
+    if ($match) { return $match[0] } else { return $null }
+}
+$ffLocale = Get-MozillaLocale $FirefoxLocales
+$tbLocale = Get-MozillaLocale $ThunderbirdLocales
+
 $Apps = @(
     New-App (T 'Browsers' 'Navegadores')   'Brave'                 'Brave.Brave'                       'winget'  $false (T 'browser with an ad blocker' 'navegador com bloqueador de anúncios')
     New-App (T 'Browsers' 'Navegadores')   'Chrome'                'Google.Chrome'                     'winget'  $false (T 'Google''s browser' 'navegador do Google')
-    New-App (T 'Browsers' 'Navegadores')   'Firefox (pt-BR)'       'Mozilla.Firefox.pt-BR'             'winget'  $false (T 'Mozilla''s browser' 'navegador da Mozilla')
+    New-App (T 'Browsers' 'Navegadores')   "Firefox ($(if ($ffLocale) { $ffLocale } else { 'en-US' }))" "Mozilla.Firefox$(if ($ffLocale) { ".$ffLocale" })" 'winget' $false (T 'Mozilla''s browser, in the Windows language' 'navegador da Mozilla, no idioma do Windows')
     New-App (T 'Browsers' 'Navegadores')   'Opera GX'              'Opera.OperaGX'                     'winget'  $false (T 'Opera''s "gamer" browser' 'navegador "gamer" da Opera')
     New-App (T 'Browsers' 'Navegadores')   'Zen Browser'           'Zen-Team.Zen-Browser'              'winget'  $false (T 'Firefox-based browser with a modern look (open source)' 'navegador baseado no Firefox, visual moderno (open source)')
     New-App (T 'Browsers' 'Navegadores')   'LibreWolf'             'LibreWolf.LibreWolf'               'winget'  $false (T 'privacy-focused Firefox (open source)' 'Firefox focado em privacidade (open source)')
@@ -110,7 +127,7 @@ $Apps = @(
     New-App (T 'Communication' 'Comunicação')   'Discord'               'Discord.Discord'                   'winget'  $false (T 'voice and text chat' 'chat de voz e texto')
     New-App (T 'Communication' 'Comunicação')   'Telegram'              'Telegram.TelegramDesktop'          'winget'  $false (T 'messenger' 'mensageiro')
     New-App (T 'Communication' 'Comunicação')   'Signal'                'OpenWhisperSystems.Signal'         'winget'  $false (T 'encrypted messenger (open source)' 'mensageiro com criptografia (open source)')
-    New-App (T 'Communication' 'Comunicação')   'Thunderbird (pt-BR)'   'Mozilla.Thunderbird.pt-BR'         'winget'  $false (T 'email client (open source)' 'cliente de e-mail (open source)')
+    New-App (T 'Communication' 'Comunicação')   "Thunderbird ($(if ($tbLocale) { $tbLocale } else { 'en-US' }))" "Mozilla.Thunderbird$(if ($tbLocale) { ".$tbLocale" })" 'winget' $false (T 'email client, in the Windows language (open source)' 'cliente de e-mail, no idioma do Windows (open source)')
     New-App (T 'Communication' 'Comunicação')   'WhatsApp'              '9NKSQGP7F2NH'                      'msstore' $false (T 'WhatsApp for desktop (Microsoft Store)' 'WhatsApp para desktop (Microsoft Store)')
     New-App (T 'Communication' 'Comunicação')   'Zoom'                  'Zoom.Zoom'                         'winget'  $false (T 'video calls' 'videochamadas')
     New-App (T 'Communication' 'Comunicação')   'Slack'                 'SlackTechnologies.Slack'           'winget'  $false (T 'work chat' 'chat de trabalho')
@@ -460,7 +477,13 @@ if (-not (Test-WinGet)) {
 # --- Mark the apps that are already installed
 Write-Host (T '  checking which apps are already installed...' '  verificando os apps que já estão instalados...') -ForegroundColor DarkGray
 $installedIds = Get-InstalledAppIds
-foreach ($app in $Apps) { $app.Installed = $installedIds -contains $app.Id }
+foreach ($app in $Apps) {
+    $app.Installed = $installedIds -contains $app.Id
+    # Firefox/Thunderbird in any language counts as installed (ESR, Beta and MSIX are other packages)
+    if (-not $app.Installed -and $app.Id -match '^Mozilla\.(Firefox|Thunderbird)') {
+        $app.Installed = [bool]($installedIds -cmatch ('^Mozilla\.' + $Matches[1] + '(\.[a-z]{2,3}(-[A-Za-z]+)?)?$'))
+    }
+}
 
 # --- Selection ↔ confirmation loop
 while ($true) {
