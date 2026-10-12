@@ -6,7 +6,7 @@ Save the PC's drivers before formatting and install them back afterwards, so you
 
 ## Before formatting
 
-In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Before: save my drivers**.
+In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Back up apps and drivers** (the drivers step; skip the apps step if you only want the drivers).
 
 1. A list of the drivers that didn't come with Windows, by type (video, audio, network, Bluetooth...), with the device that uses each one, the version and the size.
    - **Checked**: drivers in use, and add-ons to other drivers (audio effects, manufacturer settings).
@@ -22,7 +22,7 @@ In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Before:
 
 Run **Windows Update** first: it brings back many drivers by itself. Then:
 
-In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → After: install the saved drivers**.
+In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Restore apps and drivers** (the drivers step comes first).
 
 1. Finds the `tidywin-drivers-*` folder on USB drives, other disks, Desktop, Documents, Downloads and OneDrive (or asks for the path).
 2. Shows the same list, marking what Windows already installed (same version or newer). **Only the missing ones come checked.**

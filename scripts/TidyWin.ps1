@@ -91,9 +91,19 @@ function Split-Text([string]$Text, [int]$Width) {
 
 #region ==================== 2. MENU ITEMS ====================
 
+# One script to run: path under scripts/, arguments, and a name (shown when an option has several steps).
+function New-Step($Script, $ScriptArgs, $Name) {
+    [pscustomobject]@{ Script = $Script; Args = @($ScriptArgs | Where-Object { $_ }); Name = $Name }
+}
+
 # Group, Id (the name used on the site), Script (path under scripts/), Args, Name and Desc in both languages.
 function New-MenuItem($Group, $Id, $Script, $ScriptArgs, $Name, $Desc) {
-    [pscustomobject]@{ Group = $Group; Id = $Id; Script = $Script; Args = @($ScriptArgs | Where-Object { $_ }); Name = $Name; Desc = $Desc }
+    [pscustomobject]@{ Group = $Group; Id = $Id; Steps = @(New-Step $Script $ScriptArgs ''); Name = $Name; Desc = $Desc }
+}
+
+# An option that runs several scripts in order (each one can be skipped).
+function New-MenuSequence($Group, $Id, [object[]]$Steps, $Name, $Desc) {
+    [pscustomobject]@{ Group = $Group; Id = $Id; Steps = $Steps; Name = $Name; Desc = $Desc }
 }
 
 function Get-Menu {
@@ -115,10 +125,11 @@ function Get-Menu {
         New-MenuItem $care   'repair'         'windows/Repair-Windows.ps1'           $null      (T 'Repair Windows' 'Reparar o Windows')      (T 'For when Windows acts strange: checks and repairs the system files and the disk with Windows'' own tools (DISM, sfc). 10 to 30 minutes.' 'Para quando o Windows estiver estranho: verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc). De 10 a 30 minutos.')
         New-MenuItem $care   'network-reset'  'windows/Reset-Network.ps1'            $null      (T 'Reset the network' 'Redefinir a rede')    (T 'For "connected, no internet" or sites that don''t open. Quick or full, keeping your DNS.' 'Para "conectado, sem internet" ou sites que não abrem. Rápido ou completo, mantendo seu DNS.')
 
-        New-MenuItem $format 'apps-export'    'apps/Backup-Apps.ps1'                 '-Export'  (T 'Before: save my app list' 'Antes: salvar minha lista de apps')   (T 'Saves the list of installed apps to a file, to install them back after formatting. Keep it on a USB drive.' 'Salva a lista de apps instalados num arquivo, para reinstalar depois de formatar. Guarde num pendrive.')
-        New-MenuItem $format 'drivers-export' 'drivers/Backup-Drivers.ps1'           '-Export'  (T 'Before: save my drivers' 'Antes: salvar meus drivers')         (T 'Pick the drivers of this PC (video, audio, network...) and save them to a USB drive or another disk.' 'Escolha os drivers deste PC (vídeo, áudio, rede...) e salve num pendrive ou outro disco.')
-        New-MenuItem $format 'drivers-import' 'drivers/Backup-Drivers.ps1'           '-Import'  (T 'After: install the saved drivers' 'Depois: instalar os drivers salvos') (T 'Finds the saved folder and installs only the drivers Windows didn''t bring back by itself. Run Windows Update first.' 'Acha a pasta salva e instala só os drivers que o Windows não trouxe de volta sozinho. Rode o Windows Update antes.')
-        New-MenuItem $format 'apps-import'    'apps/Backup-Apps.ps1'                 '-Import'  (T 'After: install the saved apps' 'Depois: instalar os apps salvos')    (T 'Finds the saved list and installs the apps back. Apps already installed are skipped.' 'Acha a lista salva e instala os apps de volta. Os que já estão instalados são pulados.')
+        # Backup: apps, then drivers. Restore: drivers first (network, video), then the apps, which need the internet.
+        $apps    = T 'App list' 'Lista de apps'
+        $drivers = T 'Drivers' 'Drivers'
+        New-MenuSequence $format 'backup' @((New-Step 'apps/Backup-Apps.ps1' '-Export' $apps), (New-Step 'drivers/Backup-Drivers.ps1' '-Export' $drivers)) (T 'Back up apps and drivers' 'Fazer backup de apps e drivers') (T 'Before formatting: saves the list of installed apps and the drivers you pick, one after the other (each can be skipped). Keep them on a USB drive.' 'Antes de formatar: salva a lista de apps instalados e os drivers que você escolher, um depois do outro (dá para pular qualquer um). Guarde num pendrive.')
+        New-MenuSequence $format 'restore' @((New-Step 'drivers/Backup-Drivers.ps1' '-Import' $drivers), (New-Step 'apps/Backup-Apps.ps1' '-Import' $apps)) (T 'Restore apps and drivers' 'Restaurar apps e drivers') (T 'After formatting and Windows Update: installs the saved drivers Windows didn''t bring back, then the saved apps (each can be skipped).' 'Depois de formatar e do Windows Update: instala os drivers salvos que o Windows não trouxe de volta e depois os apps salvos (dá para pular qualquer um).')
 
         New-MenuItem $undo   'windows-revert' 'windows/Revert-Configure-Windows.ps1' $null      'Windows'                                    (T 'Undoes most of what Windows changed: telemetry, policies, suggestions, DNS. Removed apps come back from the Microsoft Store.' 'Desfaz a maior parte do que o Windows mudou: telemetria, políticas, sugestões, DNS. Apps removidos voltam pela Microsoft Store.')
         New-MenuItem $undo   'chrome-revert'  'browsers/Configure-Chrome.ps1'        '-Revert'  'Chrome'                                     (T 'Removes every Chrome setting applied by TidyWin.' 'Remove todas as configurações do Chrome aplicadas pelo TidyWin.')
@@ -213,22 +224,47 @@ function Show-MenuPlain([object[]]$Items) {
     return $null
 }
 
-# Runs the item's script: the local copy next to this file when there is one (a copy of the repository),
+# Runs one script: the local copy next to this file when there is one (a copy of the repository),
 # otherwise downloaded from the site to this script's folder (the launcher deletes it afterwards).
-function Invoke-MenuItem($Item) {
-    $file = Join-Path $PSScriptRoot $Item.Script
+function Invoke-Step($Step) {
+    $file = Join-Path $PSScriptRoot $Step.Script
     if (-not (Test-Path -LiteralPath $file)) {
-        $file = Join-Path $PSScriptRoot (Split-Path $Item.Script -Leaf)
-        Write-Host (T "  downloading $($Item.Script)..." "  baixando $($Item.Script)...") -ForegroundColor DarkGray
-        try { Invoke-WebRequest "$Base/scripts/$($Item.Script)" -OutFile $file -UseBasicParsing -ErrorAction Stop }
+        $file = Join-Path $PSScriptRoot (Split-Path $Step.Script -Leaf)
+        Write-Host (T "  downloading $($Step.Script)..." "  baixando $($Step.Script)...") -ForegroundColor DarkGray
+        try { Invoke-WebRequest "$Base/scripts/$($Step.Script)" -OutFile $file -UseBasicParsing -ErrorAction Stop }
         catch {
             Write-Host (T "  Could not download it: $($_.Exception.Message)" "  Não foi possível baixar: $($_.Exception.Message)") -ForegroundColor Red
             return
         }
     }
     # A separate Windows PowerShell 5.1 process: the scripts expect a fresh session, and the menu survives their "return"s
-    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $file, '-Lang', $script:Lang) + $Item.Args
+    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $file, '-Lang', $script:Lang) + $Step.Args
     & powershell.exe @argv
+}
+
+# Enter = run the step, Esc = skip it. Without a real console: Enter or "s".
+function Confirm-Step([string]$Text) {
+    if (($Host.Name -ne 'ConsoleHost') -or [Console]::IsInputRedirected) {
+        return "$(Read-Host (T "  $Text — Enter runs, S skips" "  $Text — Enter executa, P pula"))".Trim() -notmatch '^[sSpP]'
+    }
+    Write-Host (T "  $Text — Enter runs, Esc skips" "  $Text — Enter executa, Esc pula") -ForegroundColor Cyan
+    while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
+    while ($true) {
+        $key = [Console]::ReadKey($true).Key
+        if ($key -eq 'Enter')  { return $true }
+        if ($key -eq 'Escape') { return $false }
+    }
+}
+
+# An option with one script runs it; one with several runs them in order, asking before each.
+function Invoke-MenuItem($Item) {
+    $steps = @($Item.Steps)
+    if ($steps.Count -eq 1) { Invoke-Step $steps[0]; return }
+    for ($i = 0; $i -lt $steps.Count; $i++) {
+        Write-Host "`n-- $(T 'Step' 'Passo') $($i + 1)/$($steps.Count): $($steps[$i].Name)" -ForegroundColor Green
+        if (Confirm-Step $steps[$i].Name) { Invoke-Step $steps[$i] }
+        else { Write-Host (T '  skipped' '  pulado') -ForegroundColor DarkGray }
+    }
 }
 
 #endregion

@@ -191,7 +191,7 @@ In the [TidyWin menu](../README.md#quick-start): **Set up → Install apps**. Fr
 
 ## Moving apps to another PC
 
-In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Before: save my app list** and **After: install the saved apps**. From a local copy:
+In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Back up apps and drivers** and **Restore apps and drivers** (the apps step). From a local copy:
 
 ```powershell
 .\scripts\apps\Backup-Apps.ps1 -Export   # before formatting

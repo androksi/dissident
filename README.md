@@ -42,8 +42,8 @@ It asks for administrator rights and the language (English or Portuguese), then 
 | Repair Windows | Repairs system files and the disk with Windows' own tools. | [Details](docs/windows.md#repair) |
 | Reset the network | Fixes "connected, no internet" with Windows' own commands, keeping your DNS. | [Details](docs/windows.md#network-reset) |
 | **Formatting the PC** | | |
-| Before / After: apps | Saves your app list before formatting and installs it back afterwards. | [Details](docs/apps.md#moving-apps-to-another-pc) |
-| Before / After: drivers | Saves the drivers you pick and installs back the ones Windows didn't. | [Details](docs/drivers.md) |
+| Back up apps and drivers | Before formatting: saves your app list and the drivers you pick. | [Apps](docs/apps.md#moving-apps-to-another-pc) · [Drivers](docs/drivers.md) |
+| Restore apps and drivers | After formatting: installs back the drivers Windows didn't, then your apps. | |
 | **Undo** | Windows, the browsers, Development and fonts. | |
 
 ## Good to know

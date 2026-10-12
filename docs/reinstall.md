@@ -14,45 +14,43 @@ The menu comes back after each option, so you can keep it open and go down the l
 
 ## Before formatting
 
-1. **Save your app list**: menu → **Formatting the PC → Before: save my app list**.
-   Keep the file on a USB drive, in Google Drive or in an e-mail to yourself. **Not in OneDrive**: the Windows option can remove OneDrive.
-2. **Save your drivers** to a USB drive: menu → **Formatting the PC → Before: save my drivers**. The ones in use come checked. Most important on laptops and for the network card: without it there's no internet after formatting. [Details](drivers.md)
-3. **Back up your files**: Documents, Desktop, Downloads, projects that are not on GitHub, game saves and `.env` files.
-4. **Browsers**: make sure sync is on (Firefox, Brave, Chrome), or export your passwords if you don't keep them in a password manager.
-5. **Activation**: Settings → System → Activation should say *activated with a digital license*. It is tied to the hardware and comes back on its own.
-6. **Video driver**: download the NVIDIA (or AMD/Intel) driver installer and keep it on the USB drive. It brings the control panel too; the saved driver is the fallback.
+1. **Back up your apps and drivers** to a USB drive: menu → **Formatting the PC → Back up apps and drivers**. It saves the app list, then the drivers (the ones in use come checked); skip either step if you don't need it. Drivers matter most on laptops and for the network card: without it there's no internet after formatting. [Details](drivers.md)
+   Keep the app list on a USB drive, in Google Drive or in an e-mail to yourself. **Not in OneDrive**: the Windows option can remove OneDrive.
+2. **Back up your files**: Documents, Desktop, Downloads, projects that are not on GitHub, game saves and `.env` files.
+3. **Browsers**: make sure sync is on (Firefox, Brave, Chrome), or export your passwords if you don't keep them in a password manager.
+4. **Activation**: Settings → System → Activation should say *activated with a digital license*. It is tied to the hardware and comes back on its own.
+5. **Video driver**: download the NVIDIA (or AMD/Intel) driver installer and keep it on the USB drive. It brings the control panel too; the saved driver is the fallback.
 
 SSH keys don't need a backup: Development creates a new one and deletes the old key of this PC from GitHub.
 
 ## Formatting
 
-7. Settings → System → Recovery → **Reset this PC** → **Remove everything** → **Cloud download**.
+6. Settings → System → Recovery → **Reset this PC** → **Remove everything** → **Cloud download**.
    - Under *Change settings*, leave **Clean data = No**. It only matters if you are selling the PC; your files and the old Windows are gone either way.
    - If asked about other drives, choose **only the Windows drive**, so other disks are not wiped.
-8. **Windows setup**: say no to every privacy screen (location, diagnostics, ads, tailored experiences).
+7. **Windows setup**: say no to every privacy screen (location, diagnostics, ads, tailored experiences).
    - **Local account**: the tricks to skip the Microsoft account change with every Windows version. The reliable way is to sign in with a Microsoft account and switch later in Settings → Accounts → Your info.
 
 ## After formatting, in this order
 
-9. **Windows Update** until nothing is left, restarting between rounds. This brings chipset, network and audio drivers.
-10. **Drivers**, if you saved them: menu → **Formatting the PC → After: install the saved drivers**. Installs only the ones Windows Update didn't bring back.
-11. **Microsoft Store** → Library → **Update all**. This updates WinGet (App Installer), which the scripts use; on a fresh Windows it sometimes doesn't work yet.
-12. **Video driver**: install it (clean install) and restart.
-13. **Windows**: menu → **Set up → Windows**. Creates a restore point, then cleans up and configures Windows. Restart at the end.
-14. **Apps**: menu → **Formatting the PC → After: install the saved apps**. Then **Set up → Install apps** for anything new.
-15. **Browsers**, after installing them, only the ones you use: menu → **Set up → Firefox**, **Brave** or **Chrome**.
-16. **Development**, if you program: menu → **Set up → Development**. Editors, Git, SSH key sent to GitHub, signed commits and Windows Terminal with a Nerd Font.
-17. **Wallpapers**, if you want: menu → **Set up → Wallpapers**.
-18. **Your files**: copy them back from the backup and sign in to your accounts.
-19. **Free up disk space**: menu → **Maintenance → Free up disk space**. You can also accept *Old Windows components*. Restart one last time.
-20. **Check everything**: menu → **Maintenance → PC report**. Only reads; the summary at the top lists anything left to fix (activation, drivers, TPM/Secure Boot, disks).
+8. **Windows Update** until nothing is left, restarting between rounds. This brings chipset, network and audio drivers.
+9. **Microsoft Store** → Library → **Update all**. This updates WinGet (App Installer), which installs your apps back; on a fresh Windows it sometimes doesn't work yet.
+10. **Restore your apps and drivers**: menu → **Formatting the PC → Restore apps and drivers**. First the drivers Windows Update didn't bring back, then your apps.
+11. **Video driver**: install it (clean install) and restart.
+12. **Windows**: menu → **Set up → Windows**. Creates a restore point, then cleans up and configures Windows. Restart at the end. Then **Set up → Install apps** for anything new.
+13. **Browsers**, after installing them, only the ones you use: menu → **Set up → Firefox**, **Brave** or **Chrome**.
+14. **Development**, if you program: menu → **Set up → Development**. Editors, Git, SSH key sent to GitHub, signed commits and Windows Terminal with a Nerd Font.
+15. **Wallpapers**, if you want: menu → **Set up → Wallpapers**.
+16. **Your files**: copy them back from the backup and sign in to your accounts.
+17. **Free up disk space**: menu → **Maintenance → Free up disk space**. You can also accept *Old Windows components*. Restart one last time.
+18. **Check everything**: menu → **Maintenance → PC report**. Only reads; the summary at the top lists anything left to fix (activation, drivers, TPM/Secure Boot, disks).
 
 ## From time to time
 
 | Menu option | When |
 |---|---|
 | Maintenance → Check after a Windows update | After a big Windows update, to see whether anything came back. |
-| Formatting the PC → Before: save my app list | Every now and then, so the list is current for the next reinstall. |
+| Formatting the PC → Back up apps and drivers | Every now and then, so the backup is current for the next reinstall. |
 | Maintenance → Repair Windows | Only when Windows acts strange. |
 | Maintenance → PC report | Before asking for help: send the report (it has no personal data). |
 

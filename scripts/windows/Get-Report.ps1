@@ -329,7 +329,7 @@ function Get-HealthInfo {
         $why = if ($codes.ContainsKey($code)) { $codes[$code] } else { (T 'code ' 'código ') + $code }
         $name = if ($d.Name) { $d.Name } else { $d.PNPClass }
         $status = if ($code -eq 22) { 'info' } else { 'bad' }
-        Add-Row $s (T 'Device with a problem' 'Dispositivo com problema') "$name · $why" $status (T 'Install its driver (Windows Update → Advanced options → Optional updates, or the manufacturer''s site), or "After: install the saved drivers" in the TidyWin menu.' 'Instale o driver dele (Windows Update → Opções avançadas → Atualizações opcionais, ou o site do fabricante), ou "Depois: instalar os drivers salvos" no menu do TidyWin.')
+        Add-Row $s (T 'Device with a problem' 'Dispositivo com problema') "$name · $why" $status (T 'Install its driver (Windows Update → Advanced options → Optional updates, or the manufacturer''s site), or "Restore apps and drivers" in the TidyWin menu.' 'Instale o driver dele (Windows Update → Opções avançadas → Atualizações opcionais, ou o site do fabricante), ou "Restaurar apps e drivers" no menu do TidyWin.')
     }
 
     # Crashes in the last 30 days: blue screens and unexpected shutdowns

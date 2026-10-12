@@ -313,7 +313,7 @@ Drivers saved by TidyWin from $env:COMPUTERNAME on $(Get-Date -Format 'yyyy-MM-d
 
 To install them back after formatting, in PowerShell:
     irm androksi.github.io/tidywin/run | iex
-and in the menu choose "After: install the saved drivers".
+and in the menu choose "Restore apps and drivers".
 
 By hand: Device Manager > right-click the device > Update driver > Browse my computer >
 pick this folder (with "Include subfolders" checked). Or right-click a .inf file > Install.
@@ -322,7 +322,7 @@ Drivers salvos pelo TidyWin de $env:COMPUTERNAME em $(Get-Date -Format 'yyyy-MM-
 
 Para instalar de volta depois de formatar, no PowerShell:
     irm androksi.github.io/tidywin/run | iex
-e no menu escolha "Depois: instalar os drivers salvos".
+e no menu escolha "Restaurar apps e drivers".
 
 À mão: Gerenciador de Dispositivos > botão direito no dispositivo > Atualizar driver > Procurar no
 computador > escolha esta pasta (com "Incluir subpastas" marcado). Ou botão direito num .inf > Instalar.
@@ -333,7 +333,7 @@ computador > escolha esta pasta (com "Incluir subpastas" marcado). Ou botão dir
     Write-Host (T "`nDone: $($saved.Count) driver(s), $(Format-Size $size), saved to" "`nPronto: $($saved.Count) driver(s), $(Format-Size $size), salvos em") -ForegroundColor Green
     Write-Host "  $root"
     if ($failed) { Write-Host (T "  Not saved: $($failed -join ', ')" "  Não salvos: $($failed -join ', ')") -ForegroundColor Yellow }
-    Write-Host (T 'After formatting, choose "After: install the saved drivers" in the TidyWin menu.' 'Depois de formatar, escolha "Depois: instalar os drivers salvos" no menu do TidyWin.') -ForegroundColor DarkGray
+    Write-Host (T 'After formatting, choose "Restore apps and drivers" in the TidyWin menu.' 'Depois de formatar, escolha "Restaurar apps e drivers" no menu do TidyWin.') -ForegroundColor DarkGray
 }
 
 #endregion

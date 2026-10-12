@@ -93,10 +93,8 @@
       uninstall: "Pick installed programs and uninstall them with their own official uninstaller. Then shows what they left behind (folders, registry, shortcuts, tasks) and deletes only what you confirm, with a backup.",
       repair: "Checks and repairs Windows system files and the disk with Windows' own tools (DISM, sfc and disk check). Use it when Windows acts strange. Creates a restore point first.",
       "network-reset": "For “connected, no internet” or sites that don't open. Quick (no restart) or full (resets Winsock and TCP/IP), with Windows' own commands. Your DNS is kept.",
-      "apps-export": "Before formatting: saves the list of your installed apps to a file. Save it on OneDrive, Google Drive or a USB drive.",
-      "apps-import": "After formatting: finds that file and installs the apps back. Apps already installed are skipped.",
-      "drivers-export": "Before formatting: pick the drivers of this PC (video, audio, network...) and save them to a USB drive or another disk.",
-      "drivers-import": "After formatting: finds that folder and installs only the drivers Windows didn't bring back by itself.",
+      backup: "Before formatting: saves the list of your installed apps, then the drivers you pick (video, audio, network...). Each step can be skipped. Keep them on a USB drive.",
+      restore: "After formatting and Windows Update: installs the saved drivers Windows didn't bring back, then your saved apps. Each step can be skipped.",
       cleanup: "Frees disk space: temporary files, Windows Update downloads, error reports and more. Shows how much each item takes and asks before deleting each one.",
       wallpapers: "Lists the TidyWin wallpapers, lets you check the ones you want and downloads them to Pictures\\Wallpapers. Can also set one as the desktop background.",
       "windows-check": "Checks whether a Windows update brought back anything the Windows option changed (telemetry, removed apps, OneDrive, policies) and offers to reapply only that.",
@@ -129,10 +127,8 @@
       uninstall: "Escolha programas instalados e desinstale com o desinstalador oficial de cada um. Depois mostra o que sobrou (pastas, registro, atalhos, tarefas) e apaga só o que você confirmar, com backup.",
       repair: "Verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc e verificação de disco). Use quando o Windows estiver estranho. Cria um ponto de restauração antes.",
       "network-reset": "Para “conectado, sem internet” ou sites que não abrem. Rápido (sem reiniciar) ou completo (redefine o Winsock e o TCP/IP), com os comandos do próprio Windows. Seu DNS é mantido.",
-      "apps-export": "Antes de formatar: salva a lista dos seus apps instalados num arquivo. Guarde no OneDrive, Google Drive ou pendrive.",
-      "apps-import": "Depois de formatar: acha esse arquivo e instala os apps de volta. Os que já estão instalados são pulados.",
-      "drivers-export": "Antes de formatar: escolha os drivers deste PC (vídeo, áudio, rede...) e salve num pendrive ou outro disco.",
-      "drivers-import": "Depois de formatar: acha essa pasta e instala só os drivers que o Windows não trouxe de volta sozinho.",
+      backup: "Antes de formatar: salva a lista dos seus apps instalados e depois os drivers que você escolher (vídeo, áudio, rede...). Dá para pular qualquer passo. Guarde num pendrive.",
+      restore: "Depois de formatar e do Windows Update: instala os drivers salvos que o Windows não trouxe de volta e depois os seus apps salvos. Dá para pular qualquer passo.",
       cleanup: "Libera espaço no disco: arquivos temporários, downloads do Windows Update, relatórios de erro e mais. Mostra quanto cada item ocupa e pergunta antes de apagar cada um.",
       wallpapers: "Lista os wallpapers do TidyWin, você marca os que quer e eles são baixados para Imagens\\Wallpapers. Também pode definir um como plano de fundo.",
       "windows-check": "Confere se alguma atualização do Windows trouxe de volta algo que a opção Windows mudou (telemetria, apps removidos, OneDrive, políticas) e oferece reaplicar só isso.",
@@ -709,11 +705,15 @@
       "Remove todas as políticas do Firefox aplicadas pelo TidyWin e, se o ícone do modo leitura foi tirado, os arquivos do AutoConfig. Se o uBlock Origin ou o Bitwarden continuarem lá e você não quiser, remova em about:addons.")])],
   };
 
+  // Backup and Restore run two scripts each: their details are the two scripts' details, in the same order
+  options.backup  = [G("1. App list", "1. Lista de apps", options["apps-export"][0].items), G("2. Drivers", "2. Drivers", options["drivers-export"][0].items)];
+  options.restore = [G("1. Drivers", "1. Drivers", options["drivers-import"][0].items), G("2. App list", "2. Lista de apps", options["apps-import"][0].items)];
+
   // Same groups, order and names as the menu in scripts/TidyWin.ps1. Keep in sync.
   const lists = {
     setup:  ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev", "wallpapers"],
     care:   ["report", "windows-check", "uninstall", "cleanup", "repair", "network-reset"],
-    format: ["apps-export", "drivers-export", "drivers-import", "apps-import"],
+    format: ["backup", "restore"],
     undo:   ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
   };
   const names = {
@@ -722,8 +722,7 @@
       dev: "Development", wallpapers: "Wallpapers",
       report: "PC report", "windows-check": "Check after a Windows update", uninstall: "Uninstall programs",
       cleanup: "Free up disk space", repair: "Repair Windows", "network-reset": "Reset the network",
-      "apps-export": "Before: save my app list", "drivers-export": "Before: save my drivers",
-      "drivers-import": "After: install the saved drivers", "apps-import": "After: install the saved apps",
+      backup: "Back up apps and drivers", restore: "Restore apps and drivers",
       "windows-revert": "Windows", "chrome-revert": "Chrome", "brave-revert": "Brave", "firefox-revert": "Firefox",
       "dev-revert": "Development", "fonts-revert": "Fonts",
     },
@@ -732,8 +731,7 @@
       dev: "Programação", wallpapers: "Papéis de parede",
       report: "Relatório do PC", "windows-check": "Conferir após atualização do Windows", uninstall: "Desinstalar programas",
       cleanup: "Liberar espaço", repair: "Reparar o Windows", "network-reset": "Redefinir a rede",
-      "apps-export": "Antes: salvar minha lista de apps", "drivers-export": "Antes: salvar meus drivers",
-      "drivers-import": "Depois: instalar os drivers salvos", "apps-import": "Depois: instalar os apps salvos",
+      backup: "Fazer backup de apps e drivers", restore: "Restaurar apps e drivers",
       "windows-revert": "Windows", "chrome-revert": "Chrome", "brave-revert": "Brave", "firefox-revert": "Firefox",
       "dev-revert": "Programação", "fonts-revert": "Fontes",
     },

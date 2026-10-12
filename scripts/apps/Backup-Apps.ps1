@@ -137,7 +137,7 @@ function Invoke-Export {
     $ids = Get-PackageIds $file
     Write-Host (T "`nDone: $($ids.Count) apps saved to" "`nPronto: $($ids.Count) apps salvos em") -ForegroundColor Green
     Write-Host "  $file"
-    Write-Host (T 'After formatting, choose "After: install the saved apps" in the TidyWin menu.' 'Depois de formatar, escolha "Depois: instalar os apps salvos" no menu do TidyWin.') -ForegroundColor DarkGray
+    Write-Host (T 'After formatting, choose "Restore apps and drivers" in the TidyWin menu.' 'Depois de formatar, escolha "Restaurar apps e drivers" no menu do TidyWin.') -ForegroundColor DarkGray
 }
 
 #endregion
