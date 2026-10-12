@@ -43,6 +43,7 @@ To run another one, replace `windows` with any command from the table below. Eve
 | `cleanup` | Frees disk space, asking before each item. |
 | `repair` | Repairs system files and the disk with Windows' own tools. |
 | `apps-export` / `apps-import` | Saves your app list before formatting and installs it back afterwards. |
+| `drivers-export` / `drivers-import` | Saves the drivers you pick before formatting and installs back the ones Windows didn't. [Details](docs/drivers.md) |
 
 **Undo:** add `-revert` to `windows`, `chrome`, `brave`, `firefox`, `dev` or `fonts`, as in `irm androksi.github.io/tidywin/windows-revert | iex`.
 

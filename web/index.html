@@ -76,6 +76,8 @@
       repair: "Checks and repairs Windows system files and the disk with Windows' own tools (DISM, sfc and disk check). Use it when Windows acts strange. Creates a restore point first.",
       "apps-export": "Before formatting: saves the list of your installed apps to a file. Save it on OneDrive, Google Drive or a USB drive.",
       "apps-import": "After formatting: finds that file and installs the apps back. Apps already installed are skipped.",
+      "drivers-export": "Before formatting: pick the drivers of this PC (video, audio, network...) and save them to a USB drive or another disk.",
+      "drivers-import": "After formatting: finds that folder and installs only the drivers Windows didn't bring back by itself.",
       cleanup: "Frees disk space: temporary files, Windows Update downloads, error reports and more. Shows how much each item takes and asks before deleting each one.",
       wallpapers: "Lists the TidyWin wallpapers, lets you check the ones you want and downloads them to Pictures\\Wallpapers. Can also set one as the desktop background.",
       "windows-check": "Checks whether a Windows update brought back anything the windows command changed (telemetry, removed apps, OneDrive, policies) and offers to reapply only that.",
@@ -104,6 +106,8 @@
       repair: "Verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc e verificação de disco). Use quando o Windows estiver estranho. Cria um ponto de restauração antes.",
       "apps-export": "Antes de formatar: salva a lista dos seus apps instalados num arquivo. Guarde no OneDrive, Google Drive ou pendrive.",
       "apps-import": "Depois de formatar: acha esse arquivo e instala os apps de volta. Os que já estão instalados são pulados.",
+      "drivers-export": "Antes de formatar: escolha os drivers deste PC (vídeo, áudio, rede...) e salve num pendrive ou outro disco.",
+      "drivers-import": "Depois de formatar: acha essa pasta e instala só os drivers que o Windows não trouxe de volta sozinho.",
       cleanup: "Libera espaço no disco: arquivos temporários, downloads do Windows Update, relatórios de erro e mais. Mostra quanto cada item ocupa e pergunta antes de apagar cada um.",
       wallpapers: "Lista os wallpapers do TidyWin, você marca os que quer e eles são baixados para Imagens\\Wallpapers. Também pode definir um como plano de fundo.",
       "windows-check": "Confere se alguma atualização do Windows trouxe de volta algo que o comando windows mudou (telemetria, apps removidos, OneDrive, políticas) e oferece reaplicar só isso.",
@@ -532,6 +536,25 @@
         "Shows every app in the list and asks before installing. Apps already installed or no longer available are skipped.",
         "Mostra todos os apps da lista e pergunta antes de instalar. Os que já estão instalados ou não existem mais são pulados."),
     ])],
+    "drivers-export": [G("", "", [
+      I("Which drivers", "Quais drivers", "auto", null,
+        "List of the drivers that didn't come with Windows, by type (video, audio, network...), with the device that uses each one, version and size. The ones in use come checked; old versions and devices that are not connected come unchecked. Video drivers take 2 to 3 GB each.",
+        "Lista dos drivers que não vieram com o Windows, por tipo (vídeo, áudio, rede...), com o dispositivo que usa cada um, versão e tamanho. Os que estão em uso vêm marcados; versões antigas e dispositivos que não estão conectados vêm desmarcados. Drivers de vídeo ocupam de 2 a 3 GB cada."),
+      I("Where to save", "Onde salvar", "choice", { en: "a USB drive or another disk", pt: "um pendrive ou outro disco" },
+        "USB drives and other disks first, then Desktop, Documents, Downloads, OneDrive or a folder you type. Creates a tidywin-drivers-<PC>-<date> folder with the drivers, a drivers.json and a README.txt explaining how to install them by hand.",
+        "Pendrives e outros discos primeiro, depois Área de Trabalho, Documentos, Downloads, OneDrive ou uma pasta que você digita. Cria uma pasta tidywin-drivers-<PC>-<data> com os drivers, um drivers.json e um README.txt explicando como instalar à mão."),
+    ])],
+    "drivers-import": [G("", "", [
+      I("Which folder", "Qual pasta", "choice", { en: "the newest one", pt: "a mais recente" },
+        "Looks for tidywin-drivers-* on USB drives, other disks, Desktop, Documents, Downloads and OneDrive, or asks for the path.",
+        "Procura tidywin-drivers-* em pendrives, outros discos, Área de Trabalho, Documentos, Downloads e OneDrive, ou pede o caminho."),
+      I("Which drivers", "Quais drivers", "auto", null,
+        "The same list, showing what Windows already installed by itself (same version or newer). Only the missing ones come checked.",
+        "A mesma lista, mostrando o que o Windows já instalou sozinho (mesma versão ou mais nova). Só os que faltam vêm marcados."),
+      I("Install", "Instalar", "auto", null,
+        "Installs each one with pnputil, Windows' own tool, which only accepts signed drivers. At the end, offers to restart if a driver needs it.",
+        "Instala cada um com o pnputil, ferramenta do próprio Windows, que só aceita drivers assinados. No fim, oferece reiniciar se algum driver precisar."),
+    ])],
     dev: [
       G("Editors", "Editores", [
         I("Editors and IDEs", "Editores e IDEs", "auto", null,
@@ -618,7 +641,7 @@
 
   const lists = {
     apply: ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev"],
-    check: ["windows-check", "cleanup", "repair", "apps-export", "apps-import", "wallpapers"],
+    check: ["windows-check", "cleanup", "repair", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
     undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
   };
 

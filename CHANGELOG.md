@@ -13,6 +13,7 @@
 - **Configure-Dev** (shortcuts `dev` and `dev-revert`): editors, Git, SSH key for GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL.
 - **Repair-Windows** (shortcut `repair`): DISM, sfc and an online disk check, with a restore point first.
 - **Backup-Apps** (shortcuts `apps-export` and `apps-import`): saves the installed apps list and reinstalls it after formatting.
+- **Backup-Drivers** (shortcuts `drivers-export` and `drivers-import`): pick the drivers to save before formatting (in use come checked) and install back only the ones Windows didn't bring back by itself.
 - **Configure-Windows**: optional classic right-click menu on Windows 11, an option to block programs installed by the firmware (WPBT), and options for Snap windows, the Xbox apps, Recall, the Edge desktop shortcut, Num Lock at startup and Fast Startup.
 - **Configure-Windows**: optional removal of the Snipping Tool, which also frees the Print Screen key for apps like ShareX.
 - **Configure-Windows**: optional screen, sleep and hibernation times, plugged in and on battery.
