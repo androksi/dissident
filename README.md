@@ -1,6 +1,8 @@
 # TidyWin Windows Utility
 
-TidyWin **cleans up** Windows 10 and 11 (telemetry, preinstalled apps, ads), **installs** apps and fonts, **configures** Chrome, Brave and Firefox for privacy and **keeps** the PC in shape afterwards.
+**Set up, maintain and reinstall Windows from one menu.**
+
+Clean up telemetry and bloat, install your apps and fonts, diagnose problems, and format without losing your apps or drivers. Every step asks first.
 
 [![Lint](https://img.shields.io/github/actions/workflow/status/androksi/tidywin/lint.yml?branch=main&label=lint&style=for-the-badge)](https://github.com/androksi/tidywin/actions/workflows/lint.yml)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=for-the-badge)](#good-to-know)
