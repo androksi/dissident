@@ -41,6 +41,7 @@ shortcut windows-revert scripts/windows/Revert-Configure-Windows.ps1
 shortcut windows-check  scripts/windows/Configure-Windows.ps1       -Check
 shortcut cleanup        scripts/windows/Clean-Windows.ps1
 shortcut repair         scripts/windows/Repair-Windows.ps1
+shortcut network-reset  scripts/windows/Reset-Network.ps1
 shortcut apps-export    scripts/apps/Backup-Apps.ps1             -Export
 shortcut apps-import    scripts/apps/Backup-Apps.ps1             -Import
 shortcut drivers-export scripts/drivers/Backup-Drivers.ps1       -Export

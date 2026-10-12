@@ -74,6 +74,7 @@
       "dev-revert": "Undoes the Windows settings changed by dev: Developer Mode, default terminal and Windows Terminal settings (from the backup). Apps, Git and SSH keys stay.",
       check: "Maintenance",
       repair: "Checks and repairs Windows system files and the disk with Windows' own tools (DISM, sfc and disk check). Use it when Windows acts strange. Creates a restore point first.",
+      "network-reset": "For “connected, no internet” or sites that don't open. Quick (no restart) or full (resets Winsock and TCP/IP), with Windows' own commands. Your DNS is kept.",
       "apps-export": "Before formatting: saves the list of your installed apps to a file. Save it on OneDrive, Google Drive or a USB drive.",
       "apps-import": "After formatting: finds that file and installs the apps back. Apps already installed are skipped.",
       "drivers-export": "Before formatting: pick the drivers of this PC (video, audio, network...) and save them to a USB drive or another disk.",
@@ -104,6 +105,7 @@
       "dev-revert": "Desfaz os ajustes do Windows feitos pelo dev: Modo de Desenvolvedor, terminal padrão e configurações do Windows Terminal (pelo backup). Apps, Git e chaves SSH ficam.",
       check: "Manutenção",
       repair: "Verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc e verificação de disco). Use quando o Windows estiver estranho. Cria um ponto de restauração antes.",
+      "network-reset": "Para “conectado, sem internet” ou sites que não abrem. Rápido (sem reiniciar) ou completo (redefine o Winsock e o TCP/IP), com os comandos do próprio Windows. Seu DNS é mantido.",
       "apps-export": "Antes de formatar: salva a lista dos seus apps instalados num arquivo. Guarde no OneDrive, Google Drive ou pendrive.",
       "apps-import": "Depois de formatar: acha esse arquivo e instala os apps de volta. Os que já estão instalados são pulados.",
       "drivers-export": "Antes de formatar: escolha os drivers deste PC (vídeo, áudio, rede...) e salve num pendrive ou outro disco.",
@@ -487,6 +489,23 @@
         "Shows the result of each step and whether you need to restart. Takes 10 to 30 minutes in total.",
         "Mostra o resultado de cada etapa e se precisa reiniciar. Leva de 10 a 30 minutos no total."),
     ])],
+    "network-reset": [G("", "", [
+      I("Adapters", "Adaptadores", "auto", null,
+        "Shows each network adapter: connected or not, automatic or manual IP, and the DNS that will be kept.",
+        "Mostra cada adaptador de rede: conectado ou não, IP automático ou manual, e o DNS que será mantido."),
+      I("What to do", "O que fazer", "choice", { en: "Quick", pt: "Rápido" },
+        "Quick: clears the DNS and ARP caches and gets a new IP from the router, no restart. Full: also resets Winsock and TCP/IP, and needs a restart. With a manual IP, the TCP/IP reset is skipped so it is not erased.",
+        "Rápido: limpa os caches de DNS e ARP e pega um IP novo do roteador, sem reiniciar. Completo: também redefine o Winsock e o TCP/IP, e precisa reiniciar. Com IP manual, o reset do TCP/IP é pulado para não apagá-lo."),
+      I("Your DNS", "Seu DNS", "auto", null,
+        "Full: DNS servers set by hand and DNS over HTTPS are saved to %ProgramData%\\TidyWin\\network-reset before the reset and put back right after. The quick steps don't touch them.",
+        "Completo: os servidores DNS definidos à mão e o DNS over HTTPS são salvos em %ProgramData%\\TidyWin\\network-reset antes do reset e devolvidos logo depois. Os passos rápidos não mexem neles."),
+      I("Confirm", "Confirmar", "ask", true,
+        "Asks before changing anything; the connection drops for a few seconds. Over Remote Desktop, warns that the session will drop (default no). Not used: Settings' Network reset, which removes adapters and VPNs, and proxy resets.",
+        "Pergunta antes de mudar qualquer coisa; a conexão cai por alguns segundos. Pela Área de Trabalho Remota, avisa que a sessão vai cair (padrão não). Não usa: o Redefinir rede das Configurações, que remove adaptadores e VPNs, nem reset de proxy."),
+      I("Result", "Resultado", "auto", null,
+        "Tests the internet at the end. Full: offers to restart (default no).",
+        "Testa a internet no fim. Completo: oferece reiniciar (padrão não)."),
+    ])],
     wallpapers: [G("", "", [
       I("Preview", "Prévia", "ask", false,
         "Opens the gallery on GitHub in the browser so you can see the wallpapers before choosing.",
@@ -641,7 +660,7 @@
 
   const lists = {
     apply: ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev"],
-    check: ["windows-check", "cleanup", "repair", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
+    check: ["windows-check", "cleanup", "repair", "network-reset", "apps-export", "apps-import", "drivers-export", "drivers-import", "wallpapers"],
     undo:  ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
   };
 

@@ -42,6 +42,7 @@ To run another one, replace `windows` with any command from the table below. Eve
 | `windows-check` | After a big Windows update: finds what came back and reapplies it. |
 | `cleanup` | Frees disk space, asking before each item. |
 | `repair` | Repairs system files and the disk with Windows' own tools. |
+| `network-reset` | Fixes "connected, no internet" with Windows' own commands, keeping your DNS. [Details](docs/windows.md#network-reset) |
 | `apps-export` / `apps-import` | Saves your app list before formatting and installs it back afterwards. |
 | `drivers-export` / `drivers-import` | Saves the drivers you pick before formatting and installs back the ones Windows didn't. [Details](docs/drivers.md) |
 

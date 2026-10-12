@@ -115,6 +115,21 @@ Measures each item, asks before deleting each one and shows how much space was f
 
 For when Windows acts strange. Creates a restore point, checks the Windows image with DISM and repairs it from Windows Update only if it is damaged, runs `sfc /scannow`, and checks the disk online (asks before scheduling a fix at the next restart). Only Windows' own tools; your files, apps and settings are not touched. Takes 10 to 30 minutes.
 
+## Network reset
+
+```powershell
+irm androksi.github.io/tidywin/network-reset | iex
+```
+
+For "connected, no internet", sites that don't open or a connection that keeps dropping. Shows the network adapters (automatic or manual IP, and the DNS that will be kept), then asks how far to go:
+
+| Option | What it does |
+|---|---|
+| Quick (default) | Clears the DNS and ARP caches and gets a new IP from the router. No restart. |
+| Full | Also resets Winsock and TCP/IP (IPv4 and IPv6). Needs a restart. On a PC with a manual IP, the TCP/IP reset is skipped so the IP is not erased. |
+
+Full: DNS servers set by hand and DNS over HTTPS are saved to `%ProgramData%\TidyWin\network-reset` first and put back right after the reset. Not used: Settings' *Network reset* (it removes the adapters and VPNs) and proxy resets. The connection drops for a few seconds; the internet is tested at the end.
+
 ## Revert
 
 ```powershell
