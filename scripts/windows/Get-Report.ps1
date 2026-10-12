@@ -506,7 +506,9 @@ if (-not $OutFile) {
     $OutFile = Join-Path $desktop ("{0} {1}.html" -f (T 'TidyWin report' 'Relatório TidyWin'), (Get-Date -Format 'yyyy-MM-dd HHmm'))
 }
 try {
-    [IO.File]::WriteAllText($OutFile, (New-ReportHtml @($script:Rows)), (New-Object Text.UTF8Encoding $false))
+    # .ToArray(), not @(...): in Windows PowerShell 5.1, @(a List) bound to an [object[]] parameter fails
+    # with "Argument types do not match"
+    [IO.File]::WriteAllText($OutFile, (New-ReportHtml $script:Rows.ToArray()), (New-Object Text.UTF8Encoding $false))
 } catch {
     Write-Host (T "  Could not save the report: $($_.Exception.Message)" "  Não foi possível salvar o relatório: $($_.Exception.Message)") -ForegroundColor Red
     return
