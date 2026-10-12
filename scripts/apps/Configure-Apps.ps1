@@ -115,6 +115,13 @@ function Get-MozillaLocale([string[]]$Locales) {
 $ffLocale = Get-MozillaLocale $FirefoxLocales
 $tbLocale = Get-MozillaLocale $ThunderbirdLocales
 
+# Visual C++ Redistributables: one entry installs several packages. x86 always (32-bit programs need it,
+# even on 64-bit Windows), x64 on 64-bit Windows, arm64 (2015+ only) on ARM PCs.
+$is64  = [Environment]::Is64BitOperatingSystem
+$isArm = ($env:PROCESSOR_ARCHITECTURE, $env:PROCESSOR_ARCHITEW6432) -contains 'ARM64'
+$VcRedist     = @('Microsoft.VCRedist.2015+.x86') + @(if ($is64) { 'Microsoft.VCRedist.2015+.x64' }) + @(if ($isArm) { 'Microsoft.VCRedist.2015+.arm64' })
+$VcRedistOld  = @(foreach ($year in 2005, 2008, 2010, 2012, 2013) { "Microsoft.VCRedist.$year.x86"; if ($is64) { "Microsoft.VCRedist.$year.x64" } })
+
 $Apps = @(
     New-App (T 'Browsers' 'Navegadores')   'Brave'                 'Brave.Brave'                       'winget'  $false (T 'browser with an ad blocker' 'navegador com bloqueador de anúncios')
     New-App (T 'Browsers' 'Navegadores')   'Chrome'                'Google.Chrome'                     'winget'  $false (T 'Google''s browser' 'navegador do Google')
@@ -226,6 +233,8 @@ $Apps = @(
     New-App (T 'Utilities' 'Utilitários')   'Bulk Crap Uninstaller' 'Klocman.BulkCrapUninstaller'       'winget'  $false (T 'uninstalls and cleans up leftovers (open source)' 'desinstala e limpa os restos (open source)')
     New-App (T 'Utilities' 'Utilitários')   'CrystalDiskInfo'       'CrystalDewWorld.CrystalDiskInfo'   'winget'  $false (T 'SSD/HDD health (open source)' 'saúde do SSD/HD (open source)')
     New-App (T 'Utilities' 'Utilitários')   'Unified Remote'        'UnifiedIntents.UnifiedRemote'      'winget'  $false (T 'control the PC from your phone (server; the app goes on the phone)' 'controlar o PC pelo celular (servidor; o app vai no celular)')
+    New-App (T 'Utilities' 'Utilitários')   'Visual C++ 2015-2022'  $VcRedist                           'winget'  $false (T 'runtime most programs and games need (x64 + x86)' 'runtime que a maioria dos programas e jogos precisa (x64 + x86)')
+    New-App (T 'Utilities' 'Utilitários')   'Visual C++ 2005-2013'  $VcRedistOld                        'winget'  $false (T 'older runtimes, for older games and programs (x64 + x86)' 'runtimes antigos, para jogos e programas antigos (x64 + x86)')
 )
 
 #endregion
@@ -430,12 +439,19 @@ function Install-Apps {
     for ($i = 0; $i -lt $chosen.Count; $i++) {
         $app = $chosen[$i]
         Write-Step "[$($i + 1)/$($chosen.Count)] $($app.Name)"
-        $wingetArgs = @('install', '--id', $app.Id, '--exact', '--source', $app.Source,
-                        '--accept-package-agreements', '--accept-source-agreements')
-        if ($app.Interactive -and $app.Source -ne 'msstore') { $wingetArgs += '--interactive' }
-        & winget @wingetArgs
-        $code = $LASTEXITCODE
-        $status = if ($code -eq 0) { 'ok' } elseif ($code -in $AlreadyInstalledCodes) { 'already' } else { 'failed' }
+        # An entry may have several packages (Visual C++): failed if any failed, OK if any was installed
+        $statuses = @(); $code = 0
+        foreach ($id in @($app.Id)) {
+            if (@($app.Id).Count -gt 1) { Write-Host "  $id" -ForegroundColor DarkGray }
+            $wingetArgs = @('install', '--id', $id, '--exact', '--source', $app.Source,
+                            '--accept-package-agreements', '--accept-source-agreements')
+            if ($app.Interactive -and $app.Source -ne 'msstore') { $wingetArgs += '--interactive' }
+            & winget @wingetArgs
+            if ($LASTEXITCODE -eq 0) { $statuses += 'ok' }
+            elseif ($LASTEXITCODE -in $AlreadyInstalledCodes) { $statuses += 'already' }
+            else { $statuses += 'failed'; $code = $LASTEXITCODE }
+        }
+        $status = if ($statuses -contains 'failed') { 'failed' } elseif ($statuses -contains 'ok') { 'ok' } else { 'already' }
         $results += [pscustomobject]@{ Name = $app.Name; Status = $status; Code = $code }
     }
 
@@ -479,7 +495,7 @@ if (-not (Test-WinGet)) {
 Write-Host (T '  checking which apps are already installed...' '  verificando os apps que já estão instalados...') -ForegroundColor DarkGray
 $installedIds = Get-InstalledAppIds
 foreach ($app in $Apps) {
-    $app.Installed = $installedIds -contains $app.Id
+    $app.Installed = @($app.Id | Where-Object { $installedIds -notcontains $_ }).Count -eq 0   # every package of the entry
     # Firefox/Thunderbird in any language counts as installed (ESR, Beta and MSIX are other packages)
     if (-not $app.Installed -and $app.Id -match '^Mozilla\.(Firefox|Thunderbird)') {
         $app.Installed = [bool]($installedIds -cmatch ('^Mozilla\.' + $Matches[1] + '(\.[a-z]{2,3}(-[A-Za-z]+)?)?$'))

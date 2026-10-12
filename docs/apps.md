@@ -9,7 +9,7 @@
 | Feature | What it does |
 |---|---|
 | Install WinGet | If WinGet is missing (usually on Windows 10), offers to install it first. |
-| App list | 102 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
+| App list | 104 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
 | Already installed | Shows "instalado" (installed) next to apps already on the PC. |
 | Check category | A key: checks every app in the category (again: unchecks). |
 | Search | / key: type the name and the cursor jumps to the app. Enter confirms, Esc cancels. |
@@ -34,7 +34,7 @@
 ## Full list
 
 <details>
-<summary>See all 102 apps</summary>
+<summary>See all 104 apps</summary>
 
 ### Communication (8)
 
@@ -162,7 +162,7 @@
 | Cloudflare One | Cloudflare's WARP and 1.1.1.1 client; free VPN and Zero Trust access | `Cloudflare.Warp` |
 | Malwarebytes | anti-malware (second opinion to Defender) | `Malwarebytes.Malwarebytes` |
 
-### Utilities (16)
+### Utilities (18)
 
 | App | What it is | ID |
 |---|---|---|
@@ -182,6 +182,8 @@
 | Bulk Crap Uninstaller | uninstalls and cleans up leftovers (open source) | `Klocman.BulkCrapUninstaller` |
 | CrystalDiskInfo | SSD/HDD health (open source) | `CrystalDewWorld.CrystalDiskInfo` |
 | Unified Remote | control the PC from your phone (server; the app goes on the phone) | `UnifiedIntents.UnifiedRemote` |
+| Visual C++ 2015-2022 | runtime most programs and games need (x64 + x86; also arm64 on ARM PCs) | `Microsoft.VCRedist.2015+.x86`, `.x64`, `.arm64` |
+| Visual C++ 2005-2013 | older runtimes, for older games and programs (x64 + x86) | `Microsoft.VCRedist.<2005, 2008, 2010, 2012, 2013>.x86` and `.x64` |
 
 </details>
 

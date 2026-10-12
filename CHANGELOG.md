@@ -17,7 +17,7 @@
 - **Configure-Windows**: optional removal of the Snipping Tool, which also frees the Print Screen key for apps like ShareX.
 - **Configure-Firefox**: removes the "Add to taskbar" and Picture-in-Picture buttons from the address bar, asks whether to keep page translation and, optionally, removes the Reader View icon.
 - **Get-Wallpapers** (shortcut `wallpapers`): pick wallpapers from a list and download them, with a preview gallery in `docs/wallpapers.md` kept up to date by `tools/Update-WallpaperGallery.ps1`.
-- **Configure-Apps**: adds Cloudflare One (WARP / 1.1.1.1) and Unified Remote, 102 apps in total.
+- **Configure-Apps**: adds Cloudflare One (WARP / 1.1.1.1), Unified Remote and the Visual C++ Redistributables (2015-2022 and 2005-2013, x64 + x86), 104 apps in total. One entry can install several packages.
 - **Configure-Apps**: Firefox and Thunderbird follow the Windows display language instead of always installing Portuguese (Brazil).
 - **Install-Fonts** (shortcuts `fonts` and `fonts-revert`): pick from 19 fonts (code, Nerd Fonts and text) and install them for every user from their official sources; the revert removes only what it installed.
 - **Revert-Configure-Windows**: deletes only its own saved answers from `%ProgramData%\TidyWin`.
