@@ -139,6 +139,8 @@ function Remove-WindowsPolicies {
     Remove-Reg "$P\GameDVR" 'AllowGameDVR'
     Remove-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR' 'AppCaptureEnabled'
     if (Test-Path 'HKCU:\System\GameConfigStore') { Set-ItemProperty 'HKCU:\System\GameConfigStore' -Name GameDVR_Enabled -Value 1 -Type DWord }
+    # Print Screen key back to opening the Snipping Tool (the app itself comes back from the Microsoft Store)
+    Remove-Reg 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled'
     # Recall
     Remove-Reg "$P\WindowsAI" 'AllowRecallEnablement','DisableAIDataAnalysis'
     # Widgets / News and interests

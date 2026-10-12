@@ -382,6 +382,16 @@ function Remove-Apps([string[]]$List) {
     }
 }
 
+# Snipping Tool (Windows 10: Snip & Sketch). Separate question (default no), for whoever uses another
+# screenshot app such as ShareX. Win+Shift+S stops working; the Print Screen key is freed (on Windows 11
+# it opens the Snipping Tool by default) so the other app can take it over.
+$SnippingApps = @('Microsoft.ScreenSketch')
+function Remove-SnippingTool {
+    Remove-Apps $SnippingApps
+    Set-Reg 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled' 0
+    Write-Host (T '  Print Screen key: free for other apps (ShareX...)' '  tecla Print Screen: livre para outros apps (ShareX...)')
+}
+
 # Game DVR (background game recording) off. Without it, Windows doesn't try to open the removed
 # Game Bar ("You'll need a new app to open this ms-gamingoverlay link").
 function Disable-GameDvr {
@@ -1025,6 +1035,7 @@ function Invoke-Check {
         @{ Name = (T 'Suggestions and ads' 'Sugestões e anúncios');          On = $o.Suggestions;  Test = { Test-Suggestions }; Fix = { Disable-Suggestions } }
         @{ Name = (T 'Removed apps' 'Apps removidos');                On = $o.Apps;         Test = { $script:returnedApps = Get-ReturnedApps $appList; $script:returnedApps }; Fix = { Remove-Apps $script:returnedApps } }
         @{ Name = 'Xbox';                                                    On = $o.NoXbox;       Test = { $script:returnedXbox = Get-ReturnedApps $XboxApps; $script:returnedXbox; if ((Get-RegValue "$P\GameDVR" 'AllowGameDVR') -ne 0) { 'Game DVR' } }; Fix = { if ($script:returnedXbox) { Remove-Apps $script:returnedXbox }; Disable-GameDvr } }
+        @{ Name = (T 'Snipping Tool' 'Captura de Tela');               On = $o.NoSnipping;   Test = { Get-ReturnedApps $SnippingApps; if ((Get-RegValue 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled') -ne 0) { 'Print Screen' } }; Fix = { Remove-SnippingTool } }
         @{ Name = 'OneDrive';                      On = $o.OneDrive;     Test = { Test-OneDrive };    Fix = { Remove-OneDrive } }
         @{ Name = (T 'Edge policies' 'Políticas do Edge');             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
         @{ Name = (T 'Edge shortcut' 'Atalho do Edge');                On = $o.NoEdgeShortcut; Test = { Test-EdgeShortcut }; Fix = { Remove-EdgeDesktopShortcut } }
@@ -1090,6 +1101,7 @@ $opt.Suggestions  = Ask (T 'Disable suggestions, ads and silent app installs?' '
 $opt.Apps         = Ask (T 'Remove junk apps (Clipchamp, Bing, Solitaire, Teams, new Outlook...)?' 'Remover apps inúteis (Clipchamp, Bing, Solitaire, Teams, Outlook novo...)?') $true
 $opt.OptionalApps = if ($opt.Apps) { Ask (T 'Also remove Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote?' 'Remover também Vincular ao Celular, Sticky Notes, Gravador, Relógio, Assistência Rápida, Media Player e OneNote?') $false } else { $false }
 $opt.NoXbox       = Ask (T 'Remove the Xbox apps (Xbox app, Game Bar, Xbox sign-in and Gaming Services)? Store/Game Pass games and games that use Xbox sign-in (Minecraft, Forza...) stop working. Steam, Epic and Riot are not affected.' 'Remover os apps do Xbox (app Xbox, Game Bar, login Xbox e Gaming Services)? Jogos da Store/Game Pass e jogos com login Xbox (Minecraft, Forza...) param de funcionar. Steam, Epic e Riot não são afetados.') $false
+$opt.NoSnipping   = Ask (T 'Remove the Snipping Tool (Win+Shift+S stops working and the Print Screen key is freed)? Useful if you will install ShareX or another screenshot app.' 'Remover a Captura de Tela (o Win+Shift+S para de funcionar e a tecla Print Screen fica livre)? Útil se você vai instalar o ShareX ou outro app de captura.') $false
 if ($foldersInOneDrive) {
     Write-Host (T "  WARNING: these folders are inside OneDrive: $($foldersInOneDrive -join ', ')" "  ATENÇÃO: estas pastas estão dentro do OneDrive: $($foldersInOneDrive -join ', ')") -ForegroundColor Yellow
     Write-Host (T '  Turn off folder backup in OneDrive before removing it.' '  Desligue o backup de pastas no OneDrive antes de removê-lo.') -ForegroundColor Yellow
@@ -1175,7 +1187,7 @@ $opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' }
 # --- Summary and confirmation
 # Labels shown on screen for each option (in the chosen language, like the questions).
 $labels = @{
-    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais'); NoXbox = (T 'No Xbox' 'Sem Xbox')
+    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais'); NoXbox = (T 'No Xbox' 'Sem Xbox'); NoSnipping = (T 'No Snipping Tool' 'Sem Captura de Tela')
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
     Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados')
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); NoSnap = (T 'No Snap' 'Sem Ajustar janelas'); ThinBorder = (T 'Thin border' 'Borda fina')
@@ -1232,6 +1244,7 @@ if ($opt.Apps) {
 if ($opt.NoXbox) {
     Invoke-Step (T 'Removing the Xbox apps' 'Removendo os apps do Xbox') { Remove-Apps $XboxApps; Disable-GameDvr }
 }
+if ($opt.NoSnipping) { Invoke-Step (T 'Removing the Snipping Tool' 'Removendo a Captura de Tela') { Remove-SnippingTool } }
 if ($opt.OneDrive) { Invoke-Step (T 'Removing OneDrive' 'Removendo OneDrive')                                          { Remove-OneDrive } }
 if ($opt.Edge)     { Invoke-Step (T 'Edge: no telemetry, background mode, sidebar or shopping' 'Edge: sem telemetria, segundo plano, barra lateral e compras') { Set-EdgePolicies } }
 if ($opt.NoRecall) { Invoke-Step 'Recall' { Disable-Recall } }

@@ -157,6 +157,9 @@
         I("Remove the Xbox apps", "Remover os apps do Xbox", "ask", false,
           "Removes the Xbox app, Xbox Game Bar (Win+G), Xbox sign-in for games and Gaming Services, and turns off game recording (Game DVR) so Windows doesn't ask for the removed Game Bar. Microsoft Store and Game Pass games and games with Xbox sign-in (Minecraft, Forza, Halo) stop working; Steam, Epic, Riot and Game Mode are not affected. The apps come back from the Microsoft Store.",
           "Remove o app Xbox, a Xbox Game Bar (Win+G), o login Xbox dos jogos e o Gaming Services, e desliga a gravação de jogos (Game DVR) para o Windows não pedir a Game Bar removida. Jogos da Microsoft Store e do Game Pass e jogos com login Xbox (Minecraft, Forza, Halo) param de funcionar; Steam, Epic, Riot e o Modo de Jogo não são afetados. Os apps voltam pela Microsoft Store."),
+        I("Remove the Snipping Tool", "Remover a Captura de Tela", "ask", false,
+          "For whoever will use ShareX or another screenshot app. Removes the Snipping Tool (Snip & Sketch on Windows 10) for every user and frees the Print Screen key, which on Windows 11 opens the Snipping Tool, so the other app can use it. Win+Shift+S stops working. The app comes back from the Microsoft Store.",
+          "Para quem vai usar o ShareX ou outro app de captura. Remove a Captura de Tela (Recorte e Esboço no Windows 10) para todos os usuários e libera a tecla Print Screen, que no Windows 11 abre a Captura de Tela, para o outro app poder usar. O Win+Shift+S para de funcionar. O app volta pela Microsoft Store."),
         I("Remove OneDrive", "Remover o OneDrive", "ask", true,
           "Closes and uninstalls OneDrive, removes it from startup and blocks it by policy so it doesn't come back. If your Desktop, Documents or Pictures are inside OneDrive, the default becomes no and it warns you to turn off folder backup first.",
           "Fecha e desinstala o OneDrive, tira ele da inicialização e bloqueia por política para não voltar. Se sua Área de Trabalho, Documentos ou Imagens estiverem dentro do OneDrive, o padrão vira não e ele avisa para desligar o backup de pastas antes."),
@@ -289,8 +292,8 @@
           "Goes back to the router's DNS on every adapter, without encryption.",
           "Volta para o DNS do roteador em todos os adaptadores, sem criptografia."),
         I("File Explorer and others", "Explorador e outros", "auto", null,
-          "Brings back Home and Gallery, Music in Quick access, the new right-click menu, folder type discovery, the default window border, Snap windows, manufacturer apps for devices, firmware programs (WPBT), Fast Startup, Num Lock off at startup, the simple blue screen and the visible inetpub folder.",
-          "Traz de volta Início e Galeria, Músicas no Acesso rápido, o menu novo do botão direito, a descoberta de tipo de pasta, a borda padrão das janelas, o Ajustar janelas, os apps de fabricante para periféricos, os programas do firmware (WPBT), a inicialização rápida, o Num Lock desligado ao iniciar, a tela azul simples e a pasta inetpub visível."),
+          "Brings back Home and Gallery, Music in Quick access, the new right-click menu, folder type discovery, the default window border, Snap windows, the Print Screen key opening the Snipping Tool, manufacturer apps for devices, firmware programs (WPBT), Fast Startup, Num Lock off at startup, the simple blue screen and the visible inetpub folder.",
+          "Traz de volta Início e Galeria, Músicas no Acesso rápido, o menu novo do botão direito, a descoberta de tipo de pasta, a borda padrão das janelas, o Ajustar janelas, a tecla Print Screen abrindo a Captura de Tela, os apps de fabricante para periféricos, os programas do firmware (WPBT), a inicialização rápida, o Num Lock desligado ao iniciar, a tela azul simples e a pasta inetpub visível."),
       ]),
       G("Not undone", "Não é desfeito", [
         I("Removed apps and OneDrive", "Apps removidos e OneDrive", "auto", null,
@@ -414,8 +417,8 @@
 
     "windows-check": [G("", "", [
       I("What is checked", "O que é conferido", "auto", null,
-        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, Xbox apps, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
-        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, apps do Xbox, OneDrive, políticas do Edge, Segurança do Windows, Recall, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
+        "Only what you answered yes to the last time you ran the windows command: telemetry, suggestions, removed apps, Xbox apps, Snipping Tool, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose.",
+        "Só o que você respondeu sim na última vez que rodou o comando windows: telemetria, sugestões, apps removidos, apps do Xbox, Captura de Tela, OneDrive, políticas do Edge, Segurança do Windows, Recall, atalho do Edge, pastas do C:, apps de fabricante, WPBT, áreas de conta, Num Lock, inicialização rápida, caminhos longos, tela azul detalhada e DNS. Personalização não é conferida, porque você pode ter mudado de propósito."),
       I("Reapply", "Reaplicar", "ask", true,
         "Shows each item as OK or as back, with what changed. Then asks whether to reapply only the items that came back. Answering no changes nothing.",
         "Mostra cada item como OK ou como voltou, com o que mudou. Depois pergunta se quer reaplicar só os itens que voltaram. Respondendo não, nada é alterado."),

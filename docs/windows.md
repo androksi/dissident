@@ -24,6 +24,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Junk apps | Removes Clipchamp, Bing, Solitaire, Teams, the new Outlook, Copilot and others. |
 | Optional apps | Also removes Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote. |
 | Xbox | Removes the Xbox app, Game Bar, Xbox sign-in and Gaming Services, and turns off Game DVR. Store/Game Pass games and games with Xbox sign-in stop working; Steam, Epic and Riot don't. Default no. |
+| Snipping Tool | Removes the Snipping Tool (Snip & Sketch on Windows 10) and frees the Print Screen key for another app such as ShareX. Win+Shift+S stops working. Default no. |
 | OneDrive | Uninstalls OneDrive and keeps it from coming back. |
 | Edge | Edge policies: no telemetry, background mode, sidebar, Copilot or shopping. |
 | Recall | Windows 11: removes Recall and stops it from being turned on (official policies). Only exists on Copilot+ PCs. |
@@ -117,5 +118,5 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
-| Not reverted | Removed apps (Xbox included; reinstall from the Microsoft Store), OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |
+| Revert | Undoes telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
+| Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |
