@@ -174,32 +174,40 @@ if ($PSVersionTable.PSEdition -ne 'Desktop') {
 
 # Group: Code, Icons (Nerd Fonts: code font + terminal icons) or Text.
 # Family: name Windows shows in font menus (used to detect whether it is already installed).
-# Source 'release': $Repo's latest GitHub release, the asset matching $Asset, the files inside matching $Files.
-# Source 'google':  the google/fonts repository folder $Repo, the files matching $Files.
+# Source 'release': $Repo's latest GitHub release; $Asset is the .zip name ({v} = version, read from the
+#                   release page) and $Files picks the files inside it.
+# Source 'google':  $Files are file names in the google/fonts repository folder $Repo.
+# No GitHub API on purpose: without a login it allows only 60 calls per hour per IP address.
 function New-Font($Group, $Name, $Family, $Note, $Source, $Repo, $Asset, $Files) {
     [pscustomobject]@{ Group = $Group; Name = $Name; Family = $Family; Note = $Note; Source = $Source; Repo = $Repo; Asset = $Asset; Files = $Files }
 }
 
+# File names of a family with one file per style, upright and italic: Lato-Bold.ttf, Lato-BoldItalic.ttf...
+function Get-StaticNames([string]$Prefix, [string[]]$Weights) {
+    foreach ($w in $Weights) { "$Prefix-$w.ttf"; "$Prefix-$(if ($w -eq 'Regular') { 'Italic' } else { "${w}Italic" }).ttf" }
+}
+$AllWeights = 'Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'
+
 $Fonts = @(
-    New-Font Code  'JetBrains Mono'  'JetBrains Mono'  (T 'made for code, with ligatures (JetBrains IDEs)' 'feita para código, com ligaduras (IDEs da JetBrains)') release 'JetBrains/JetBrainsMono' '^JetBrainsMono-[\d.]+\.zip$' '^fonts/ttf/JetBrainsMono-[^/]+\.ttf$'
-    New-Font Code  'Fira Code'       'Fira Code'       (T 'with ligatures (=> != ===)' 'com ligaduras (=> != ===)') release 'tonsky/FiraCode' '^Fira_Code_v[\d.]+\.zip$' '^ttf/[^/]+\.ttf$'
-    New-Font Code  'Geist Mono'      'Geist Mono'      (T 'by Vercel, clean and modern' 'da Vercel, limpa e moderna') release 'vercel/geist-font' '^geist-font-v[\d.]+\.zip$' '/GeistMono/ttf/[^/]+\.ttf$'
-    New-Font Code  'Source Code Pro' 'Source Code Pro' (T 'by Adobe, classic and very readable' 'da Adobe, clássica e muito legível') release 'adobe-fonts/source-code-pro' '^TTF-source-code-pro-.*\.zip$' '^TTF/[^/]+\.ttf$'
-    New-Font Code  'IBM Plex Mono'   'IBM Plex Mono'   (T 'by IBM, slightly rounded' 'da IBM, levemente arredondada') google 'ofl/ibmplexmono' $null '\.ttf$'
-    New-Font Code  'Hack'            'Hack'            (T 'simple, made for small sizes' 'simples, feita para tamanhos pequenos') release 'source-foundry/Hack' '^Hack-v[\d.]+-ttf\.zip$' '^ttf/[^/]+\.ttf$'
-    New-Font Icons 'JetBrainsMono Nerd Font'  'JetBrainsMono Nerd Font'  (T 'JetBrains Mono + icons (download ~130 MB)' 'JetBrains Mono + ícones (download ~130 MB)') release 'ryanoasis/nerd-fonts' '^JetBrainsMono\.zip$' '^JetBrainsMonoNerdFont-[^/]+\.ttf$'
-    New-Font Icons 'CaskaydiaCove Nerd Font'  'CaskaydiaCove Nerd Font'  (T 'Cascadia Code (Windows Terminal) + icons (download ~55 MB)' 'Cascadia Code (Windows Terminal) + ícones (download ~55 MB)') release 'ryanoasis/nerd-fonts' '^CascadiaCode\.zip$' '^CaskaydiaCoveNerdFont-[^/]+\.ttf$'
-    New-Font Icons 'FiraCode Nerd Font'       'FiraCode Nerd Font'       (T 'Fira Code + icons (download ~30 MB)' 'Fira Code + ícones (download ~30 MB)') release 'ryanoasis/nerd-fonts' '^FiraCode\.zip$' '^FiraCodeNerdFont-[^/]+\.ttf$'
-    New-Font Icons 'MesloLGS Nerd Font'       'MesloLGS Nerd Font'       (T 'the one Oh My Posh and Powerlevel10k recommend (download ~110 MB)' 'a que o Oh My Posh e o Powerlevel10k recomendam (download ~110 MB)') release 'ryanoasis/nerd-fonts' '^Meslo\.zip$' '^MesloLGSNerdFont-[^/]+\.ttf$'
-    New-Font Text  'Inter'           'Inter Variable'  (T 'made for screens; popular in apps and websites' 'feita para telas; muito usada em apps e sites') release 'rsms/inter' '^Inter-[\d.]+\.zip$' '^InterVariable(-Italic)?\.ttf$'
-    New-Font Text  'Geist'           'Geist'           (T 'by Vercel, pairs with Geist Mono' 'da Vercel, combina com a Geist Mono') release 'vercel/geist-font' '^geist-font-v[\d.]+\.zip$' '/Geist/ttf/[^/]+\.ttf$'
-    New-Font Text  'IBM Plex Sans'   'IBM Plex Sans'   (T 'by IBM, pairs with IBM Plex Mono' 'da IBM, combina com a IBM Plex Mono') google 'ofl/ibmplexsans' $null '\.ttf$'
-    New-Font Text  'Roboto'          'Roboto'          (T 'Android and Google' 'Android e Google') google 'ofl/roboto' $null '\.ttf$'
-    New-Font Text  'Open Sans'       'Open Sans'       (T 'neutral, very readable' 'neutra, muito legível') google 'ofl/opensans' $null '\.ttf$'
-    New-Font Text  'Noto Sans'       'Noto Sans'       (T 'covers almost every language' 'cobre quase todos os idiomas') google 'ofl/notosans' $null '\.ttf$'
-    New-Font Text  'Lato'            'Lato'            (T 'warm, good for documents' 'calorosa, boa para documentos') google 'ofl/lato' $null '\.ttf$'
-    New-Font Text  'Montserrat'      'Montserrat'      (T 'geometric, good for titles' 'geométrica, boa para títulos') google 'ofl/montserrat' $null '\.ttf$'
-    New-Font Text  'Poppins'         'Poppins'         (T 'geometric and round, good for presentations' 'geométrica e redonda, boa para apresentações') google 'ofl/poppins' $null '\.ttf$'
+    New-Font Code  'JetBrains Mono'  'JetBrains Mono'  (T 'made for code, with ligatures (JetBrains IDEs)' 'feita para código, com ligaduras (IDEs da JetBrains)') release 'JetBrains/JetBrainsMono' 'JetBrainsMono-{v}.zip' '^fonts/ttf/JetBrainsMono-[^/]+\.ttf$'
+    New-Font Code  'Fira Code'       'Fira Code'       (T 'with ligatures (=> != ===)' 'com ligaduras (=> != ===)') release 'tonsky/FiraCode' 'Fira_Code_v{v}.zip' '^ttf/[^/]+\.ttf$'
+    New-Font Code  'Geist Mono'      'Geist Mono'      (T 'by Vercel, clean and modern' 'da Vercel, limpa e moderna') release 'vercel/geist-font' 'geist-font-v{v}.zip' '/GeistMono/ttf/[^/]+\.ttf$'
+    New-Font Code  'Source Code Pro' 'Source Code Pro' (T 'by Adobe, classic and very readable' 'da Adobe, clássica e muito legível') google 'ofl/sourcecodepro' $null @('SourceCodePro[wght].ttf', 'SourceCodePro-Italic[wght].ttf')
+    New-Font Code  'IBM Plex Mono'   'IBM Plex Mono'   (T 'by IBM, slightly rounded' 'da IBM, levemente arredondada') google 'ofl/ibmplexmono' $null @(Get-StaticNames 'IBMPlexMono' ('Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold'))
+    New-Font Code  'Hack'            'Hack'            (T 'simple, made for small sizes' 'simples, feita para tamanhos pequenos') release 'source-foundry/Hack' 'Hack-v{v}-ttf.zip' '^ttf/[^/]+\.ttf$'
+    New-Font Icons 'JetBrainsMono Nerd Font'  'JetBrainsMono Nerd Font'  (T 'JetBrains Mono + icons (download ~130 MB)' 'JetBrains Mono + ícones (download ~130 MB)') release 'ryanoasis/nerd-fonts' 'JetBrainsMono.zip' '^JetBrainsMonoNerdFont-[^/]+\.ttf$'
+    New-Font Icons 'CaskaydiaCove Nerd Font'  'CaskaydiaCove Nerd Font'  (T 'Cascadia Code (Windows Terminal) + icons (download ~55 MB)' 'Cascadia Code (Windows Terminal) + ícones (download ~55 MB)') release 'ryanoasis/nerd-fonts' 'CascadiaCode.zip' '^CaskaydiaCoveNerdFont-[^/]+\.ttf$'
+    New-Font Icons 'FiraCode Nerd Font'       'FiraCode Nerd Font'       (T 'Fira Code + icons (download ~30 MB)' 'Fira Code + ícones (download ~30 MB)') release 'ryanoasis/nerd-fonts' 'FiraCode.zip' '^FiraCodeNerdFont-[^/]+\.ttf$'
+    New-Font Icons 'MesloLGS Nerd Font'       'MesloLGS Nerd Font'       (T 'the one Oh My Posh and Powerlevel10k recommend (download ~110 MB)' 'a que o Oh My Posh e o Powerlevel10k recomendam (download ~110 MB)') release 'ryanoasis/nerd-fonts' 'Meslo.zip' '^MesloLGSNerdFont-[^/]+\.ttf$'
+    New-Font Text  'Inter'           'Inter Variable'  (T 'made for screens; popular in apps and websites' 'feita para telas; muito usada em apps e sites') release 'rsms/inter' 'Inter-{v}.zip' '^InterVariable(-Italic)?\.ttf$'
+    New-Font Text  'Geist'           'Geist'           (T 'by Vercel, pairs with Geist Mono' 'da Vercel, combina com a Geist Mono') release 'vercel/geist-font' 'geist-font-v{v}.zip' '/Geist/ttf/[^/]+\.ttf$'
+    New-Font Text  'IBM Plex Sans'   'IBM Plex Sans'   (T 'by IBM, pairs with IBM Plex Mono' 'da IBM, combina com a IBM Plex Mono') google 'ofl/ibmplexsans' $null @('IBMPlexSans[wdth,wght].ttf', 'IBMPlexSans-Italic[wdth,wght].ttf')
+    New-Font Text  'Roboto'          'Roboto'          (T 'Android and Google' 'Android e Google') google 'ofl/roboto' $null @('Roboto[wdth,wght].ttf', 'Roboto-Italic[wdth,wght].ttf')
+    New-Font Text  'Open Sans'       'Open Sans'       (T 'neutral, very readable' 'neutra, muito legível') google 'ofl/opensans' $null @('OpenSans[wdth,wght].ttf', 'OpenSans-Italic[wdth,wght].ttf')
+    New-Font Text  'Noto Sans'       'Noto Sans'       (T 'covers almost every language' 'cobre quase todos os idiomas') google 'ofl/notosans' $null @('NotoSans[wdth,wght].ttf', 'NotoSans-Italic[wdth,wght].ttf')
+    New-Font Text  'Lato'            'Lato'            (T 'warm, good for documents' 'calorosa, boa para documentos') google 'ofl/lato' $null @(Get-StaticNames 'Lato' $AllWeights)
+    New-Font Text  'Montserrat'      'Montserrat'      (T 'geometric, good for titles' 'geométrica, boa para títulos') google 'ofl/montserrat' $null @('Montserrat[wght].ttf', 'Montserrat-Italic[wght].ttf')
+    New-Font Text  'Poppins'         'Poppins'         (T 'geometric and round, good for presentations' 'geométrica e redonda, boa para apresentações') google 'ofl/poppins' $null @(Get-StaticNames 'Poppins' $AllWeights)
 )
 
 #endregion
@@ -213,6 +221,7 @@ $UserKey   = 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
 $StateFile = Join-Path $env:ProgramData 'TidyWin\fonts.json'
 $Work      = Join-Path $env:TEMP 'tidywin-fonts'
 $script:Zips = @{}      # download URL -> zip already downloaded in this run (Geist and Geist Mono share one)
+$script:Tags = @{}      # repository -> latest release tag
 
 # Installed if the regular style is registered, for all users or only for this user
 # ("JetBrains Mono (TrueType)" or "JetBrains Mono Regular (TrueType)").
@@ -225,14 +234,31 @@ function Test-FontInstalled([string]$Family) {
     return $false
 }
 
-# GitHub API call. Without a login GitHub allows 60 per hour; say so instead of a raw 403.
-function Get-GitHub([string]$Path) {
-    try { return Invoke-RestMethod "https://api.github.com/$Path" -UseBasicParsing -Headers @{ 'User-Agent' = 'TidyWin' } -ErrorAction Stop }
+# Downloads a file, with readable errors. Saves to a plain name first and then renames:
+# Invoke-WebRequest -OutFile reads "[" and "]" (Roboto[wdth,wght].ttf) as a wildcard.
+function Save-Url([string]$Url, [string]$Path) {
+    $tmp = Join-Path (Split-Path $Path) 'download.tmp'
+    try { Invoke-WebRequest $Url -OutFile $tmp -UseBasicParsing -UserAgent 'TidyWin' -ErrorAction Stop }
     catch {
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
         $status = $_.Exception.Response.StatusCode.value__
-        if ($status -eq 403 -or $status -eq 429) { throw (T 'GitHub download limit reached; try again in an hour' 'limite de downloads do GitHub atingido; tente de novo daqui a uma hora') }
+        if ($status -eq 404) { throw (T "not found: $Url" "não encontrado: $Url") }
+        if ($status -eq 403 -or $status -eq 429) { throw (T 'GitHub is limiting downloads from this connection; try again later' 'o GitHub está limitando downloads desta conexão; tente de novo mais tarde') }
         throw
     }
+    Move-Item -LiteralPath $tmp -Destination $Path -Force
+}
+
+# Latest release tag, read from where github.com/<repo>/releases/latest redirects to (".../releases/tag/v2.304").
+function Get-LatestTag([string]$Repo) {
+    if ($script:Tags.ContainsKey($Repo)) { return $script:Tags[$Repo] }
+    $req = [Net.HttpWebRequest]::Create("https://github.com/$Repo/releases/latest")
+    $req.Method = 'HEAD'; $req.AllowAutoRedirect = $false; $req.UserAgent = 'TidyWin'
+    $resp = $req.GetResponse()
+    try { $location = $resp.Headers['Location'] } finally { $resp.Close() }
+    if ($location -notmatch '/releases/tag/([^/?#]+)$') { throw (T "could not find the latest version of $Repo" "não foi possível achar a última versão de $Repo") }
+    $script:Tags[$Repo] = [uri]::UnescapeDataString($Matches[1])
+    return $script:Tags[$Repo]
 }
 
 # Downloads the font's package and returns its font files, extracted to their own folder.
@@ -242,26 +268,21 @@ function Get-FontFiles($Font) {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 
     if ($Font.Source -eq 'google') {
-        $list = @((Get-GitHub "repos/google/fonts/contents/$($Font.Repo)") | ForEach-Object { $_ })   # unroll the JSON array
-        $files = @($list | Where-Object { $_.type -eq 'file' -and $_.name -match $Font.Files })
-        if (-not $files) { throw (T 'no font files found' 'nenhum arquivo de fonte encontrado') }
-        Write-Host (T "  downloading $($files.Count) file(s) ($(Format-Size ($files | Measure-Object size -Sum).Sum))..." "  baixando $($files.Count) arquivo(s) ($(Format-Size ($files | Measure-Object size -Sum).Sum))...")
-        $i = 0
-        foreach ($f in $files) {
-            # Names like "Roboto[wdth,wght].ttf": download to a plain name, then rename (OutFile reads [] as a wildcard)
-            $tmp = Join-Path $dir "download$i.tmp"; $i++
-            Invoke-WebRequest $f.download_url -OutFile $tmp -UseBasicParsing -ErrorAction Stop
-            Move-Item -LiteralPath $tmp -Destination (Join-Path $dir $f.name) -Force
+        Write-Host (T "  downloading $(@($Font.Files).Count) file(s) from Google Fonts..." "  baixando $(@($Font.Files).Count) arquivo(s) do Google Fonts...")
+        foreach ($name in $Font.Files) {
+            Save-Url "https://raw.githubusercontent.com/google/fonts/main/$($Font.Repo)/$([uri]::EscapeDataString($name))" (Join-Path $dir $name)
         }
     } else {
-        $release = Get-GitHub "repos/$($Font.Repo)/releases/latest"
-        $asset = @($release.assets | Where-Object { $_.name -match $Font.Asset })[0]
-        if (-not $asset) { throw (T "package not found in the $($Font.Repo) release" "pacote não encontrado na versão do $($Font.Repo)") }
-        $url = $asset.browser_download_url
+        if ($Font.Asset -match '\{v\}') {
+            $tag = Get-LatestTag $Font.Repo
+            $url = "https://github.com/$($Font.Repo)/releases/download/$tag/$($Font.Asset -replace '\{v\}', ($tag -replace '^v', ''))"
+        } else {
+            $url = "https://github.com/$($Font.Repo)/releases/latest/download/$($Font.Asset)"
+        }
         if (-not $script:Zips.ContainsKey($url)) {
-            $zip = Join-Path $Work $asset.name
-            Write-Host (T "  downloading $($asset.name) ($(Format-Size $asset.size))..." "  baixando $($asset.name) ($(Format-Size $asset.size))...")
-            Invoke-WebRequest $url -OutFile $zip -UseBasicParsing -ErrorAction Stop
+            $zip = Join-Path $Work (Split-Path $url -Leaf)
+            Write-Host (T "  downloading $(Split-Path $url -Leaf)..." "  baixando $(Split-Path $url -Leaf)...")
+            Save-Url $url $zip
             $script:Zips[$url] = $zip
         }
         # Extract only the wanted files (faster than Expand-Archive on the big Nerd Font packages)

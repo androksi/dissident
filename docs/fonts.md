@@ -15,7 +15,7 @@ Check the fonts you want and they are installed for every user of the PC, ready 
 | JetBrains Mono | [JetBrains/JetBrainsMono](https://github.com/JetBrains/JetBrainsMono) | Made for code, with ligatures. The font of the JetBrains IDEs. |
 | Fira Code | [tonsky/FiraCode](https://github.com/tonsky/FiraCode) | With ligatures (`=>`, `!=`, `===`). |
 | Geist Mono | [vercel/geist-font](https://github.com/vercel/geist-font) | By Vercel. |
-| Source Code Pro | [adobe-fonts/source-code-pro](https://github.com/adobe-fonts/source-code-pro) | By Adobe. |
+| Source Code Pro | [Google Fonts](https://fonts.google.com/specimen/Source+Code+Pro) | By Adobe. |
 | IBM Plex Mono | [Google Fonts](https://fonts.google.com/specimen/IBM+Plex+Mono) | By IBM. |
 | Hack | [source-foundry/Hack](https://github.com/source-foundry/Hack) | Made for small sizes. |
 
@@ -52,7 +52,7 @@ Every font on the list is free to use and share (SIL Open Font License; Hack und
 
 - Files go to `C:\Windows\Fonts` and are registered for every user, like Windows' own "Install for all users".
 - What was installed is recorded in `%ProgramData%\TidyWin\fonts.json`.
-- The list of files comes from GitHub, which allows 60 lookups per hour without a login. One run uses at most one per font; if the limit is reached, the script says so.
+- Downloads come straight from github.com and raw.githubusercontent.com. The GitHub API is not used: without a login it allows only 60 calls per hour, shared by everyone on the same connection.
 
 ## Revert
 
@@ -66,6 +66,6 @@ Lists the fonts installed by `fonts`, all checked; uncheck the ones to keep. Fon
 
 One `New-Font` line in [`Install-Fonts.ps1`](../scripts/fonts/Install-Fonts.ps1) (section 2), then this page and the `fonts` entry in [`web/index.html`](../web/index.html):
 
-- `release`: the GitHub repository, a pattern for the release asset (`.zip`) and a pattern for the files inside it. Prefer the `.ttf` files and only one set: static **or** variable, never both.
-- `google`: the folder in [google/fonts](https://github.com/google/fonts) (`ofl/<name>`).
+- `release`: the GitHub repository, the release `.zip` name (`{v}` stands for the version, e.g. `JetBrainsMono-{v}.zip`) and a pattern for the files inside it. Prefer the `.ttf` files and only one set: static **or** variable, never both.
+- `google`: the folder in [google/fonts](https://github.com/google/fonts) (`ofl/<name>`) and the file names in it. For one file per style, `Get-StaticNames` builds the list.
 - The family is the name Windows shows in font menus. The script uses it to tell whether the font is already installed.
