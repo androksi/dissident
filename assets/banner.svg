@@ -1,19 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="470" viewBox="0 0 960 470" role="img" aria-label="TidyWin running in Windows PowerShell">
-  <!-- Terminal window showing the real output of the Brave shortcut. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-label="The TidyWin menu running in Windows PowerShell">
+  <!-- Terminal window showing the TidyWin menu (scripts/TidyWin.ps1) as it opens. -->
   <style>
     text { font-family: "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace; font-size: 17px; fill: #e6edf3; white-space: pre; }
-    .ui   { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 13px; fill: #8b949e; }
-    .dim  { fill: #8b949e; }
-    .cmd  { fill: #e6edf3; }
-    .url  { fill: #79c0ff; }
-    .step { fill: #39c5cf; }
-    .ok   { fill: #3fb950; }
-    .val  { fill: #6e7681; }
-    .done { fill: #3fb950; }
+    .ui    { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 13px; fill: #8b949e; }
+    .dim   { fill: #8b949e; }
+    .cmd   { fill: #e6edf3; }
+    .url   { fill: #79c0ff; }
+    .title { fill: #3fb950; }
+    .group { fill: #d29922; }
+    .sel   { fill: #39c5cf; }
+    .item  { fill: #c9d1d9; }
+    .desc  { fill: #ffffff; }
   </style>
 
   <!-- window -->
-  <rect x="1" y="1" width="958" height="468" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <rect x="1" y="1" width="958" height="638" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
   <path d="M1 13 a12 12 0 0 1 12 -12 h934 a12 12 0 0 1 12 12 v29 h-958 z" fill="#161b22"/>
   <line x1="1" y1="42" x2="959" y2="42" stroke="#30363d" stroke-width="1"/>
 
@@ -30,20 +31,30 @@
     <line x1="922" y1="16" x2="933" y2="27"/><line x1="933" y1="16" x2="922" y2="27"/>
   </g>
 
-  <!-- output -->
-  <text x="28" y="84"><tspan class="dim">PS C:\&gt;</tspan><tspan class="cmd"> irm </tspan><tspan class="url">androksi.github.io/tidywin/brave</tspan><tspan class="cmd"> | iex</tspan></text>
+  <!-- command -->
+  <text x="28" y="84"><tspan class="dim">PS C:\&gt;</tspan><tspan class="cmd"> irm </tspan><tspan class="url">androksi.github.io/tidywin/run</tspan><tspan class="cmd"> | iex</tspan></text>
 
-  <text x="28" y="128" class="step">==&gt; Recursos do Brave</text>
-  <text x="28" y="156"><tspan class="ok">  [OK] </tspan>Wallet (web3, DNS descentralizado): off<tspan class="val" x="560">BraveWalletDisabled = 1</tspan></text>
-  <text x="28" y="184"><tspan class="ok">  [OK] </tspan>VPN: off<tspan class="val" x="560">BraveVPNDisabled = 1</tspan></text>
-  <text x="28" y="212"><tspan class="ok">  [OK] </tspan>Recompensas (BAT e anúncios): off<tspan class="val" x="560">BraveRewardsDisabled = 1</tspan></text>
-  <text x="28" y="240"><tspan class="ok">  [OK] </tspan>Leo (assistente de IA): off<tspan class="val" x="560">BraveAIChatEnabled = 0</tspan></text>
+  <!-- menu -->
+  <text x="28" y="126" class="title">  TidyWin</text>
+  <text x="28" y="152" class="dim">  Windows 11 Pro 24H2 · every option asks before changing anything</text>
 
-  <text x="28" y="284" class="step">==&gt; Telemetria do Brave</text>
-  <text x="28" y="312"><tspan class="ok">  [OK] </tspan>Análises de uso do produto (P3A): off<tspan class="val" x="560">BraveP3AEnabled = 0</tspan></text>
-  <text x="28" y="340"><tspan class="ok">  [OK] </tspan>Ping diário de uso: off<tspan class="val" x="560">BraveStatsPingEnabled = 0</tspan></text>
-  <text x="28" y="368"><tspan class="ok">  [OK] </tspan>Web Discovery Project: off<tspan class="val" x="560">BraveWebDiscoveryEnabled = 0</tspan></text>
+  <text x="28" y="190" class="group">  Set up</text>
+  <text x="28" y="216" class="sel">  &gt; Windows</text>
+  <text x="28" y="242" class="item">    Install apps</text>
+  <text x="28" y="268" class="item">    Install fonts</text>
+  <text x="28" y="294" class="item">    Chrome</text>
+  <text x="28" y="320" class="item">    Brave</text>
+  <text x="28" y="346" class="item">    Firefox</text>
+  <text x="28" y="372" class="item">    Development</text>
+  <text x="28" y="398" class="item">    Wallpapers</text>
 
-  <text x="28" y="412" class="done">Pronto. Feche e abra o Brave (ou confira em brave://policy).</text>
-  <rect x="28" y="428" width="10" height="20" fill="#e6edf3" opacity="0.85"/>
+  <text x="28" y="436" class="group">  Maintenance</text>
+  <text x="28" y="462" class="item">    PC report</text>
+  <text x="28" y="488" class="item">    Check after a Windows update</text>
+  <text x="28" y="514" class="item">    Uninstall programs</text>
+
+  <!-- description of the selected option, then the keys -->
+  <text x="28" y="556" class="desc">  Turns off telemetry, ads and suggestions, removes preinstalled apps and OneDrive,</text>
+  <text x="28" y="582" class="desc">  adjusts the taskbar, File Explorer, power and DNS. Asks before each change and…</text>
+  <text x="28" y="614" class="dim">  ↑ ↓ choose   Enter run   Esc quit</text>
 </svg>

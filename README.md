@@ -8,7 +8,7 @@ TidyWin **cleans up** Windows 10 and 11 (telemetry, preinstalled apps, ads), **i
 
 ---
 
-![TidyWin running in Windows PowerShell](assets/banner.svg)
+![The TidyWin menu in Windows PowerShell](assets/banner.svg)
 
 ## Quick Start
 
