@@ -13,6 +13,8 @@
         powershell -ExecutionPolicy Bypass -File .\Configure-Windows.ps1 -Check
     The answers are saved in %ProgramData%\TidyWin\windows.json for that (Revert deletes it).
 
+    Each change gets its own line: [OK] changed now, [--] it already was like that. Everything shown while
+    applying is also saved to "TidyWin log <date>.txt" on the Desktop (with the answers; no user or PC name).
     If a step fails, the script reports it and moves on to the next one.
     Undo: Revert-Configure-Windows.ps1 (removed apps come back through the Microsoft Store).
     Safe to run more than once. Restart the PC at the end.
@@ -120,13 +122,80 @@ function Read-IP([string]$Question, [string]$Family, [bool]$Optional) {
 
 # Runs a step. If it fails, records the failure and moves on to the next one.
 $script:Failures = @()
+$script:StepCount = 0
 function Invoke-Step([string]$Title, [scriptblock]$Body) {
     Write-Step $Title
+    $script:StepCount++
     try { & $Body }
     catch {
         $script:Failures += "${Title}: $($_.Exception.Message)"
-        Write-Warning (T "This step failed ($($_.Exception.Message)). Moving on to the next one." "Esta etapa falhou ($($_.Exception.Message)). Seguindo para a próxima.")
+        Write-Host (T "  [ERROR] This step failed ($($_.Exception.Message)). Moving on to the next one." "  [ERRO] Esta etapa falhou ($($_.Exception.Message)). Seguindo para a próxima.") -ForegroundColor Red
     }
+}
+
+# --- Detailed log: one line per setting, saying whether it changed
+#   [OK] Activity history: off              (changed now)
+#   [--] Activity history: off (already)    (it was already like this)
+$script:ChangedCount = 0
+$script:AlreadyCount = 0
+function Write-Change([string]$Label, [string]$State, [bool]$Changed) {
+    if ($Changed) {
+        Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
+        Write-Host "${Label}: $State"
+        $script:ChangedCount++
+    } else {
+        Write-Host "  [--] ${Label}: $State $(T '(already)' '(já estava)')" -ForegroundColor DarkGray
+        $script:AlreadyCount++
+    }
+}
+
+# "off" agreeing with the Portuguese noun: m, f, mp (masculine plural), fp (feminine plural).
+function Off([string]$Gender) {
+    if ($script:Lang -ne 'pt') { return 'off' }
+    return @{ m = 'desligado'; f = 'desligada'; mp = 'desligados'; fp = 'desligadas' }[$Gender]
+}
+
+# A registry value for Set-Option: RegValue <path> <name> <value> [type]
+function RegValue([string]$Path, [string]$Name, $Value, [string]$Type = 'DWord') {
+    @{ Path = $Path; Name = $Name; Value = $Value; Type = $Type }
+}
+
+# Writes the registry values that together make one visible setting, and logs one line for it.
+function Set-Option([string]$Label, [string]$State, [object[]]$Values) {
+    $changed = $false
+    foreach ($v in $Values) {
+        $current = (Get-ItemProperty -Path $v.Path -Name $v.Name -ErrorAction SilentlyContinue).($v.Name)
+        if ($null -eq $current -or "$current" -ne "$($v.Value)") { $changed = $true }
+        Set-Reg $v.Path $v.Name $v.Value $v.Type
+    }
+    Write-Change $Label $State $changed
+}
+
+# --- Log file: everything shown while the changes are applied also goes to a text file on the
+# Desktop, to read calmly afterwards or send when asking for help (no user or PC name in it).
+# Write-Host is wrapped (same parameters), so every message is saved without changing each call.
+# Turned on only for the execution: the arrow-key questions redraw the screen.
+$script:LogFile = $null
+$script:LogPending = ''
+function Write-Host {
+    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+          [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+    Microsoft.PowerShell.Utility\Write-Host @PSBoundParameters
+    if (-not $script:LogFile) { return }
+    $script:LogPending += ($Object -join "$Separator")
+    if (-not $NoNewline) {
+        try { Add-Content -LiteralPath $script:LogFile -Value $script:LogPending -Encoding UTF8 -ErrorAction Stop }
+        catch { $script:LogFile = $null }      # can't write (Desktop full, synced...): keep going without the file
+        $script:LogPending = ''
+    }
+}
+function Start-Log {
+    $name = '{0} {1}.txt' -f (T 'TidyWin log' 'Log TidyWin'), (Get-Date -Format 'yyyy-MM-dd HHmm')
+    $path = Join-Path ([Environment]::GetFolderPath('Desktop')) $name
+    try {
+        Set-Content -LiteralPath $path -Value "TidyWin · Windows · $(Get-Date -Format 'yyyy-MM-dd HH:mm') · $osLabel" -Encoding UTF8 -ErrorAction Stop
+        $script:LogFile = $path
+    } catch { }
 }
 
 # Language: asked once at the start (default English), unless -Lang was given.
@@ -173,12 +242,17 @@ $P = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows'
 
 # DiagTrack = "Connected User Experiences and Telemetry" (the service that sends the data).
 function Disable-TelemetryServices {
+    $labels = @{
+        DiagTrack        = (T 'Telemetry service (DiagTrack)' 'Serviço de telemetria (DiagTrack)')
+        dmwappushservice = (T 'Push message routing service (dmwappushservice)' 'Serviço de mensagens push (dmwappushservice)')
+    }
     foreach ($svc in 'DiagTrack', 'dmwappushservice') {
-        if (Get-Service $svc -ErrorAction SilentlyContinue) {
-            Stop-Service $svc -Force -ErrorAction SilentlyContinue
-            Set-Service  $svc -StartupType Disabled -ErrorAction SilentlyContinue
-            Write-Host "  $(T 'disabled' 'desativado'): $svc"
-        }
+        $s = Get-Service $svc -ErrorAction SilentlyContinue
+        if (-not $s) { continue }
+        $already = $s.StartType -eq 'Disabled' -and $s.Status -eq 'Stopped'
+        Stop-Service $svc -Force -ErrorAction SilentlyContinue
+        Set-Service  $svc -StartupType Disabled -ErrorAction SilentlyContinue
+        Write-Change $labels[$svc] (T 'disabled' 'desativado') (-not $already)
     }
 }
 
@@ -198,10 +272,11 @@ $TelemetryTasks = @(
 
 function Disable-TelemetryTasks {
     foreach ($t in $TelemetryTasks) {
-        if (Get-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue) {
-            Disable-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue | Out-Null
-            Write-Host "  $(T 'disabled' 'desativada'): $($t[1])"
-        }
+        $task = Get-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue
+        if (-not $task) { continue }
+        $already = $task.State -eq 'Disabled'
+        Disable-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue | Out-Null
+        Write-Change "$(T 'Task' 'Tarefa') $($t[1])" (T 'disabled' 'desativada') (-not $already)
     }
     # (Older versions of this script disabled the Compatibility Appraiser; here it is re-enabled.)
     foreach ($name in 'Microsoft Compatibility Appraiser', 'Microsoft Compatibility Appraiser Exp') {
@@ -216,31 +291,25 @@ function Disable-TelemetryTasks {
 # Diagnostics, ads, activity history, search and Delivery Optimization policies.
 function Set-TelemetryPolicies {
     # Diagnostic data: on Home/Pro the real minimum is 1 ("Required"); 0 only works on Enterprise/Education.
-    Set-Reg "$P\DataCollection" 'AllowTelemetry' 1
-    Set-Reg "$P\DataCollection" 'MaxTelemetryAllowed' 1
-    Set-Reg "$P\DataCollection" 'DoNotShowFeedbackNotifications' 1
-    Set-Reg "$P\DataCollection" 'LimitDiagnosticLogCollection' 1
-    Set-Reg "$P\DataCollection" 'LimitDumpCollection' 1
-    Set-Reg "$P\DataCollection" 'AllowDeviceNameInTelemetry' 0
-    Set-Reg "$P\DataCollection" 'DisableOneSettingsDownloads' 1
-    Set-Reg "$P\Windows Error Reporting" 'Disabled' 1                    # error reporting
-    Set-Reg "$P\AppCompat" 'DisableInventory' 1                          # compatibility inventory
-    Set-Reg "$P\AppCompat" 'AITEnable' 0
-    Set-Reg "$P\AdvertisingInfo" 'DisabledByGroupPolicy' 1               # advertising ID
-    Set-Reg "$P\System" 'EnableActivityFeed' 0                           # activity history
-    Set-Reg "$P\System" 'PublishUserActivities' 0
-    Set-Reg "$P\System" 'UploadUserActivities' 0
-    Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\InputPersonalization' 'AllowInputPersonalization' 0
-    Set-Reg 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableTailoredExperiencesWithDiagnosticData' 1
+    Set-Option (T 'Diagnostic data' 'Dados de diagnóstico') (T 'minimum' 'mínimo') (RegValue "$P\DataCollection" 'AllowTelemetry' 1),
+        (RegValue "$P\DataCollection" 'MaxTelemetryAllowed' 1), (RegValue "$P\DataCollection" 'LimitDiagnosticLogCollection' 1),
+        (RegValue "$P\DataCollection" 'LimitDumpCollection' 1), (RegValue "$P\DataCollection" 'AllowDeviceNameInTelemetry' 0),
+        (RegValue "$P\DataCollection" 'DisableOneSettingsDownloads' 1)
+    Set-Option (T 'Feedback requests' 'Pedidos de feedback') (Off mp) (RegValue "$P\DataCollection" 'DoNotShowFeedbackNotifications' 1)
+    Set-Option (T 'Error reporting' 'Relatório de erros') (Off m) (RegValue "$P\Windows Error Reporting" 'Disabled' 1)
+    Set-Option (T 'Compatibility inventory' 'Inventário de compatibilidade') (Off m) (RegValue "$P\AppCompat" 'DisableInventory' 1), (RegValue "$P\AppCompat" 'AITEnable' 0)
+    Set-Option (T 'Advertising ID' 'ID de anúncios') (Off m) (RegValue "$P\AdvertisingInfo" 'DisabledByGroupPolicy' 1)
+    Set-Option (T 'Activity history' 'Histórico de atividades') (Off m) (RegValue "$P\System" 'EnableActivityFeed' 0),
+        (RegValue "$P\System" 'PublishUserActivities' 0), (RegValue "$P\System" 'UploadUserActivities' 0)
+    Set-Option (T 'Typing and inking personalization' 'Personalização de digitação e escrita') (Off f) (RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\InputPersonalization' 'AllowInputPersonalization' 0)
+    Set-Option (T 'Tailored experiences' 'Experiências personalizadas') (Off fp) (RegValue 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableTailoredExperiencesWithDiagnosticData' 1)
     # Search: no Bing/web results, no "search highlights", no Cortana
-    Set-Reg "$P\Windows Search" 'DisableWebSearch' 1
-    Set-Reg "$P\Windows Search" 'ConnectedSearchUseWeb' 0
-    Set-Reg "$P\Windows Search" 'EnableDynamicContentInWSB' 0
-    Set-Reg "$P\Windows Search" 'AllowCortana' 0
-    Set-Reg 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 1
+    Set-Option (T 'Bing and web results in Start search' 'Bing e resultados da web na pesquisa do Iniciar') (Off mp) (RegValue "$P\Windows Search" 'DisableWebSearch' 1),
+        (RegValue "$P\Windows Search" 'ConnectedSearchUseWeb' 0), (RegValue 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 1)
+    Set-Option (T 'Search highlights' 'Destaques da pesquisa') (Off mp) (RegValue "$P\Windows Search" 'EnableDynamicContentInWSB' 0)
+    Set-Option 'Cortana' (Off f) (RegValue "$P\Windows Search" 'AllowCortana' 0)
     # Delivery Optimization: updates only from Microsoft, no sharing with other PCs
-    Set-Reg "$P\DeliveryOptimization" 'DODownloadMode' 0
-    Write-Host (T '  policies applied' '  políticas aplicadas')
+    Set-Option (T 'Updates' 'Atualizações') (T 'only from Microsoft, not shared with other PCs' 'só da Microsoft, sem compartilhar com outros PCs') (RegValue "$P\DeliveryOptimization" 'DODownloadMode' 0)
 }
 
 # Widgets (Windows 11) / News and interests (Windows 10).
@@ -280,25 +349,21 @@ function Disable-Widgets {
 
 function Disable-Suggestions {
     $CDM = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
-    foreach ($n in 'SilentInstalledAppsEnabled', 'PreInstalledAppsEnabled', 'OemPreInstalledAppsEnabled',
-                   'SystemPaneSuggestionsEnabled', 'SoftLandingEnabled',
-                   'SubscribedContent-310093Enabled',   # welcome experience after updates
-                   'SubscribedContent-338388Enabled',   # Start suggestions
-                   'SubscribedContent-338389Enabled',   # tips and tricks
-                   'SubscribedContent-338393Enabled',   # suggested content in Settings
-                   'SubscribedContent-353694Enabled',
-                   'SubscribedContent-353696Enabled') {
-        Set-Reg $CDM $n 0
-    }
-    Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement' 'ScoobeSystemSettingEnabled' 0  # "Let's finish setting up"
-    Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowSyncProviderNotifications' 0   # OneDrive ads in File Explorer
+    $ADV = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+    # Silent installs of "consumer apps" (Candy Crush etc.). DisableWindowsConsumerFeatures is officially
+    # Enterprise/Education only; on Home/Pro SilentInstalledAppsEnabled=0 does the job.
+    Set-Option (T 'Silent app installs (Candy Crush...)' 'Instalação silenciosa de apps (Candy Crush...)') (Off f) (RegValue $CDM 'SilentInstalledAppsEnabled' 0),
+        (RegValue $CDM 'PreInstalledAppsEnabled' 0), (RegValue $CDM 'OemPreInstalledAppsEnabled' 0), (RegValue "$P\CloudContent" 'DisableWindowsConsumerFeatures' 1)
+    Set-Option (T 'Suggestions in Start' 'Sugestões no Iniciar') (Off fp) (RegValue $CDM 'SystemPaneSuggestionsEnabled' 0), (RegValue $CDM 'SubscribedContent-338388Enabled' 0)
+    Set-Option (T 'Tips and tricks' 'Dicas e truques') (Off fp) (RegValue $CDM 'SoftLandingEnabled' 0), (RegValue $CDM 'SubscribedContent-338389Enabled' 0)
+    Set-Option (T 'Suggested content in Settings' 'Conteúdo sugerido nas Configurações') (Off m) (RegValue $CDM 'SubscribedContent-338393Enabled' 0),
+        (RegValue $CDM 'SubscribedContent-353694Enabled' 0), (RegValue $CDM 'SubscribedContent-353696Enabled' 0)
+    Set-Option (T 'Welcome screen after updates' 'Tela de boas-vindas após atualizações') (Off f) (RegValue $CDM 'SubscribedContent-310093Enabled' 0)
+    Set-Option (T '"Let''s finish setting up"' '"Vamos terminar de configurar"') (Off m) (RegValue 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement' 'ScoobeSystemSettingEnabled' 0)
+    Set-Option (T 'OneDrive ads in File Explorer' 'Propaganda do OneDrive no Explorador') (Off f) (RegValue $ADV 'ShowSyncProviderNotifications' 0)
     if ($isWin11) {
-        Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Start_IrisRecommendations' 0   # Start recommendations
+        Set-Option (T 'Recommendations in Start' 'Recomendações no Iniciar') (Off fp) (RegValue $ADV 'Start_IrisRecommendations' 0)
     }
-    # Blocks reinstalling "consumer apps" (Candy Crush etc.). Officially Enterprise/Education only;
-    # on Home/Pro SilentInstalledAppsEnabled=0 above does the job.
-    Set-Reg "$P\CloudContent" 'DisableWindowsConsumerFeatures' 1
-    Write-Host (T '  settings applied' '  ajustes aplicados')
 }
 
 # --- Apps ------------------------------------------------------------------
@@ -437,21 +502,15 @@ function Remove-EdgeDesktopShortcut {
 
 function Set-EdgePolicies {
     $E = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
-    Set-Reg $E 'StartupBoostEnabled' 0
-    Set-Reg $E 'BackgroundModeEnabled' 0
-    Set-Reg $E 'HubsSidebarEnabled' 0
-    Set-Reg $E 'Microsoft365CopilotChatIconEnabled' 0
-    Set-Reg $E 'CopilotPageContext' 0
-    Set-Reg $E 'DiagnosticData' 0
-    Set-Reg $E 'PersonalizationReportingEnabled' 0
-    Set-Reg $E 'EdgeShoppingAssistantEnabled' 0
-    Set-Reg $E 'ShowRecommendationsEnabled' 0
-    Set-Reg $E 'SpotlightExperiencesAndRecommendationsEnabled' 0
-    Set-Reg $E 'HideFirstRunExperience' 1
-    Set-Reg $E 'NewTabPageContentEnabled' 0
-    Set-Reg $E 'NewTabPageQuickLinksEnabled' 0
-    Set-Reg $E 'NewTabPageHideDefaultTopSites' 1
-    Write-Host (T '  Edge policies applied' '  políticas do Edge aplicadas')
+    Set-Option (T 'Edge running in the background' 'Edge rodando em segundo plano') (Off m) (RegValue $E 'StartupBoostEnabled' 0), (RegValue $E 'BackgroundModeEnabled' 0)
+    Set-Option (T 'Edge sidebar' 'Barra lateral do Edge') (Off f) (RegValue $E 'HubsSidebarEnabled' 0)
+    Set-Option (T 'Copilot in Edge' 'Copilot no Edge') (Off m) (RegValue $E 'Microsoft365CopilotChatIconEnabled' 0), (RegValue $E 'CopilotPageContext' 0)
+    Set-Option (T 'Edge telemetry' 'Telemetria do Edge') (Off f) (RegValue $E 'DiagnosticData' 0), (RegValue $E 'PersonalizationReportingEnabled' 0)
+    Set-Option (T 'Shopping and coupons in Edge' 'Compras e cupons no Edge') (Off mp) (RegValue $E 'EdgeShoppingAssistantEnabled' 0)
+    Set-Option (T 'Edge recommendations' 'Recomendações do Edge') (Off fp) (RegValue $E 'ShowRecommendationsEnabled' 0), (RegValue $E 'SpotlightExperiencesAndRecommendationsEnabled' 0)
+    Set-Option (T 'Edge first-run screen' 'Tela de primeiro uso do Edge') (T 'hidden' 'escondida') (RegValue $E 'HideFirstRunExperience' 1)
+    Set-Option (T 'Edge new tab' 'Nova guia do Edge') (T 'without news or sponsored links' 'sem notícias nem atalhos patrocinados') (RegValue $E 'NewTabPageContentEnabled' 0),
+        (RegValue $E 'NewTabPageQuickLinksEnabled' 0), (RegValue $E 'NewTabPageHideDefaultTopSites' 1)
 }
 
 # --- Windows Security ------------------------------------------------------
@@ -1315,6 +1374,7 @@ $labels = @{
     NoDeviceApps = (T 'No device apps' 'Sem apps de periféricos'); NoWpbt = (T 'No WPBT' 'Sem WPBT'); NoRecall = (T 'No Recall' 'Sem Recall'); NoEdgeShortcut = (T 'No Edge shortcut' 'Sem atalho do Edge'); NumLock = 'Num Lock'; NoFastStartup = (T 'No Fast Startup' 'Sem inicialização rápida'); BatteryPercent = (T 'Battery %' 'Bateria em %'); ShowHidden = (T 'Hidden files' 'Arquivos ocultos')
     NoFolderSniff = (T 'No folder discovery' 'Sem descoberta pasta'); VerboseBsod = (T 'Detailed blue screen' 'Tela azul detalhada'); Power = (T 'Power' 'Energia')
 }
+$answerLines = @()      # also written to the log file
 if (-not $NoPrompt) {
     Write-Host (T "`n  Summary:" "`n  Resumo:") -ForegroundColor Cyan
     foreach ($key in $opt.Keys) {
@@ -1326,7 +1386,9 @@ if (-not $NoPrompt) {
                 elseif ($key -eq 'TaskView') { $taskViewNames[[array]::IndexOf($taskViewIds, $value)] }
                 elseif (($key -eq 'DNS' -or $key -eq 'Power') -and $value -eq 'Keep') { T 'keep' 'manter' }
                 else { $value }
-        Write-Host ("    {0,-24} {1}" -f $labels[$key], $text)
+        $line = "    {0,-24} {1}" -f $labels[$key], $text
+        Write-Host $line
+        $answerLines += $line
     }
     if (-not (Ask (T 'Apply now?' 'Aplicar agora?') $true)) { Write-Host (T 'Nothing was changed.' 'Nada foi alterado.'); return }
 }
@@ -1335,6 +1397,12 @@ if (-not $NoPrompt) {
 
 
 #region ==================== 9. EXECUTION ====================
+
+# --- Log file on the Desktop, starting with the answers
+Start-Log
+if ($script:LogFile -and $answerLines) {
+    Add-Content -LiteralPath $script:LogFile -Value (@('', (T 'Answers:' 'Respostas:')) + $answerLines) -Encoding UTF8
+}
 
 # --- Save the answers for -Check
 try { Save-State $opt $dnsV4 $dnsV6 } catch { Write-Warning (T "Could not save the answers for -Check: $($_.Exception.Message)" "Não foi possível salvar as respostas para o -Check: $($_.Exception.Message)") }
@@ -1425,13 +1493,23 @@ if ($dnsV4) { Invoke-Step "DNS: $($opt.DNS)" { Set-DNS $dnsV4 $dnsV6 } }
 # --- Apply visuals right away (no need to sign out)
 if ($script:RestartExplorer) { Invoke-Step (T 'Applying visuals without signing out' 'Aplicando visual sem precisar sair da conta') { Restart-Explorer } }
 
-# --- Done
+# --- Done: what changed, what already was like that, what failed
+Write-Step (T 'Summary' 'Resumo')
+Write-Host (T "  $($script:StepCount) step(s) run" "  $($script:StepCount) etapa(s) executada(s)")
+Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
+Write-Host (T "$($script:ChangedCount) setting(s) changed now" "$($script:ChangedCount) ajuste(s) alterado(s) agora")
+Write-Host (T "  [--] $($script:AlreadyCount) were already like that" "  [--] $($script:AlreadyCount) já estavam assim") -ForegroundColor DarkGray
 if ($script:Failures.Count) {
-    Write-Host (T "`nSteps that failed (the rest was applied):" "`nEtapas que falharam (o resto foi aplicado):") -ForegroundColor Yellow
-    $script:Failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+    Write-Host (T "  [ERROR] $($script:Failures.Count) step(s) failed (the rest was applied):" "  [ERRO] $($script:Failures.Count) etapa(s) falharam (o resto foi aplicado):") -ForegroundColor Yellow
+    $script:Failures | ForEach-Object { Write-Host "    - $_" -ForegroundColor Yellow }
 }
-Write-Step (T 'Done. Restart the computer.' 'Concluído. Reinicie o computador.')
-Write-Host (T 'To undo: Revert-Configure-Windows.ps1' 'Para desfazer: Revert-Configure-Windows.ps1') -ForegroundColor Green
-Write-Host (T 'After a big Windows update, check with: Configure-Windows.ps1 -Check' 'Depois de uma atualização grande do Windows, confira com: Configure-Windows.ps1 -Check') -ForegroundColor DarkGray
+Write-Host (T "`nDone. Restart the computer." "`nConcluído. Reinicie o computador.") -ForegroundColor Green
+Write-Host (T '  To undo: TidyWin menu → Undo → Windows.' '  Para desfazer: menu do TidyWin → Desfazer → Windows.') -ForegroundColor DarkGray
+Write-Host (T '  After a big Windows update: Maintenance → Check after a Windows update.' '  Depois de uma atualização grande do Windows: Manutenção → Conferir após atualização do Windows.') -ForegroundColor DarkGray
+if ($script:LogFile) {
+    $file = $script:LogFile
+    $script:LogFile = $null      # this last line only on screen
+    Write-Host (T "  Everything above was saved to: $file" "  Tudo acima foi salvo em: $file") -ForegroundColor DarkGray
+}
 
 #endregion

@@ -17,6 +17,8 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Restore point | Creates a restore point before any change. |
 | Summary | Shows everything that was chosen and asks "Aplicar agora?" (apply now?). |
 | Fault tolerant | If a step fails, it warns and moves on to the next one. |
+| Detailed log | One line per setting: `[OK]` changed now, `[--]` it already was like that. At the end, a summary with how many changed, were already set or failed. |
+| Log file | Everything shown while applying, plus your answers, is saved to `TidyWin log <date>.txt` on the Desktop. No user or PC name in it, so it can be sent when asking for help. |
 
 ## Privacy and cleanup
 | Feature | What it does |
