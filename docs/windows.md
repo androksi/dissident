@@ -39,7 +39,8 @@ To use only the defaults, with no questions: `-NoPrompt`.
 ## Personalization
 | Feature | What it does |
 |---|---|
-| Theme | Keep, Windows light or Windows dark. Turns off Windows Spotlight and applies the theme's wallpaper. |
+| Theme | Default, light or dark. Turns off Windows Spotlight and applies the theme's wallpaper. |
+| Screen | For each monitor: resolution, refresh rate and scale, from the ones the monitor supports, with the recommended and current ones marked. **Default** changes nothing. After a resolution or refresh change, Enter keeps it; otherwise it goes back by itself in 15 seconds. |
 | Taskbar | Keep, icons centered or on the left. |
 | Search | Keep, hidden, icon only or search box. |
 | Task View | Keep, show or hide the button. |
@@ -165,4 +166,4 @@ In the [TidyWin menu](../README.md#quick-start): **Undo → Windows**. From a lo
 | Feature | What it does |
 |---|---|
 | Revert | Undoes telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
-| Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, screen and sleep times, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |
+| Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, screen resolution, refresh rate and scale, screen and sleep times, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

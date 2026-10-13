@@ -1004,6 +1004,265 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
     Write-Host (T '  File Explorer restarted' '  Explorer reiniciado')
 }
 
+# --- Screen: resolution, refresh rate and scale ------------------------------
+# Only modes the monitor itself reports are offered. "Recommended" is the monitor's preferred mode (what
+# Settings marks as Recommended). After a resolution or refresh change: Enter keeps it, otherwise it goes
+# back by itself after 15 seconds, like Settings does. Scale uses the same call as Settings (DisplayConfig,
+# not documented by Microsoft), relative to the recommended scale.
+
+$DisplayApiSource = @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
+namespace CfgWin {
+    // Displays: active monitors (DisplayConfig), their modes (EnumDisplaySettings) and scale.
+    public static class DisplayApi {
+        [StructLayout(LayoutKind.Sequential)] public struct LUID { public uint LowPart; public int HighPart; }
+
+        // ---- GDI modes (resolution and refresh rate)
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct DEVMODE {
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+            public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
+            public int dmFields;
+            public int dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
+            public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+            public short dmLogPixels;
+            public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency;
+            public int dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2, dmPanningWidth, dmPanningHeight;
+        }
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplaySettings(string device, int mode, ref DEVMODE dm);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int ChangeDisplaySettingsEx(string device, ref DEVMODE dm, IntPtr hwnd, uint flags, IntPtr param);
+
+        const int ENUM_CURRENT_SETTINGS = -1;
+        const int DM_PELSWIDTH = 0x80000, DM_PELSHEIGHT = 0x100000, DM_DISPLAYFREQUENCY = 0x400000;
+        const uint CDS_UPDATEREGISTRY = 1, CDS_TEST = 2;
+
+        static DEVMODE NewDevMode() { var dm = new DEVMODE(); dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)); return dm; }
+
+        // Every mode the driver offers: { width, height, refresh, bitsPerPixel }
+        public static List<int[]> GetModes(string device) {
+            var list = new List<int[]>();
+            var dm = NewDevMode();
+            for (int i = 0; EnumDisplaySettings(device, i, ref dm); i++) {
+                list.Add(new int[] { dm.dmPelsWidth, dm.dmPelsHeight, dm.dmDisplayFrequency, dm.dmBitsPerPel });
+                dm = NewDevMode();
+            }
+            return list;
+        }
+        public static int[] GetCurrentMode(string device) {
+            var dm = NewDevMode();
+            if (!EnumDisplaySettings(device, ENUM_CURRENT_SETTINGS, ref dm)) return null;
+            return new int[] { dm.dmPelsWidth, dm.dmPelsHeight, dm.dmDisplayFrequency, dm.dmBitsPerPel };
+        }
+        // 0 = OK. test: only asks the driver whether it would accept the mode.
+        public static int SetMode(string device, int width, int height, int refresh, bool test) {
+            var dm = NewDevMode();
+            if (!EnumDisplaySettings(device, ENUM_CURRENT_SETTINGS, ref dm)) return -100;
+            dm.dmPelsWidth = width; dm.dmPelsHeight = height; dm.dmDisplayFrequency = refresh;
+            dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+            return ChangeDisplaySettingsEx(device, ref dm, IntPtr.Zero, test ? CDS_TEST : CDS_UPDATEREGISTRY, IntPtr.Zero);
+        }
+
+        // ---- DisplayConfig: active monitors, their names, preferred mode and scale
+        [StructLayout(LayoutKind.Sequential)] public struct RATIONAL { public uint Numerator, Denominator; }
+        [StructLayout(LayoutKind.Sequential)] public struct PATH_SOURCE_INFO { public LUID adapterId; public uint id, modeInfoIdx, statusFlags; }
+        [StructLayout(LayoutKind.Sequential)] public struct PATH_TARGET_INFO {
+            public LUID adapterId; public uint id, modeInfoIdx, outputTechnology, rotation, scaling;
+            public RATIONAL refreshRate; public uint scanLineOrdering; public int targetAvailable; public uint statusFlags;
+        }
+        [StructLayout(LayoutKind.Sequential)] public struct PATH_INFO { public PATH_SOURCE_INFO sourceInfo; public PATH_TARGET_INFO targetInfo; public uint flags; }
+        [StructLayout(LayoutKind.Sequential, Size = 64)] public struct MODE_INFO { public uint infoType, id; public LUID adapterId; }
+        [StructLayout(LayoutKind.Sequential)] public struct HEADER { public int type; public uint size; public LUID adapterId; public uint id; }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct SOURCE_NAME { public HEADER header; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string viewGdiDeviceName; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct TARGET_NAME {
+            public HEADER header; public uint flags, outputTechnology; public ushort edidManufactureId, edidProductCodeId; public uint connectorInstance;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string monitorFriendlyDeviceName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string monitorDevicePath;
+        }
+        // Preferred mode: width and height, then the target mode (48 bytes, starting at offset 32 because it
+        // holds 64-bit values) that isn't needed here. Total 80 bytes.
+        [StructLayout(LayoutKind.Sequential, Size = 80)] public struct PREFERRED_MODE { public HEADER header; public uint width, height; }
+        // Scale, relative to the recommended one (0 = recommended)
+        [StructLayout(LayoutKind.Sequential)] public struct DPI_GET { public HEADER header; public int minScaleRel, curScaleRel, maxScaleRel; }
+        [StructLayout(LayoutKind.Sequential)] public struct DPI_SET { public HEADER header; public int scaleRel; }
+
+        [DllImport("user32.dll")] static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPaths, out uint numModes);
+        [DllImport("user32.dll")] static extern int QueryDisplayConfig(uint flags, ref uint numPaths, [Out] PATH_INFO[] paths, ref uint numModes, [Out] MODE_INFO[] modes, IntPtr topology);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref SOURCE_NAME info);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref TARGET_NAME info);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref PREFERRED_MODE info);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref DPI_GET info);
+        [DllImport("user32.dll")] static extern int DisplayConfigSetDeviceInfo(ref DPI_SET info);
+
+        const uint QDC_ONLY_ACTIVE_PATHS = 2;
+
+        public class Display {
+            public string Device;            // \\.\DISPLAY1 (for the GDI calls)
+            public string Name;              // monitor name, e.g. "DELL S2721DGF" (laptop panels usually have none)
+            public bool Internal;            // the laptop's own screen
+            public LUID Adapter; public uint SourceId;
+            public int PreferredWidth, PreferredHeight;
+            public bool HasScale; public int MinScaleRel, CurScaleRel, MaxScaleRel;
+        }
+
+        static HEADER Header(int type, Type t, LUID adapter, uint id) {
+            var h = new HEADER(); h.type = type; h.size = (uint)Marshal.SizeOf(t); h.adapterId = adapter; h.id = id; return h;
+        }
+
+        public static List<Display> GetDisplays() {
+            var list = new List<Display>();
+            uint np, nm;
+            if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out np, out nm) != 0) return list;
+            var paths = new PATH_INFO[np]; var modes = new MODE_INFO[nm];
+            if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref np, paths, ref nm, modes, IntPtr.Zero) != 0) return list;
+            for (int i = 0; i < np; i++) {
+                var p = paths[i];
+                var d = new Display();
+                d.Adapter = p.sourceInfo.adapterId; d.SourceId = p.sourceInfo.id;
+
+                var src = new SOURCE_NAME(); src.header = Header(1, typeof(SOURCE_NAME), p.sourceInfo.adapterId, p.sourceInfo.id);
+                if (DisplayConfigGetDeviceInfo(ref src) != 0) continue;
+                d.Device = src.viewGdiDeviceName;
+
+                var tn = new TARGET_NAME(); tn.header = Header(2, typeof(TARGET_NAME), p.targetInfo.adapterId, p.targetInfo.id);
+                if (DisplayConfigGetDeviceInfo(ref tn) == 0) d.Name = tn.monitorFriendlyDeviceName;
+                d.Internal = p.targetInfo.outputTechnology == 0x80000000;   // DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL
+
+                var pm = new PREFERRED_MODE(); pm.header = Header(3, typeof(PREFERRED_MODE), p.targetInfo.adapterId, p.targetInfo.id);
+                if (DisplayConfigGetDeviceInfo(ref pm) == 0) { d.PreferredWidth = (int)pm.width; d.PreferredHeight = (int)pm.height; }
+
+                var dpi = new DPI_GET(); dpi.header = Header(-3, typeof(DPI_GET), p.sourceInfo.adapterId, p.sourceInfo.id);
+                if (DisplayConfigGetDeviceInfo(ref dpi) == 0) {
+                    d.HasScale = true; d.MinScaleRel = dpi.minScaleRel; d.CurScaleRel = dpi.curScaleRel; d.MaxScaleRel = dpi.maxScaleRel;
+                }
+                list.Add(d);
+            }
+            return list;
+        }
+
+        // Scale steps Windows uses, in %. Index of the recommended one = -MinScaleRel.
+        public static readonly int[] ScaleSteps = { 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500 };
+
+        // 0 = OK. scaleRel: steps relative to the recommended scale.
+        public static int SetScale(LUID adapter, uint sourceId, int scaleRel) {
+            var s = new DPI_SET(); s.header = Header(-4, typeof(DPI_SET), adapter, sourceId); s.scaleRel = scaleRel;
+            return DisplayConfigSetDeviceInfo(ref s);
+        }
+    }
+}
+'@
+
+function Initialize-DisplayApi { if (-not ('CfgWin.DisplayApi' -as [type])) { Add-Type -TypeDefinition $DisplayApiSource } }
+
+function Format-Resolution([int]$Width, [int]$Height) { "$Width × $Height" }
+
+# Questions for one display. Returns what to change, or $null when everything stays "Default".
+function Read-DisplayChoice($Display, [int]$Number, [int]$Count) {
+    $name = if ($Display.Name) { $Display.Name } elseif ($Display.Internal) { T 'Laptop screen' 'Tela do notebook' } else { T "Screen $Number" "Tela $Number" }
+    $suffix = if ($Count -gt 1) { " — $name" } else { '' }
+    $cur = [CfgWin.DisplayApi]::GetCurrentMode($Display.Device)
+    if (-not $cur) { return $null }
+    $modes = @([CfgWin.DisplayApi]::GetModes($Display.Device) | Where-Object { $_[3] -eq 32 -and $_[0] -ge 800 })
+    if (-not $modes) { return $null }
+    $default = T 'Default' 'Padrão'
+    $recTag = T ' · recommended' ' · recomendada'
+    $curTag = T ' · current' ' · atual'
+
+    # Resolution: the largest ones (up to 10), plus the current and the recommended
+    $all = @($modes | ForEach-Object { '{0}x{1}' -f $_[0], $_[1] } | Select-Object -Unique |
+             Sort-Object { [int]($_ -split 'x')[0] * [int]($_ -split 'x')[1] }, { [int]($_ -split 'x')[0] } -Descending)
+    $recKey = if ($Display.PreferredWidth) { '{0}x{1}' -f $Display.PreferredWidth, $Display.PreferredHeight } else { $all[0] }
+    $curKey = '{0}x{1}' -f $cur[0], $cur[1]
+    $shown = @($all | Select-Object -First 10)
+    foreach ($k in $recKey, $curKey) { if ($shown -notcontains $k -and $all -contains $k) { $shown += $k } }
+    $labels = @($default) + @($shown | ForEach-Object {
+        $wh = $_ -split 'x'
+        (Format-Resolution $wh[0] $wh[1]) + $(if ($_ -eq $recKey) { $recTag } else { '' }) + $(if ($_ -eq $curKey) { $curTag } else { '' })
+    })
+    $r = Choose (T "Resolution${suffix}:" "Resolução${suffix}:") $labels 0
+    $newKey = if ($r -gt 0) { $shown[$r - 1] } else { $curKey }
+    $w = [int]($newKey -split 'x')[0]; $h = [int]($newKey -split 'x')[1]
+
+    # Refresh rate: the ones available at that resolution
+    $rates = @($modes | Where-Object { $_[0] -eq $w -and $_[1] -eq $h } | ForEach-Object { $_[2] } | Where-Object { $_ -gt 1 } | Sort-Object -Unique -Descending)
+    $hz = $null
+    if ($rates.Count -gt 1) {
+        $rateLabels = @($default) + @($rates | ForEach-Object { "$_ Hz" + $(if ($newKey -eq $curKey -and $_ -eq $cur[2]) { $curTag } else { '' }) })
+        $f = Choose (T "Refresh rate${suffix}:" "Taxa de atualização${suffix}:") $rateLabels 0
+        if ($f -gt 0) { $hz = $rates[$f - 1] }
+    }
+    # Default rate with a new resolution: the current one if it exists there, otherwise the highest
+    if ($r -gt 0 -and -not $hz) { $hz = if ($rates -contains $cur[2]) { $cur[2] } else { $rates[0] } }
+    $changeMode = ($r -gt 0 -and $newKey -ne $curKey) -or ($hz -and $hz -ne $cur[2])
+
+    # Scale: from 100% to the largest Windows allows on this display
+    $scaleRel = $null; $scalePct = $null
+    if ($Display.HasScale) {
+        $steps = [CfgWin.DisplayApi]::ScaleSteps
+        $rec = -$Display.MinScaleRel
+        $curIdx = $rec + $Display.CurScaleRel
+        $maxIdx = [Math]::Min($steps.Count - 1, $rec + $Display.MaxScaleRel)
+        $scaleLabels = @($default) + @(for ($i = 0; $i -le $maxIdx; $i++) { "$($steps[$i])%" + $(if ($i -eq $rec) { $recTag } else { '' }) + $(if ($i -eq $curIdx) { $curTag } else { '' }) })
+        $s = Choose (T "Scale${suffix}:" "Escala${suffix}:") $scaleLabels 0
+        if ($s -gt 0 -and ($s - 1) -ne $curIdx) { $scaleRel = ($s - 1) - $rec; $scalePct = $steps[$s - 1] }
+    }
+
+    if (-not $changeMode -and $null -eq $scaleRel) { return $null }
+    if (-not $hz) { $hz = $cur[2] }
+    $parts = @()
+    if ($changeMode) { $parts += "$(Format-Resolution $w $h), $hz Hz" }
+    if ($null -ne $scaleRel) { $parts += (T "scale $scalePct%" "escala $scalePct%") }
+    [pscustomobject]@{
+        Name = $name; Multi = ($Count -gt 1); Device = $Display.Device; Adapter = $Display.Adapter; SourceId = $Display.SourceId
+        ChangeMode = [bool]$changeMode; Width = $w; Height = $h; Hz = $hz; Old = $cur
+        ScaleRel = $scaleRel; ScalePct = $scalePct
+        Text = $(if ($Count -gt 1) { "${name}: " } else { '' }) + ($parts -join ', ')
+    }
+}
+
+# Enter keeps the new mode; with no key in 15 seconds, returns $false (the caller goes back).
+function Confirm-DisplayKeep {
+    Write-Host (T '  Press Enter to keep it. It goes back by itself in 15 seconds.' '  Aperte Enter para manter. Volta sozinho em 15 segundos.') -ForegroundColor Yellow
+    if (($Host.Name -ne 'ConsoleHost') -or [Console]::IsInputRedirected) { [void](Read-Host); return $true }
+    while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
+    $deadline = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $deadline) {
+        if ([Console]::KeyAvailable -and [Console]::ReadKey($true).Key -eq 'Enter') { return $true }
+        Start-Sleep -Milliseconds 200
+    }
+    return $false
+}
+
+function Set-DisplayChoice($Change) {
+    $label = if ($Change.Multi) { " — $($Change.Name)" } else { '' }
+    if ($Change.ChangeMode) {
+        $mode = "$(Format-Resolution $Change.Width $Change.Height), $($Change.Hz) Hz"
+        if ([CfgWin.DisplayApi]::SetMode($Change.Device, $Change.Width, $Change.Height, $Change.Hz, $true) -ne 0) {
+            Write-Host "  $(T '[ERROR]' '[ERRO]') $(T "Windows did not accept $mode; nothing changed." "o Windows não aceitou $mode; nada mudou.")" -ForegroundColor Red
+        } elseif ([CfgWin.DisplayApi]::SetMode($Change.Device, $Change.Width, $Change.Height, $Change.Hz, $false) -ne 0) {
+            Write-Host "  $(T '[ERROR]' '[ERRO]') $(T "could not change to $mode." "não foi possível mudar para $mode.")" -ForegroundColor Red
+        } elseif (Confirm-DisplayKeep) {
+            Write-Change ((T 'Resolution and refresh rate' 'Resolução e taxa de atualização') + $label) $mode $true
+        } else {
+            [void][CfgWin.DisplayApi]::SetMode($Change.Device, $Change.Old[0], $Change.Old[1], $Change.Old[2], $false)
+            Write-Host "  [--] $(T "Back to $(Format-Resolution $Change.Old[0] $Change.Old[1]), $($Change.Old[2]) Hz" "De volta a $(Format-Resolution $Change.Old[0] $Change.Old[1]), $($Change.Old[2]) Hz")" -ForegroundColor DarkGray
+        }
+    }
+    if ($null -ne $Change.ScaleRel) {
+        if ([CfgWin.DisplayApi]::SetScale($Change.Adapter, $Change.SourceId, $Change.ScaleRel) -eq 0) {
+            Write-Change ((T 'Scale' 'Escala') + $label) "$($Change.ScalePct)%" $true
+        } else {
+            Write-Host "  $(T '[ERROR]' '[ERRO]') $(T 'Windows did not accept the scale; change it in Settings → System → Display.' 'o Windows não aceitou a escala; mude em Configurações → Sistema → Tela.')" -ForegroundColor Red
+        }
+    }
+}
+
 #endregion
 
 
@@ -1439,6 +1698,19 @@ Write-Host (T "`n  Personalization, only for your user" "`n  Personalização, s
 $themeNames = @((T 'Default' 'Padrão'), (T 'Light' 'Claro'), (T 'Dark' 'Escuro'))
 $themeIds   = @('Keep', 'Light', 'Dark')
 $opt.Theme          = $themeIds[(Choose (T 'Theme:' 'Tema:') $themeNames 1)]
+# Screen: resolution, refresh rate and scale for each display. "Default" changes nothing.
+$displayChanges = @()
+try {
+    Initialize-DisplayApi
+    $displays = @([CfgWin.DisplayApi]::GetDisplays())
+    for ($i = 0; $i -lt $displays.Count; $i++) {
+        $change = Read-DisplayChoice $displays[$i] ($i + 1) $displays.Count
+        if ($change) { $displayChanges += $change }
+    }
+} catch {
+    Write-Host (T '  Could not read the screens; skipping resolution and scale.' '  Não foi possível ler as telas; resolução e escala foram puladas.') -ForegroundColor DarkYellow
+}
+$opt.Display = if ($displayChanges) { ($displayChanges | ForEach-Object { $_.Text }) -join '; ' } else { 'Keep' }
 $taskbarNames = @((T 'Default' 'Padrão'), (T 'Center' 'No centro'), (T 'Left' 'À esquerda'))
 $taskbarIds   = @('Keep', 'Center', 'Left')
 $opt.Taskbar        = if ($isWin11) { $taskbarIds[(Choose (T 'Taskbar icons:' 'Ícones da barra de tarefas:') $taskbarNames 0)] } else { 'Keep' }
@@ -1530,7 +1802,7 @@ $opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' }
 # --- Summary and confirmation
 # Labels shown on screen for each option (in the chosen language, like the questions).
 $labels = @{
-    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); RemoveApps = (T 'Apps to remove' 'Apps para remover')
+    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); RemoveApps = (T 'Apps to remove' 'Apps para remover'); Display = (T 'Screen' 'Tela')
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
     Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados'); NoStartAds = (T 'No Start ads' 'Sem propaganda no Iniciar')
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); NoSnap = (T 'No Snap' 'Sem Ajustar janelas'); ThinBorder = (T 'Thin border' 'Borda fina')
@@ -1549,7 +1821,7 @@ if (-not $NoPrompt) {
                 elseif ($key -eq 'Taskbar') { $taskbarNames[[array]::IndexOf($taskbarIds, $value)] }
                 elseif ($key -eq 'Search')  { $searchNames[[array]::IndexOf($searchIds, $value)] }
                 elseif ($key -eq 'TaskView') { $taskViewNames[[array]::IndexOf($taskViewIds, $value)] }
-                elseif (($key -eq 'DNS' -or $key -eq 'Power') -and $value -eq 'Keep') { T 'default' 'padrão' }
+                elseif (($key -eq 'DNS' -or $key -eq 'Power' -or $key -eq 'Display') -and $value -eq 'Keep') { T 'default' 'padrão' }
                 elseif ($key -eq 'RemoveApps') { $n = @($value | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique).Count; if ($n) { T "$n app(s)" "$n app(s)" } else { T 'none' 'nenhum' } }
                 else { $value }
         $line = "    {0,-24} {1}" -f $labels[$key], $text
@@ -1609,6 +1881,7 @@ if ($opt.HideAreas) { Invoke-Step (T 'Windows Security: hiding Microsoft account
 if ($opt.Theme -ne 'Keep') {
     Invoke-Step "$(T 'Theme' 'Tema') $($themeNames[[array]::IndexOf($themeIds, $opt.Theme)])" { Set-Theme ($opt.Theme -eq 'Light') }
 }
+if ($displayChanges) { Invoke-Step (T 'Screen' 'Tela') { foreach ($change in $displayChanges) { Set-DisplayChoice $change } } }
 if ($opt.Taskbar -ne 'Keep') {
     Invoke-Step (T 'Taskbar alignment' 'Alinhamento da barra de tarefas') { Set-TaskbarAlignment ($opt.Taskbar -eq 'Left') }
 }
