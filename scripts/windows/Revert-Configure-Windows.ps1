@@ -178,6 +178,37 @@ function Restore-Border {
     }
 }
 
+# Pins back to Start the ad shortcuts Configure-Windows unpinned (it saved their names), with the same
+# "Pin to Start" as the right-click menu (shell32 resource 51201, in the Windows language). A shortcut
+# whose app was never installed can't be pinned again: Windows only shows it on new accounts.
+function Restore-StartPins {
+    $file = Join-Path $env:ProgramData 'TidyWin\start-unpinned.json'
+    if (-not (Test-Path $file)) { Write-Host (T '  nothing was unpinned' '  nada foi desafixado'); return }
+    $names = @(Get-Content $file -Raw -Encoding UTF8 | ConvertFrom-Json)
+    if (-not ('RevWin.Res' -as [type])) {
+        Add-Type -Namespace RevWin -Name Res -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+public static extern System.IntPtr LoadLibrary(string name);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+public static extern int LoadString(System.IntPtr module, uint id, System.Text.StringBuilder buffer, int size);
+'@
+    }
+    $text = New-Object System.Text.StringBuilder 256
+    [void][RevWin.Res]::LoadString([RevWin.Res]::LoadLibrary('shell32.dll'), 51201, $text, $text.Capacity)
+    $pin = $text.ToString().Replace('&', '')
+    $apps = (New-Object -ComObject Shell.Application).NameSpace('shell:::{4234d49b-0245-4df3-b780-3893943456e1}')
+    $done = @()
+    foreach ($item in @($apps.Items())) {
+        if ($names -notcontains $item.Name) { continue }
+        $verb = @($item.Verbs()) | Where-Object { $n = $_.Name.Replace('&', ''); ($pin -and $n -eq $pin) -or $n -eq 'Pin to Start' } | Select-Object -First 1
+        if ($verb) { $verb.DoIt(); $done += $item.Name }
+    }
+    $left = @($names | Where-Object { $done -notcontains $_ })
+    if ($done) { Write-Host "  $(T 'pinned back' 'fixados de volta'): $($done -join ', ')" }
+    if ($left) { Write-Host "  $(T 'not available to pin (app not installed)' 'não dá para fixar (app não instalado)'): $($left -join ', ')" -ForegroundColor DarkGray }
+    Remove-Item $file -Force -ErrorAction SilentlyContinue
+}
+
 # Snap windows back on (Windows default). Takes effect after signing out and back in.
 function Restore-SnapWindows {
     $d = 'HKCU:\Control Panel\Desktop'
@@ -272,6 +303,7 @@ Write-Step (T 'Home and Gallery back in File Explorer' 'Início e Galeria de vol
 Write-Step (T 'Folders, devices, startup and blue screen back to default' 'Pastas, periféricos, inicialização e tela azul no padrão'); Restore-ExplorerAndDeviceDefaults
 Write-Step (T 'inetpub folder visible again' 'Pasta inetpub visível de novo'); Show-Inetpub
 Write-Step (T 'Removing Edge policies' 'Removendo políticas do Edge'); Remove-EdgePolicies
+Write-Step (T 'Ad shortcuts back in Start' 'Atalhos de propaganda de volta no Iniciar'); Restore-StartPins
 Write-Step (T 'Deleting the saved answers (TidyWin)' 'Apagando as respostas salvas (TidyWin)'); Remove-SavedAnswers
 Write-Step (T 'Done. Restart the computer.' 'Concluído. Reinicie o computador.')
 

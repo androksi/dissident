@@ -313,6 +313,7 @@ $JunkApps = @(
     'Microsoft.Getstarted',                    # Tips
     'Microsoft.MicrosoftOfficeHub',            # "Microsoft 365" app
     'Microsoft.MicrosoftSolitaireCollection',
+    '7EE7776C.LinkedInforWindows',             # LinkedIn
     'Microsoft.OutlookForWindows',
     'Microsoft.People',
     'Microsoft.PowerAutomateDesktop',
@@ -734,6 +735,50 @@ function Clear-TaskbarPins {
         Remove-Item -Force -ErrorAction SilentlyContinue
     Write-Host (T '  pinned icons removed from the taskbar' '  ícones fixados removidos da barra de tarefas')
     $script:RestartExplorer = $true
+}
+
+# Start menu pins that are ads: promoted apps, and shortcuts that only install the app when clicked.
+# Only names on this list are unpinned; everything else pinned stays. Names as Windows shows them.
+$StartAdPins = @('LinkedIn', 'Spotify', 'Instagram', 'Facebook', 'Messenger', 'TikTok', 'WhatsApp', 'Netflix',
+                 'Prime Video', 'Disney+', 'Microsoft Solitaire Collection', 'Solitaire & Casual Games',
+                 'Candy Crush Saga', 'Candy Crush Soda Saga', 'Picsart', 'Adobe Express', 'Luminar Neo', 'Outlook (new)')
+# What was unpinned, so Revert-Configure-Windows can pin it back.
+$StartUnpinnedFile = Join-Path $env:ProgramData 'TidyWin\start-unpinned.json'
+
+# "Unpin from Start" in the Windows language: the text of the right-click menu entry, read from shell32
+# (resource 51394), without the "&" of the keyboard shortcut.
+function Get-UnpinFromStartName {
+    if (-not ('CfgWin.Res' -as [type])) {
+        Add-Type -Namespace CfgWin -Name Res -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+public static extern System.IntPtr LoadLibrary(string name);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+public static extern int LoadString(System.IntPtr module, uint id, System.Text.StringBuilder buffer, int size);
+'@
+    }
+    $text = New-Object System.Text.StringBuilder 256
+    [void][CfgWin.Res]::LoadString([CfgWin.Res]::LoadLibrary('shell32.dll'), 51394, $text, $text.Capacity)
+    return $text.ToString().Replace('&', '')
+}
+
+# Unpins the ad shortcuts with the same "Unpin from Start" as the right-click menu, item by item.
+function Remove-StartAdPins {
+    $unpin = Get-UnpinFromStartName
+    $apps = (New-Object -ComObject Shell.Application).NameSpace('shell:::{4234d49b-0245-4df3-b780-3893943456e1}')   # all apps
+    $done = @()
+    foreach ($item in @($apps.Items())) {
+        if ($StartAdPins -notcontains $item.Name) { continue }
+        # The entry only exists when the item is pinned
+        $verb = @($item.Verbs()) | Where-Object { $n = $_.Name.Replace('&', ''); ($unpin -and $n -eq $unpin) -or $n -eq 'Unpin from Start' } | Select-Object -First 1
+        if ($verb) { $verb.DoIt(); $done += $item.Name }
+    }
+    if ($done) {
+        New-Item -ItemType Directory -Path (Split-Path $StartUnpinnedFile) -Force | Out-Null
+        ConvertTo-Json -InputObject @($done) | Set-Content $StartUnpinnedFile -Encoding UTF8
+        Write-Host "  $(T 'unpinned from Start' 'desafixados do Iniciar'): $($done -join ', ')"
+    } else {
+        Write-Host (T '  no ad shortcuts pinned to Start' '  nenhum atalho de propaganda fixado no Iniciar')
+    }
 }
 
 # Notifies apps of the theme change and restarts File Explorer (Windows reopens it by itself).
@@ -1180,6 +1225,7 @@ $taskViewNames = @((T 'Keep as is' 'Manter como está'), (T 'Show' 'Mostrar'), (
 $taskViewIds   = @('Keep', 'Show', 'Hide')
 $opt.TaskView       = $taskViewIds[(Choose (T '"Task View" button on the taskbar:' 'Botão "Visão de Tarefas" na barra de tarefas:') $taskViewNames 0)]
 $opt.ClearPins      = Ask (T 'Remove the pinned icons from the taskbar (Edge, Store, File Explorer and the ones you pinned)?' 'Remover os ícones fixados na barra de tarefas (Edge, Store, Explorador e os que você fixou)?') $false
+$opt.NoStartAds     = Ask (T 'Unpin the ad shortcuts from Start (LinkedIn, Spotify, TikTok, Solitaire, Candy Crush...)? Only those come off; the rest of your pins stays.' 'Desafixar os atalhos de propaganda do Iniciar (LinkedIn, Spotify, TikTok, Paciência, Candy Crush...)? Só esses saem; o resto dos seus fixados fica.') $true
 $opt.BatteryPercent = if ($isWin11 -and $hasBattery) { Ask (T 'Show the battery percentage on the taskbar?' 'Mostrar a porcentagem da bateria na barra de tarefas?') $false } else { $false }
 $opt.ShowExtensions = Ask (T 'Show file extensions (.txt, .exe...)?' 'Mostrar as extensões dos arquivos (.txt, .exe...)?') $true
 $opt.HideFrequent   = Ask (T 'Hide frequent folders from Quick access?' 'Esconder as pastas frequentes do Acesso rápido?') $true
@@ -1262,7 +1308,7 @@ $opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' }
 $labels = @{
     Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais'); NoXbox = (T 'No Xbox' 'Sem Xbox'); NoSnipping = (T 'No Snipping Tool' 'Sem Captura de Tela')
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
-    Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados')
+    Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados'); NoStartAds = (T 'No Start ads' 'Sem propaganda no Iniciar')
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); NoSnap = (T 'No Snap' 'Sem Ajustar janelas'); ThinBorder = (T 'Thin border' 'Borda fina')
     LongPaths = (T 'Long paths' 'Caminhos longos'); EndTask = (T 'End task' 'Finalizar tarefa'); Sudo = 'Sudo'; ClipboardHistory = (T 'Win+V history' 'Histórico Win+V')
     NoMouseAccel = (T 'No acceleration' 'Sem aceleração'); NoStickyKeys = (T 'No Sticky Keys' 'Sem aderência'); MaxVolume = 'Volume 100%'; DNS = 'DNS'
@@ -1343,6 +1389,7 @@ if ($opt.TaskView -ne 'Keep') {
     Invoke-Step (T 'Task View button' 'Botão Visão de Tarefas') { Set-TaskViewButton ($opt.TaskView -eq 'Show') }
 }
 if ($opt.ClearPins) { Invoke-Step (T 'Removing pinned icons from the taskbar' 'Removendo ícones fixados da barra de tarefas') { Clear-TaskbarPins } }
+if ($opt.NoStartAds) { Invoke-Step (T 'Ad shortcuts in Start' 'Atalhos de propaganda no Iniciar') { Remove-StartAdPins } }
 if ($opt.BatteryPercent) { Invoke-Step (T 'Battery percentage' 'Porcentagem da bateria') { Enable-BatteryPercentage } }
 if ($opt.ShowExtensions -or $opt.HideFrequent -or $opt.HideRecent) {
     Invoke-Step (T 'File Explorer' 'Explorador de Arquivos') { Set-Explorer $opt.ShowExtensions $opt.HideFrequent $opt.HideRecent }
