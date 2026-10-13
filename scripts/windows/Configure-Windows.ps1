@@ -107,6 +107,89 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
     return $selected
 }
 
+# Full-screen checklist with group headers and scrolling: ↑ ↓ move, Space checks, A checks/unchecks the
+# whole group, Enter confirms. $Items: objects with Group, Label, Note, Checked. Returns the checked items.
+# With -NoPrompt it returns what comes checked; without a real console, numbers separated by commas.
+function Select-Many([string]$Title, [object[]]$Items) {
+    if ($NoPrompt) { return @($Items | Where-Object Checked) }
+    $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
+    if (-not $arrows) {
+        Write-Host "  $Title"
+        for ($i = 0; $i -lt $Items.Count; $i++) {
+            $mark = if ($Items[$i].Checked) { '[x]' } else { '[ ]' }
+            Write-Host "    $($i + 1)) $mark $($Items[$i].Label) · $($Items[$i].Note)"
+        }
+        $answer = "$(Read-Host (T '  Numbers separated by commas, Enter keeps the checked ones' '  Números separados por vírgula, Enter mantém os marcados'))".Trim()
+        if ($answer) {
+            $picked = @($answer -split '[,\s]+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ - 1 })
+            for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = $picked -contains $i }
+        }
+        return @($Items | Where-Object Checked)
+    }
+
+    $rows = New-Object System.Collections.Generic.List[object]
+    $lastGroup = $null
+    foreach ($it in $Items) {
+        if ($it.Group -ne $lastGroup) { $rows.Add([pscustomobject]@{ IsHeader = $true; Text = $it.Group }); $lastGroup = $it.Group }
+        $rows.Add([pscustomobject]@{ IsHeader = $false; Item = $it })
+    }
+    $itemRows = @(for ($r = 0; $r -lt $rows.Count; $r++) { if (-not $rows[$r].IsHeader) { $r } })
+    $labelWidth = ($Items | ForEach-Object { $_.Label.Length } | Measure-Object -Maximum).Maximum
+    $cursor = 0; $scroll = 0; $lastSize = ''
+
+    [Console]::CursorVisible = $false
+    try {
+        while ($true) {
+            $width  = [Console]::WindowWidth
+            $height = [Console]::WindowHeight
+            if ("$width x $height" -ne $lastSize) { Clear-Host; $lastSize = "$width x $height" }
+            $viewport = [Math]::Max(5, $height - 6)   # 3 header + 2 footer lines, last line left empty
+
+            $row = $itemRows[$cursor]
+            $wanted = if ($row -gt 0 -and $rows[$row - 1].IsHeader) { $row - 1 } else { $row }
+            if ($wanted -lt $scroll) { $scroll = $wanted }
+            if ($row -ge $scroll + $viewport) { $scroll = $row - $viewport + 1 }
+
+            $line = { param($text, $color) Microsoft.PowerShell.Utility\Write-Host ($text.PadRight($width - 1).Substring(0, $width - 1)) -ForegroundColor $color }
+            [Console]::SetCursorPosition(0, 0)
+            & $line "  $Title" 'Green'
+            & $line (T '  ↑ ↓ move   Space check   A check the whole group   Enter continue' '  ↑ ↓ navegar   Espaço marcar   A marcar o grupo inteiro   Enter continuar') 'DarkGray'
+            & $line '' 'Gray'
+            for ($v = 0; $v -lt $viewport; $v++) {
+                $r = $scroll + $v
+                if ($r -ge $rows.Count) { & $line '' 'Gray'; continue }
+                if ($rows[$r].IsHeader) { & $line "  $($rows[$r].Text)" 'Yellow'; continue }
+                $it = $rows[$r].Item
+                $check  = if ($it.Checked) { '[x]' } else { '[ ]' }
+                $marker = if ($r -eq $row) { '>' } else { ' ' }
+                $color  = if ($r -eq $row) { 'Cyan' } elseif ($it.Checked) { 'Green' } else { 'Gray' }
+                & $line "  $marker $check $($it.Label.PadRight($labelWidth))  $($it.Note)" $color
+            }
+            & $line '' 'Gray'
+            & $line (T "  $(@($Items | Where-Object Checked).Count) checked" "  $(@($Items | Where-Object Checked).Count) marcado(s)") 'DarkGray'
+
+            switch ([Console]::ReadKey($true).Key) {
+                'UpArrow'   { $cursor = [Math]::Max(0, $cursor - 1) }
+                'DownArrow' { $cursor = [Math]::Min($itemRows.Count - 1, $cursor + 1) }
+                'PageUp'    { $cursor = [Math]::Max(0, $cursor - $viewport) }
+                'PageDown'  { $cursor = [Math]::Min($itemRows.Count - 1, $cursor + $viewport) }
+                'Home'      { $cursor = 0 }
+                'End'       { $cursor = $itemRows.Count - 1 }
+                'Spacebar'  { $it = $rows[$itemRows[$cursor]].Item; $it.Checked = -not $it.Checked }
+                'A' {
+                    $group = @($Items | Where-Object Group -eq $rows[$itemRows[$cursor]].Item.Group)
+                    $checkAll = @($group | Where-Object { -not $_.Checked }).Count -gt 0
+                    foreach ($it in $group) { $it.Checked = $checkAll }
+                }
+                'Enter'     { return @($Items | Where-Object Checked) }
+            }
+        }
+    } finally {
+        Clear-Host
+        [Console]::CursorVisible = $true
+    }
+}
+
 # Reads and validates a typed IP address (IPv4 = InterNetwork, IPv6 = InterNetworkV6).
 function Read-IP([string]$Question, [string]$Family, [bool]$Optional) {
     while ($true) {
@@ -411,11 +494,8 @@ $OptionalApps = @(
     'Microsoft.Office.OneNote'                 # OneNote for Windows 10
 )
 
-# Removes the apps for all users plus the provisioned package (so they don't return in new profiles).
-# Deprovisions FIRST: Remove-AppxPackage -AllUsers deletes the package files.
-# Note: no $p here — PowerShell is case-insensitive and it would collide with $P.
-# Everything Xbox. Separate question (default no): Store/Game Pass games and games that sign in with
-# Xbox (Minecraft, Forza, Halo...) need these. Steam, Epic, Riot and Game Mode don't.
+# Everything Xbox. Store/Game Pass games and games that sign in with Xbox (Minecraft, Forza, Halo...)
+# need these. Steam, Epic, Riot and Game Mode don't.
 $XboxApps = @(
     'Microsoft.GamingApp',                     # Xbox app
     'Microsoft.XboxApp',                       # Xbox Console Companion (Windows 10)
@@ -426,36 +506,102 @@ $XboxApps = @(
     'Microsoft.Xbox.TCUI',
     'Microsoft.GamingServices'                 # Store / Game Pass games
 )
+# Snipping Tool (Windows 10: Snip & Sketch), for whoever uses another screenshot app such as ShareX.
+$SnippingApps = @('Microsoft.ScreenSketch')
+
+# The "apps to remove" checklist: one row per app (some apps are several packages), with a short note.
+# Rarely used come checked; the ones some people use, Xbox and the Snipping Tool come unchecked.
+# Only apps present on the PC are shown (installed for some user, or provisioned for new accounts).
+function New-AppRow($Group, $Label, [string[]]$Packages, [bool]$Checked, $Note) {
+    [pscustomobject]@{ Group = $Group; Label = $Label; Packages = $Packages; Checked = $Checked; Note = $Note }
+}
+function Get-AppCatalog {
+    $rare = T 'Rarely used' 'Pouco usados'; $some = T 'Used by some people' 'Usados por algumas pessoas'; $xbox = 'Xbox'
+    @(
+        New-AppRow $rare 'Clipchamp'                                   'Clipchamp.Clipchamp'                    $true (T 'video editor' 'editor de vídeo')
+        New-AppRow $rare 'Copilot'                                     'Microsoft.Copilot'                      $true (T 'AI assistant' 'assistente de IA')
+        New-AppRow $rare (T 'Bing News' 'Notícias Bing')               'Microsoft.BingNews'                     $true ''
+        New-AppRow $rare (T 'Bing Weather' 'Clima Bing')               'Microsoft.BingWeather'                  $true ''
+        New-AppRow $rare (T 'Bing Search' 'Pesquisa Bing')             'Microsoft.BingSearch'                   $true ''
+        New-AppRow $rare (T 'Get Help' 'Obter Ajuda')                  'Microsoft.GetHelp'                      $true ''
+        New-AppRow $rare (T 'Tips' 'Dicas')                            'Microsoft.Getstarted'                   $true ''
+        New-AppRow $rare 'Microsoft 365'                               'Microsoft.MicrosoftOfficeHub'           $true (T 'Office ad app; Office itself stays' 'app de propaganda do Office; o Office fica')
+        New-AppRow $rare (T 'Solitaire' 'Paciência')                   'Microsoft.MicrosoftSolitaireCollection' $true ''
+        New-AppRow $rare 'LinkedIn'                                    '7EE7776C.LinkedInforWindows'            $true ''
+        New-AppRow $rare (T 'Outlook, new' 'Outlook novo')             'Microsoft.OutlookForWindows'            $true (T 'classic Outlook stays' 'o Outlook clássico fica')
+        New-AppRow $rare 'Teams'                                       @('MicrosoftTeams', 'MSTeams')           $true ''
+        New-AppRow $rare (T 'People' 'Pessoas')                        'Microsoft.People'                       $true ''
+        New-AppRow $rare 'Power Automate'                              'Microsoft.PowerAutomateDesktop'         $true ''
+        New-AppRow $rare 'To Do'                                       'Microsoft.Todos'                        $true ''
+        New-AppRow $rare 'Dev Home'                                    'Microsoft.Windows.DevHome'              $true ''
+        New-AppRow $rare (T 'Feedback Hub' 'Hub de Comentários')       'Microsoft.WindowsFeedbackHub'           $true ''
+        New-AppRow $rare (T 'Maps' 'Mapas')                            'Microsoft.WindowsMaps'                  $true ''
+        New-AppRow $rare (T 'Mixed Reality' 'Realidade Misturada')     'Microsoft.MixedReality.Portal'          $true ''
+        New-AppRow $rare (T 'Movies & TV' 'Filmes e TV')               'Microsoft.ZuneVideo'                    $true ''
+        New-AppRow $rare 'Cortana'                                     'Microsoft.549981C3F5F10'                $true ''
+        New-AppRow $rare (T 'Family' 'Família')                        'MicrosoftCorporationII.MicrosoftFamily' $true ''
+        New-AppRow $rare (T '3D Viewer' 'Visualizador 3D')             'Microsoft.Microsoft3DViewer'            $true ''
+        New-AppRow $rare 'Paint 3D'                                    'Microsoft.MSPaint'                      $true (T 'the regular Paint stays' 'o Paint normal fica')
+        New-AppRow $rare 'Print 3D'                                    'Microsoft.Print3D'                      $true ''
+        New-AppRow $rare 'Skype'                                       'Microsoft.SkypeApp'                     $true ''
+        New-AppRow $rare (T 'Wallet' 'Carteira')                       'Microsoft.Wallet'                       $true ''
+        New-AppRow $rare (T 'Messaging' 'Mensagens')                   'Microsoft.Messaging'                    $true ''
+        New-AppRow $rare (T 'Mobile Plans' 'Planos Móveis')            'Microsoft.OneConnect'                   $true ''
+
+        New-AppRow $some (T 'Phone Link' 'Vincular ao Celular')        'Microsoft.YourPhone'                    $false ''
+        New-AppRow $some 'Sticky Notes'                                'Microsoft.MicrosoftStickyNotes'         $false ''
+        New-AppRow $some (T 'Sound Recorder' 'Gravador de Som')        'Microsoft.WindowsSoundRecorder'         $false ''
+        New-AppRow $some (T 'Clock' 'Relógio')                         'Microsoft.WindowsAlarms'                $false (T 'alarms and timer' 'alarmes e timer')
+        New-AppRow $some (T 'Quick Assist' 'Assistência Rápida')       'MicrosoftCorporationII.QuickAssist'     $false (T 'remote help' 'ajuda remota')
+        New-AppRow $some 'Media Player'                                'Microsoft.ZuneMusic'                    $false ''
+        New-AppRow $some 'OneNote'                                     'Microsoft.Office.OneNote'               $false 'OneNote for Windows 10'
+        New-AppRow $some (T 'Snipping Tool' 'Captura de Tela')         $SnippingApps                            $false (T 'Win+Shift+S stops working; Print Screen is free for ShareX' 'o Win+Shift+S para de funcionar; o Print Screen fica livre para o ShareX')
+
+        New-AppRow $xbox 'Xbox'                                        @('Microsoft.GamingApp', 'Microsoft.XboxApp') $false (T 'Game Pass games stop working' 'jogos do Game Pass param de funcionar')
+        New-AppRow $xbox 'Game Bar'                                    @('Microsoft.XboxGamingOverlay', 'Microsoft.XboxGameOverlay', 'Microsoft.XboxSpeechToTextOverlay') $false 'Win+G'
+        New-AppRow $xbox (T 'Xbox sign-in' 'Login Xbox')               @('Microsoft.XboxIdentityProvider', 'Microsoft.Xbox.TCUI') $false (T 'Minecraft, Forza and other games with Xbox sign-in stop working' 'Minecraft, Forza e outros jogos com login Xbox param de funcionar')
+        New-AppRow $xbox 'Gaming Services'                             'Microsoft.GamingServices'               $false (T 'Store and Game Pass games stop working' 'jogos da Store e do Game Pass param de funcionar')
+    )
+}
+
+# Package name -> name shown, for the removal log.
+function Get-AppLabel([string]$Package) {
+    $row = Get-AppCatalog | Where-Object { $_.Packages -contains $Package } | Select-Object -First 1
+    if ($row) { return $row.Label } else { return $Package }
+}
+
+# Removes the apps for all users plus the provisioned package (so they don't return in new profiles).
+# Deprovisions FIRST: Remove-AppxPackage -AllUsers deletes the package files.
+# One line per app: [OK] removed, or [ERROR] with the reason. Packages not on the PC are skipped.
+# Note: no $p here — PowerShell is case-insensitive and it would collide with $P.
 function Remove-Apps([string[]]$List) {
     $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+    $done = @{}
     foreach ($app in $List) {
+        $label = Get-AppLabel $app
+        $errors = @()
+        $found = $false
         foreach ($prov in ($provisioned | Where-Object DisplayName -eq $app)) {
-            try {
-                Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop | Out-Null
-                Write-Host "  $(T 'deprovisioned' 'desprovisionado'): $($prov.DisplayName)"
-            } catch {
-                Write-Host (T "  (not deprovisioned: $($prov.DisplayName) — $($_.Exception.Message.Trim()))" "  (não desprovisionado: $($prov.DisplayName) — $($_.Exception.Message.Trim()))") -ForegroundColor DarkYellow
-            }
+            $found = $true
+            try { Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop | Out-Null }
+            catch { $errors += $_.Exception.Message.Trim() }
         }
         foreach ($pkg in (Get-AppxPackage -AllUsers -Name $app -ErrorAction SilentlyContinue)) {
-            try {
-                Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
-                Write-Host "  $(T 'removed' 'removido'): $($pkg.Name)"
-            } catch {
-                Write-Host (T "  (not removed: $($pkg.Name) — $($_.Exception.Message.Trim()))" "  (não removido: $($pkg.Name) — $($_.Exception.Message.Trim()))") -ForegroundColor DarkYellow
-            }
+            $found = $true
+            try { Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop }
+            catch { $errors += $_.Exception.Message.Trim() }
         }
+        if (-not $found -or $done.ContainsKey($label)) { continue }      # one line per app, even with several packages
+        $done[$label] = $true
+        if ($errors) { Write-Host "  $(T '[ERROR]' '[ERRO]') ${label}: $($errors[0])" -ForegroundColor Red }
+        else { Write-Change $label (T 'removed' 'removido') $true }
     }
 }
 
-# Snipping Tool (Windows 10: Snip & Sketch). Separate question (default no), for whoever uses another
-# screenshot app such as ShareX. Win+Shift+S stops working; the Print Screen key is freed (on Windows 11
-# it opens the Snipping Tool by default) so the other app can take it over.
-$SnippingApps = @('Microsoft.ScreenSketch')
-function Remove-SnippingTool {
-    Remove-Apps $SnippingApps
-    Set-Reg 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled' 0
-    Write-Host (T '  Print Screen key: free for other apps (ShareX...)' '  tecla Print Screen: livre para outros apps (ShareX...)')
+# Print Screen key free for other apps (on Windows 11 it opens the Snipping Tool by default). Done when the
+# Snipping Tool is removed, so ShareX or similar can take the key over.
+function Set-PrintScreenFree {
+    Set-Option (T 'Print Screen key' 'Tecla Print Screen') (T 'free for other apps' 'livre para outros apps') (RegValue 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled' 0)
 }
 
 # Game DVR (background game recording) off. Without it, Windows doesn't try to open the removed
@@ -1016,11 +1162,16 @@ function Select-Minutes([string]$Question, [int[]]$Choices, $Current) {
     if ($null -ne $Current -and $values -notcontains $Current) {
         $values = @($values + $Current | Sort-Object { if ($_ -eq 0) { [int]::MaxValue } else { $_ } })
     }
-    $names = @($values | ForEach-Object { (Format-Minutes $_) + $(if ($_ -eq $Current) { T '  (current)' '  (atual)' } else { '' }) })
+    $names = @($values | ForEach-Object { (Format-Minutes $_) + $(if ($_ -eq $Current) { T ' · current' ' · atual' } else { '' }) })
     $default = if ($null -ne $Current) { [array]::IndexOf($values, [int]$Current) } else { 0 }
     return $values[(Choose $Question $names $default)]
 }
 
+# "Plugged in — turn off the screen after:" (laptops), or just "Turn off the screen after:" (desktops).
+function Get-PowerQuestion([string]$Mode, [string]$Question) {
+    if ($Mode) { return "$Mode — $($Question.Substring(0, 1).ToLower())$($Question.Substring(1)):" }
+    return "${Question}:"
+}
 # $Values: "powercfg /change" names (monitor-timeout-ac, standby-timeout-dc...) -> minutes.
 function Set-PowerTimeouts($Values) {
     foreach ($name in $Values.Keys) {
@@ -1180,15 +1331,20 @@ function Invoke-Check {
     Write-Host (T "  Comparing with the answers from $(([datetime]$state.Saved).ToString('yyyy-MM-dd HH:mm'))." "  Comparando com as respostas de $(([datetime]$state.Saved).ToString('dd/MM/yyyy HH:mm')).")
     Write-Host (T '  Personalization is not checked: those are preferences you may have changed on purpose.' '  Personalização não é conferida: são preferências que você pode ter mudado de propósito.') -ForegroundColor DarkGray
 
-    $appList = if ($o.OptionalApps) { $JunkApps + $OptionalApps } else { $JunkApps }
+    # Apps chosen in the checklist. Answers saved by older versions had yes/no questions instead.
+    $appList = if ($o.PSObject.Properties['RemoveApps']) { @($o.RemoveApps) } else {
+        @(if ($o.Apps) { $JunkApps }) + @(if ($o.OptionalApps) { $OptionalApps }) + @(if ($o.NoXbox) { $XboxApps }) + @(if ($o.NoSnipping) { $SnippingApps })
+    }
+    $xboxChosen     = [bool]($appList | Where-Object { $XboxApps -contains $_ })
+    $snippingChosen = $appList -contains 'Microsoft.ScreenSketch'
     $returnedApps = @()
     # Name shown, chosen?, test, fix
     $items = @(
         @{ Name = (T 'Telemetry' 'Telemetria');                    On = $o.Telemetry;    Test = { Test-Telemetry };   Fix = { Disable-TelemetryServices; Disable-TelemetryTasks; Set-TelemetryPolicies; Disable-Widgets } }
         @{ Name = (T 'Suggestions and ads' 'Sugestões e anúncios');          On = $o.Suggestions;  Test = { Test-Suggestions }; Fix = { Disable-Suggestions } }
-        @{ Name = (T 'Removed apps' 'Apps removidos');                On = $o.Apps;         Test = { $script:returnedApps = Get-ReturnedApps $appList; $script:returnedApps }; Fix = { Remove-Apps $script:returnedApps } }
-        @{ Name = 'Xbox';                                                    On = $o.NoXbox;       Test = { $script:returnedXbox = Get-ReturnedApps $XboxApps; $script:returnedXbox; if ((Get-RegValue "$P\GameDVR" 'AllowGameDVR') -ne 0) { 'Game DVR' } }; Fix = { if ($script:returnedXbox) { Remove-Apps $script:returnedXbox }; Disable-GameDvr } }
-        @{ Name = (T 'Snipping Tool' 'Captura de Tela');               On = $o.NoSnipping;   Test = { Get-ReturnedApps $SnippingApps; if ((Get-RegValue 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled') -ne 0) { 'Print Screen' } }; Fix = { Remove-SnippingTool } }
+        @{ Name = (T 'Removed apps' 'Apps removidos');                On = [bool]$appList;  Test = { $script:returnedApps = Get-ReturnedApps $appList; @($script:returnedApps | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique) }; Fix = { Remove-Apps $script:returnedApps } }
+        @{ Name = 'Game DVR';                                                On = $xboxChosen;     Test = { if ((Get-RegValue "$P\GameDVR" 'AllowGameDVR') -ne 0) { 'Game DVR' } }; Fix = { Disable-GameDvr } }
+        @{ Name = (T 'Print Screen key' 'Tecla Print Screen');         On = $snippingChosen; Test = { if ((Get-RegValue 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled') -ne 0) { 'Print Screen' } }; Fix = { Set-PrintScreenFree } }
         @{ Name = 'OneDrive';                      On = $o.OneDrive;     Test = { Test-OneDrive };    Fix = { Remove-OneDrive } }
         @{ Name = (T 'Edge policies' 'Políticas do Edge');             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
         @{ Name = (T 'Edge shortcut' 'Atalho do Edge');                On = $o.NoEdgeShortcut; Test = { Test-EdgeShortcut }; Fix = { Remove-EdgeDesktopShortcut } }
@@ -1243,93 +1399,102 @@ Write-Host "`nConfigure-Windows — $osLabel" -ForegroundColor Green
 if ($cv.EditionID -match 'Core') {
     Write-Host (T '  Windows Home: some policies only work on Pro; the rest works normally.' '  Windows Home: algumas políticas valem só no Pro; o resto funciona normalmente.') -ForegroundColor DarkYellow
 }
-if (-not $NoPrompt) { Write-Host (T '  Choose with the arrows and Enter. The default answer comes selected.' '  Escolha com as setas e Enter. A resposta padrão já vem selecionada.') }
+if (-not $NoPrompt) { Write-Host (T '  Use the arrows and Enter. The default answer is already selected.' '  Use as setas e Enter. A resposta padrão já vem selecionada.') }
 
 $opt = [ordered]@{}
 
 # --- Privacy and cleanup
 Write-Host (T "`n  Privacy and cleanup" "`n  Privacidade e limpeza") -ForegroundColor Cyan
-$opt.Telemetry    = Ask (T 'Disable telemetry (service, tasks and policies)?' 'Desativar telemetria (serviço, tarefas e políticas)?') $true
-$opt.Suggestions  = Ask (T 'Disable suggestions, ads and silent app installs?' 'Desativar sugestões, anúncios e instalação silenciosa de apps?') $true
-$opt.Apps         = Ask (T 'Remove junk apps (Clipchamp, Bing, Solitaire, Teams, new Outlook...)?' 'Remover apps inúteis (Clipchamp, Bing, Solitaire, Teams, Outlook novo...)?') $true
-$opt.OptionalApps = if ($opt.Apps) { Ask (T 'Also remove Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote?' 'Remover também Vincular ao Celular, Sticky Notes, Gravador, Relógio, Assistência Rápida, Media Player e OneNote?') $false } else { $false }
-$opt.NoXbox       = Ask (T 'Remove the Xbox apps (Xbox app, Game Bar, Xbox sign-in and Gaming Services)? Store/Game Pass games and games that use Xbox sign-in (Minecraft, Forza...) stop working. Steam, Epic and Riot are not affected.' 'Remover os apps do Xbox (app Xbox, Game Bar, login Xbox e Gaming Services)? Jogos da Store/Game Pass e jogos com login Xbox (Minecraft, Forza...) param de funcionar. Steam, Epic e Riot não são afetados.') $false
-$opt.NoSnipping   = Ask (T 'Remove the Snipping Tool (Win+Shift+S stops working and the Print Screen key is freed)? Useful if you will install ShareX or another screenshot app.' 'Remover a Captura de Tela (o Win+Shift+S para de funcionar e a tecla Print Screen fica livre)? Útil se você vai instalar o ShareX ou outro app de captura.') $false
+$opt.Telemetry    = Ask (T 'Turn off telemetry?' 'Desligar a telemetria?') $true
+$opt.Suggestions  = Ask (T 'Turn off ads, suggestions and apps installed without asking?' 'Desligar anúncios, sugestões e apps instalados sem pedir?') $true
+# Apps to remove: a checklist with only the apps on this PC (see Get-AppCatalog)
+$appRows = @(Get-AppCatalog)
+$presentApps = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name) +
+               @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Select-Object -ExpandProperty DisplayName)
+$appRows = @($appRows | Where-Object { $row = $_; $row.Packages | Where-Object { $presentApps -contains $_ } })
+if ($appRows) {
+    $opt.RemoveApps = @(Select-Many (T 'Apps to remove' 'Apps para remover') $appRows | ForEach-Object { $_.Packages })
+    Write-Host "`n  Configure-Windows — $osLabel" -ForegroundColor Green      # the checklist cleared the screen
+    Write-Host (T "  Apps to remove: $(@($opt.RemoveApps | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique).Count)" "  Apps para remover: $(@($opt.RemoveApps | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique).Count)")
+} else {
+    $opt.RemoveApps = @()
+    Write-Host (T '  No preinstalled apps left to remove.' '  Não há apps pré-instalados para remover.') -ForegroundColor DarkGray
+}
 if ($foldersInOneDrive) {
     Write-Host (T "  WARNING: these folders are inside OneDrive: $($foldersInOneDrive -join ', ')" "  ATENÇÃO: estas pastas estão dentro do OneDrive: $($foldersInOneDrive -join ', ')") -ForegroundColor Yellow
     Write-Host (T '  Turn off folder backup in OneDrive before removing it.' '  Desligue o backup de pastas no OneDrive antes de removê-lo.') -ForegroundColor Yellow
 }
 $opt.OneDrive     = Ask (T 'Remove OneDrive?' 'Remover o OneDrive?') (-not $foldersInOneDrive)
-$opt.Edge         = Ask (T 'Apply Edge policies (no telemetry, background mode, sidebar or shopping)?' 'Aplicar políticas do Edge (sem telemetria, segundo plano, barra lateral, compras)?') $true
-$opt.NoRecall     = if ($isWin11) { Ask (T 'Remove and block Recall (screen snapshots; only exists on Copilot+ PCs)?' 'Remover e bloquear o Recall (fotos da tela; só existe em PCs Copilot+)?') $true } else { $false }
-$opt.NoEdgeShortcut = Ask (T 'Delete the Edge shortcut from the desktop (and stop Edge updates from creating it again)?' 'Apagar o atalho do Edge da Área de Trabalho (e impedir que as atualizações do Edge criem de novo)?') $true
-$opt.Security     = Ask (T 'Windows Security: block potentially unwanted apps and hide unimportant notifications?' 'Segurança do Windows: bloquear apps indesejados e esconder avisos sem importância?') $true
-$opt.RootFolders  = Ask (T 'Hide the inetpub folder and delete PerfLogs (in the root of C:)?' 'Esconder a pasta inetpub e apagar a PerfLogs (na raiz do C:)?') $true
-$opt.NoDeviceApps = Ask (T 'Do not download manufacturer apps and icons when connecting devices (Razer, Logitech...; drivers still come)?' 'Não baixar apps e ícones de fabricante ao conectar periféricos (Razer, Logitech...; drivers continuam vindo)?') $false
-$opt.NoWpbt       = Ask (T 'Block programs the motherboard firmware installs on its own (WPBT: Armoury Crate, Vantage...)? Can stop a driver or utility from installing by itself after formatting.' 'Bloquear programas que o firmware da placa-mãe instala sozinho (WPBT: Armoury Crate, Vantage...)? Pode impedir que um driver ou utilitário se instale sozinho após formatar.') $false
-$opt.HideAreas    = Ask (T 'Hide "Account protection" and "Device security" from Windows Security (they only ask you to sign in with a Microsoft account)?' 'Esconder "Proteção de contas" e "Segurança do dispositivo" da Segurança do Windows (só avisam para entrar com conta Microsoft)?') $isLocalAccount
+$opt.Edge         = Ask (T 'Edge: turn off telemetry, background mode, sidebar, Copilot and shopping?' 'Edge: desligar telemetria, segundo plano, barra lateral, Copilot e compras?') $true
+$opt.NoRecall     = if ($isWin11) { Ask (T 'Remove and block Recall? It takes screenshots of everything you do.' 'Remover e bloquear o Recall? Ele tira fotos de tudo o que você faz.') $true } else { $false }
+$opt.NoEdgeShortcut = Ask (T 'Delete the Edge shortcut from the Desktop and keep it from coming back?' 'Apagar o atalho do Edge da Área de Trabalho e impedir que volte?') $true
+$opt.Security     = Ask (T 'Windows Security: block unwanted apps and hide unimportant notices?' 'Segurança do Windows: bloquear apps indesejados e esconder avisos sem importância?') $true
+$opt.RootFolders  = Ask (T 'Hide the inetpub folder and delete PerfLogs from C:?' 'Esconder a pasta inetpub e apagar a PerfLogs do C:?') $true
+$opt.NoDeviceApps = Ask (T 'Stop downloading manufacturer apps when you connect a mouse, keyboard or headset? Drivers still install.' 'Parar de baixar apps de fabricante ao conectar mouse, teclado ou fone? Os drivers continuam vindo.') $false
+$opt.NoWpbt       = Ask (T 'Block programs the motherboard installs by itself, like Armoury Crate and Vantage? A needed driver may also stop installing.' 'Bloquear programas que a placa-mãe instala sozinha, como Armoury Crate e Vantage? Um driver necessário também pode deixar de se instalar.') $false
+$opt.HideAreas    = Ask (T 'Hide "Account protection" and "Device security" in Windows Security?' 'Esconder "Proteção de contas" e "Segurança do dispositivo" da Segurança do Windows?') $isLocalAccount
 
 # --- Personalization
-Write-Host (T "`n  Personalization (your user only)" "`n  Personalização (só para o seu usuário)") -ForegroundColor Cyan
-$themeNames = @((T 'Keep as is' 'Manter como está'), (T 'Windows (light)' 'Windows (claro)'), (T 'Windows (dark)' 'Windows (escuro)'))
+Write-Host (T "`n  Personalization, only for your user" "`n  Personalização, só para o seu usuário") -ForegroundColor Cyan
+$themeNames = @((T 'Default' 'Padrão'), (T 'Light' 'Claro'), (T 'Dark' 'Escuro'))
 $themeIds   = @('Keep', 'Light', 'Dark')
-$opt.Theme          = $themeIds[(Choose (T 'Windows theme:' 'Tema do Windows:') $themeNames 1)]
-$taskbarNames = @((T 'Keep as is' 'Manter como está'), (T 'Center' 'Ao centro'), (T 'Left' 'À esquerda'))
+$opt.Theme          = $themeIds[(Choose (T 'Theme:' 'Tema:') $themeNames 1)]
+$taskbarNames = @((T 'Default' 'Padrão'), (T 'Center' 'No centro'), (T 'Left' 'À esquerda'))
 $taskbarIds   = @('Keep', 'Center', 'Left')
 $opt.Taskbar        = if ($isWin11) { $taskbarIds[(Choose (T 'Taskbar icons:' 'Ícones da barra de tarefas:') $taskbarNames 0)] } else { 'Keep' }
-$searchNames = @((T 'Keep as is' 'Manter como está'), (T 'Hidden' 'Oculta'), (T 'Icon only' 'Só o ícone'), (T 'Search box' 'Caixa de pesquisa'))
+$searchNames = @((T 'Default' 'Padrão'), (T 'Hidden' 'Escondida'), (T 'Icon only' 'Só o ícone'), (T 'Search box' 'Caixa de pesquisa'))
 $searchIds   = @('Keep', 'Hidden', 'Icon', 'Box')
-$opt.Search         = $searchIds[(Choose (T 'Taskbar search:' 'Pesquisa na barra de tarefas:') $searchNames 0)]
-$taskViewNames = @((T 'Keep as is' 'Manter como está'), (T 'Show' 'Mostrar'), (T 'Hide' 'Ocultar'))
+$opt.Search         = $searchIds[(Choose (T 'Search on the taskbar:' 'Pesquisa na barra de tarefas:') $searchNames 0)]
+$taskViewNames = @((T 'Default' 'Padrão'), (T 'Show' 'Mostrar'), (T 'Hide' 'Esconder'))
 $taskViewIds   = @('Keep', 'Show', 'Hide')
-$opt.TaskView       = $taskViewIds[(Choose (T '"Task View" button on the taskbar:' 'Botão "Visão de Tarefas" na barra de tarefas:') $taskViewNames 0)]
-$opt.ClearPins      = Ask (T 'Remove the pinned icons from the taskbar (Edge, Store, File Explorer and the ones you pinned)?' 'Remover os ícones fixados na barra de tarefas (Edge, Store, Explorador e os que você fixou)?') $false
-$opt.NoStartAds     = Ask (T 'Unpin the ad shortcuts from Start (LinkedIn, Spotify, TikTok, Solitaire, Candy Crush...)? Only those come off; the rest of your pins stays.' 'Desafixar os atalhos de propaganda do Iniciar (LinkedIn, Spotify, TikTok, Paciência, Candy Crush...)? Só esses saem; o resto dos seus fixados fica.') $true
+$opt.TaskView       = $taskViewIds[(Choose (T '"Task View" button:' 'Botão "Visão de Tarefas":') $taskViewNames 0)]
+$opt.ClearPins      = Ask (T 'Unpin every icon from the taskbar?' 'Desafixar todos os ícones da barra de tarefas?') $false
+$opt.NoStartAds     = Ask (T 'Unpin the ad shortcuts from Start, like LinkedIn, Spotify and TikTok? Your other pins stay.' 'Desafixar os atalhos de propaganda do Iniciar, como LinkedIn, Spotify e TikTok? Seus outros fixados ficam.') $true
 $opt.BatteryPercent = if ($isWin11 -and $hasBattery) { Ask (T 'Show the battery percentage on the taskbar?' 'Mostrar a porcentagem da bateria na barra de tarefas?') $false } else { $false }
-$opt.ShowExtensions = Ask (T 'Show file extensions (.txt, .exe...)?' 'Mostrar as extensões dos arquivos (.txt, .exe...)?') $true
-$opt.HideFrequent   = Ask (T 'Hide frequent folders from Quick access?' 'Esconder as pastas frequentes do Acesso rápido?') $true
-$opt.UnpinMusic     = Ask (T 'Unpin "Music" from Quick access (the folder stays)?' 'Remover "Músicas" do Acesso rápido (a pasta continua existindo)?') $false
-$opt.HideRecent     = Ask (T 'Also hide recent files in File Explorer?' 'Esconder também os arquivos recentes no Explorador?') $false
-$opt.ShowHidden     = Ask (T 'Show hidden files and folders in File Explorer (.git, AppData...)?' 'Mostrar arquivos e pastas ocultos no Explorador (.git, AppData...)?') $false
-$opt.NoFolderSniff  = Ask (T 'Turn off automatic folder type discovery (large folders open faster; resets custom folder views)?' 'Desligar a descoberta automática de tipo de pasta (pastas grandes abrem mais rápido; zera as visualizações personalizadas)?') $true
-$opt.HideHomeGallery = if ($isWin11) { Ask (T 'Remove "Home" and "Gallery" from the File Explorer sidebar (it then opens in "This PC")?' 'Remover "Início" e "Galeria" da barra lateral do Explorador (ele passa a abrir em "Este Computador")?') $false } else { $false }
-$opt.ClassicMenu    = if ($isWin11) { Ask (T 'Use the classic right-click menu (full, without clicking "Show more options")?' 'Usar o menu clássico do botão direito (completo, sem precisar clicar em "Mostrar mais opções")?') $false } else { $false }
-$opt.NoSnap         = Ask (T 'Turn off "Snap windows" (windows no longer snap to the screen edges or into layouts)?' 'Desligar o "Ajustar janelas" (as janelas deixam de se encaixar nas bordas da tela e em layouts)?') $false
-$opt.ThinBorder     = Ask (T 'Thin the window resize border (avoids resizing by accident)?' 'Afinar a borda de redimensionamento das janelas (evita redimensionar sem querer)?') $false
+$opt.ShowExtensions = Ask (T 'Show file extensions, like .txt and .exe?' 'Mostrar a extensão dos arquivos, como .txt e .exe?') $true
+$opt.HideFrequent   = Ask (T 'Hide frequent folders in Quick access?' 'Esconder pastas frequentes do Acesso rápido?') $true
+$opt.UnpinMusic     = Ask (T 'Unpin "Music" from Quick access? The folder stays.' 'Tirar "Músicas" do Acesso rápido? A pasta continua.') $false
+$opt.HideRecent     = Ask (T 'Hide recent files in File Explorer?' 'Esconder arquivos recentes no Explorador?') $false
+$opt.ShowHidden     = Ask (T 'Show hidden files and folders?' 'Mostrar arquivos e pastas ocultos?') $false
+$opt.NoFolderSniff  = Ask (T 'Open large folders faster? Turns off folder type discovery and resets custom folder views.' 'Abrir pastas grandes mais rápido? Desliga a descoberta de tipo de pasta e zera visualizações personalizadas.') $true
+$opt.HideHomeGallery = if ($isWin11) { Ask (T 'Remove "Home" and "Gallery" from File Explorer? It opens in "This PC".' 'Tirar "Início" e "Galeria" do Explorador? Ele passa a abrir em "Este Computador".') $false } else { $false }
+$opt.ClassicMenu    = if ($isWin11) { Ask (T 'Use the classic right-click menu, without "Show more options"?' 'Usar o menu clássico do botão direito, sem "Mostrar mais opções"?') $false } else { $false }
+$opt.NoSnap         = Ask (T 'Turn off Snap windows? Windows stop snapping to the screen edges.' 'Desligar o Ajustar janelas? As janelas deixam de encaixar nas bordas da tela.') $false
+$opt.ThinBorder     = Ask (T 'Make the window resize border thinner?' 'Afinar a borda de redimensionar janelas?') $false
 
 # --- Everyday use
 Write-Host (T "`n  Everyday use" "`n  Uso no dia a dia") -ForegroundColor Cyan
-$opt.LongPaths        = Ask (T 'Allow long paths (over 260 characters; avoids errors with node_modules)?' 'Permitir caminhos longos (mais de 260 caracteres; evita erros com node_modules)?') $true
-$opt.EndTask          = if ($hasEndTask) { Ask (T 'Show "End task" when right-clicking an app on the taskbar?' 'Mostrar "Finalizar tarefa" ao clicar com o direito num app na barra de tarefas?') $true } else { $false }
-$opt.Sudo             = if ($hasSudo)    { Ask (T 'Enable sudo in the terminal (run commands as admin without opening another window)?' 'Ativar o sudo no terminal (rodar comandos como admin sem abrir outra janela)?') $false } else { $false }
-$opt.ClipboardHistory = Ask (T 'Turn on clipboard history (Win+V)?' 'Ativar o histórico da área de transferência (Win+V)?') $true
-$opt.NoMouseAccel     = Ask (T 'Turn off "Enhance pointer precision" (mouse acceleration)?' 'Desligar a "precisão do ponteiro aprimorada" (aceleração do mouse)?') $false
-$opt.NoStickyKeys     = Ask (T 'Turn off the Sticky Keys shortcut (prompt when pressing Shift 5 times)?' 'Desligar o atalho das Teclas de Aderência (aviso ao apertar Shift 5 vezes)?') $true
-$opt.NumLock          = Ask (T 'Turn Num Lock on when Windows starts (also on the sign-in screen)?' 'Ligar o Num Lock ao iniciar o Windows (também na tela de login)?') $true
-$opt.NoFastStartup    = Ask (T 'Turn off Fast Startup? ("Shut down" really shuts down; startup takes a few seconds longer)' 'Desligar a Inicialização rápida? ("Desligar" desliga de verdade; o PC demora alguns segundos a mais para ligar)') $false
-$opt.MaxVolume        = Ask (T 'Set the Windows volume to 100% (on the speakers/headphones in use now)?' 'Deixar o volume do Windows em 100% (no alto-falante/fone em uso agora)?') $true
-$opt.VerboseBsod      = Ask (T 'Show technical details on the blue screen if the PC crashes (helps find the cause)?' 'Mostrar detalhes técnicos na tela azul, se o PC travar (ajuda a descobrir a causa)?') $true
+$opt.LongPaths        = Ask (T 'Allow paths longer than 260 characters?' 'Permitir caminhos com mais de 260 caracteres?') $true
+$opt.EndTask          = if ($hasEndTask) { Ask (T 'Add "End task" when you right-click an app on the taskbar?' 'Adicionar "Finalizar tarefa" ao clicar com o direito num app da barra de tarefas?') $true } else { $false }
+$opt.Sudo             = if ($hasSudo)    { Ask (T 'Turn on sudo in the terminal?' 'Ligar o sudo no terminal?') $false } else { $false }
+$opt.ClipboardHistory = Ask (T 'Turn on clipboard history? It opens with Win+V.' 'Ligar o histórico da área de transferência? Ele abre com Win+V.') $true
+$opt.NoMouseAccel     = Ask (T 'Turn off mouse acceleration?' 'Desligar a aceleração do mouse?') $false
+$opt.NoStickyKeys     = Ask (T 'Turn off the Sticky Keys prompt when Shift is pressed 5 times?' 'Desligar o aviso das Teclas de Aderência ao apertar Shift 5 vezes?') $true
+$opt.NumLock          = Ask (T 'Turn on Num Lock when Windows starts?' 'Ligar o Num Lock ao iniciar o Windows?') $true
+$opt.NoFastStartup    = Ask (T 'Turn off Fast Startup? "Shut down" fully shuts down; startup takes a few seconds longer.' 'Desligar a Inicialização rápida? "Desligar" desliga de verdade; o PC leva alguns segundos a mais para ligar.') $false
+$opt.MaxVolume        = Ask (T 'Set the volume to 100%?' 'Colocar o volume em 100%?') $true
+$opt.VerboseBsod      = Ask (T 'Show error details on the blue screen?' 'Mostrar detalhes do erro na tela azul?') $true
 
 # --- Power: one question to keep everything as is; otherwise screen, sleep and hibernation times,
 # plugged in and (laptops) on battery, each menu starting at the current value.
 # Hibernation is only asked if it is turned on: turning it on is not this script's call (hiberfil.sys).
-Write-Host (T "`n  Power (screen and sleep)" "`n  Energia (tela e suspensão)") -ForegroundColor Cyan
+Write-Host (T "`n  Power" "`n  Energia") -ForegroundColor Cyan
 $power = [ordered]@{}
 $opt.Power = 'Keep'
-if ((Choose (T 'Screen, sleep and hibernation times:' 'Tempo da tela, da suspensão e da hibernação:') @((T 'Keep as is' 'Manter como está'), (T 'Choose the times' 'Escolher os tempos')) 0) -eq 1) {
+if ((Choose (T 'Screen, sleep and hibernation times:' 'Tempo da tela, suspensão e hibernação:') @((T 'Default' 'Padrão'), (T 'Choose' 'Escolher')) 0) -eq 1) {
     $canHibernate = Test-HibernateEnabled
-    $modes = @(@{ Key = 'ac'; Battery = $false; Label = $(if ($hasBattery) { T ' (plugged in)' ' (na tomada)' } else { '' }) })
-    if ($hasBattery) { $modes += @{ Key = 'dc'; Battery = $true; Label = (T ' (on battery)' ' (na bateria)') } }
+    $modes = @(@{ Key = 'ac'; Battery = $false; Label = $(if ($hasBattery) { T 'Plugged in' 'Na tomada' } else { '' }) })
+    if ($hasBattery) { $modes += @{ Key = 'dc'; Battery = $true; Label = (T 'On battery' 'Na bateria') } }
     $parts = @()
     foreach ($m in $modes) {
-        $power["monitor-timeout-$($m.Key)"] = Select-Minutes (T "Turn off the screen after$($m.Label):" "Desligar a tela após$($m.Label):") $ScreenChoices (Get-PowerTimeout SUB_VIDEO VIDEOIDLE $m.Battery)
-        $power["standby-timeout-$($m.Key)"] = Select-Minutes (T "Sleep after$($m.Label):" "Suspender após$($m.Label):") $SleepChoices (Get-PowerTimeout SUB_SLEEP STANDBYIDLE $m.Battery)
+        $power["monitor-timeout-$($m.Key)"] = Select-Minutes (Get-PowerQuestion $m.Label (T 'Turn off the screen after' 'Desligar a tela após')) $ScreenChoices (Get-PowerTimeout SUB_VIDEO VIDEOIDLE $m.Battery)
+        $power["standby-timeout-$($m.Key)"] = Select-Minutes (Get-PowerQuestion $m.Label (T 'Sleep after' 'Suspender após')) $SleepChoices (Get-PowerTimeout SUB_SLEEP STANDBYIDLE $m.Battery)
         $text = (T 'screen ' 'tela ') + (Format-Minutes $power["monitor-timeout-$($m.Key)"]) + (T ', sleep ' ', suspensão ') + (Format-Minutes $power["standby-timeout-$($m.Key)"])
         if ($canHibernate) {
-            $power["hibernate-timeout-$($m.Key)"] = Select-Minutes (T "Hibernate after$($m.Label):" "Hibernar após$($m.Label):") $HibernateChoices (Get-PowerTimeout SUB_SLEEP HIBERNATEIDLE $m.Battery)
+            $power["hibernate-timeout-$($m.Key)"] = Select-Minutes (Get-PowerQuestion $m.Label (T 'Hibernate after' 'Hibernar após')) $HibernateChoices (Get-PowerTimeout SUB_SLEEP HIBERNATEIDLE $m.Battery)
             $text += (T ', hibernation ' ', hibernação ') + (Format-Minutes $power["hibernate-timeout-$($m.Key)"])
         }
-        $parts += $(if ($m.Label) { "$($m.Label.Trim(' ()')): $text" } else { $text })
+        $parts += $(if ($m.Label) { "$($m.Label.ToLower()): $text" } else { $text })
     }
     $opt.Power = $parts -join '; '
 }
@@ -1337,18 +1502,18 @@ if ((Choose (T 'Screen, sleep and hibernation times:' 'Tempo da tela, da suspens
 # --- Network
 Write-Host (T "`n  Network" "`n  Rede") -ForegroundColor Cyan
 $dnsV4 = @(); $dnsV6 = @()
-if (Ask (T 'Set DNS manually (with DNS over HTTPS, automatic template)?' 'Configurar o DNS manualmente (com DNS por HTTPS, modelo automático)?') $false) {
+if (Ask (T 'Set DNS manually?' 'Definir o DNS manualmente?') $false) {
     if (-not $isWin11) {
         Write-Host (T '    Note: Windows 10 has no system-wide DNS over HTTPS. DNS will be set, but unencrypted.' '    Aviso: o Windows 10 não tem DNS por HTTPS no sistema. O DNS será definido, mas sem criptografia.') -ForegroundColor Yellow
     }
-    $dnsV4 += Read-IP (T 'Preferred DNS (IPv4):' 'DNS preferencial (IPv4):') 'InterNetwork' $false
-    $altV4 = Read-IP (T 'Alternate DNS (IPv4, Enter to skip):' 'DNS alternativo (IPv4, Enter para pular):') 'InterNetwork' $true
+    $dnsV4 += Read-IP (T 'Preferred IPv4 DNS:' 'DNS IPv4 preferencial:') 'InterNetwork' $false
+    $altV4 = Read-IP (T 'Alternate IPv4 DNS, Enter skips:' 'DNS IPv4 alternativo, Enter pula:') 'InterNetwork' $true
     if ($altV4) { $dnsV4 += $altV4 }
     Write-Host (T '    IPv6: if left blank, IPv6 DNS stays the one from the router, unencrypted.' '    IPv6: se ficar em branco, o DNS IPv6 continua o do roteador, sem criptografia.') -ForegroundColor DarkGray
-    $prefV6 = Read-IP (T 'Preferred DNS (IPv6, Enter to skip):' 'DNS preferencial (IPv6, Enter para pular):') 'InterNetworkV6' $true
+    $prefV6 = Read-IP (T 'Preferred IPv6 DNS, Enter skips:' 'DNS IPv6 preferencial, Enter pula:') 'InterNetworkV6' $true
     if ($prefV6) {
         $dnsV6 += $prefV6
-        $altV6 = Read-IP (T 'Alternate DNS (IPv6, Enter to skip):' 'DNS alternativo (IPv6, Enter para pular):') 'InterNetworkV6' $true
+        $altV6 = Read-IP (T 'Alternate IPv6 DNS, Enter skips:' 'DNS IPv6 alternativo, Enter pula:') 'InterNetworkV6' $true
         if ($altV6) { $dnsV6 += $altV6 }
     }
     # The "automatic template" only exists for servers Windows knows (Cloudflare, Google, Quad9...)
@@ -1365,7 +1530,7 @@ $opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' }
 # --- Summary and confirmation
 # Labels shown on screen for each option (in the chosen language, like the questions).
 $labels = @{
-    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); Apps = 'Apps'; OptionalApps = (T 'Optional apps' 'Apps opcionais'); NoXbox = (T 'No Xbox' 'Sem Xbox'); NoSnipping = (T 'No Snipping Tool' 'Sem Captura de Tela')
+    Telemetry = (T 'Telemetry' 'Telemetria'); Suggestions = (T 'Suggestions' 'Sugestões'); RemoveApps = (T 'Apps to remove' 'Apps para remover')
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = (T 'Security' 'Segurança'); HideAreas = (T 'Hide areas' 'Esconder áreas'); RootFolders = (T 'C: folders' 'Pastas do C:'); Theme = (T 'Theme' 'Tema'); Taskbar = (T 'Taskbar' 'Barra de tarefas')
     Search = (T 'Search' 'Pesquisa'); TaskView = (T 'Task View' 'Visão de Tarefas'); ClearPins = (T 'No pins' 'Sem fixados'); NoStartAds = (T 'No Start ads' 'Sem propaganda no Iniciar')
     ShowExtensions = (T 'Extensions' 'Extensões'); HideFrequent = (T 'No frequent' 'Sem frequentes'); UnpinMusic = (T 'No Music in Quick access' 'Sem Músicas no Acesso rápido'); HideRecent = (T 'No recent' 'Sem recentes'); HideHomeGallery = (T 'No Home/Gallery' 'Sem Início/Galeria'); ClassicMenu = (T 'Classic menu' 'Menu clássico'); NoSnap = (T 'No Snap' 'Sem Ajustar janelas'); ThinBorder = (T 'Thin border' 'Borda fina')
@@ -1384,7 +1549,8 @@ if (-not $NoPrompt) {
                 elseif ($key -eq 'Taskbar') { $taskbarNames[[array]::IndexOf($taskbarIds, $value)] }
                 elseif ($key -eq 'Search')  { $searchNames[[array]::IndexOf($searchIds, $value)] }
                 elseif ($key -eq 'TaskView') { $taskViewNames[[array]::IndexOf($taskViewIds, $value)] }
-                elseif (($key -eq 'DNS' -or $key -eq 'Power') -and $value -eq 'Keep') { T 'keep' 'manter' }
+                elseif (($key -eq 'DNS' -or $key -eq 'Power') -and $value -eq 'Keep') { T 'default' 'padrão' }
+                elseif ($key -eq 'RemoveApps') { $n = @($value | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique).Count; if ($n) { T "$n app(s)" "$n app(s)" } else { T 'none' 'nenhum' } }
                 else { $value }
         $line = "    {0,-24} {1}" -f $labels[$key], $text
         Write-Host $line
@@ -1424,14 +1590,11 @@ if ($opt.Telemetry) {
     Invoke-Step (T 'Telemetry: policies' 'Telemetria: políticas')                               { Set-TelemetryPolicies; Disable-Widgets }
 }
 if ($opt.Suggestions) { Invoke-Step (T 'Suggestions, ads and silent app installs' 'Sugestões, anúncios e instalação silenciosa de apps') { Disable-Suggestions } }
-if ($opt.Apps) {
-    $appList = if ($opt.OptionalApps) { $JunkApps + $OptionalApps } else { $JunkApps }
-    Invoke-Step (T 'Removing apps (all users + provisioned package)' 'Removendo apps (todos os usuários + pacote provisionado)') { Remove-Apps $appList }
+if ($opt.RemoveApps) {
+    Invoke-Step (T 'Removing apps, for every user' 'Removendo apps, para todos os usuários') { Remove-Apps $opt.RemoveApps }
+    if ($opt.RemoveApps | Where-Object { $XboxApps -contains $_ }) { Invoke-Step 'Game DVR' { Disable-GameDvr } }
+    if ($opt.RemoveApps -contains 'Microsoft.ScreenSketch') { Invoke-Step (T 'Print Screen key' 'Tecla Print Screen') { Set-PrintScreenFree } }
 }
-if ($opt.NoXbox) {
-    Invoke-Step (T 'Removing the Xbox apps' 'Removendo os apps do Xbox') { Remove-Apps $XboxApps; Disable-GameDvr }
-}
-if ($opt.NoSnipping) { Invoke-Step (T 'Removing the Snipping Tool' 'Removendo a Captura de Tela') { Remove-SnippingTool } }
 if ($opt.OneDrive) { Invoke-Step (T 'Removing OneDrive' 'Removendo OneDrive')                                          { Remove-OneDrive } }
 if ($opt.Edge)     { Invoke-Step (T 'Edge: no telemetry, background mode, sidebar or shopping' 'Edge: sem telemetria, segundo plano, barra lateral e compras') { Set-EdgePolicies } }
 if ($opt.NoRecall) { Invoke-Step 'Recall' { Disable-Recall } }

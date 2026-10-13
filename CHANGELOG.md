@@ -21,6 +21,7 @@
 - **Configure-Windows**: optional screen, sleep and hibernation times, plugged in and on battery.
 - **Configure-Windows**: removes LinkedIn with the preinstalled apps, and can unpin the ad shortcuts from Start (LinkedIn, Spotify, TikTok, Solitaire...) while keeping the rest of the pins.
 - **Configure-Windows**: detailed log with one line per setting (`[OK]` changed, `[--]` already set), a final summary, and a log file on the Desktop with the answers and everything shown.
+- **Configure-Windows**: one checklist of apps to remove, showing only the apps on the PC, instead of four yes/no questions; shorter, direct questions without parentheses; "Default" instead of "Keep as is".
 - **Configure-Firefox**: removes the "Add to taskbar" and Picture-in-Picture buttons from the address bar, asks whether to keep page translation and, optionally, removes the Reader View icon.
 - **Get-Wallpapers**: pick wallpapers from a list and download them, with a preview gallery in `docs/wallpapers.md` kept up to date by `tools/Update-WallpaperGallery.ps1`.
 - **Uninstall-Apps**: pick programs and uninstall them with their official uninstaller, then delete the leftovers you confirm (folders and shortcuts to the Recycle Bin, registry keys and scheduled tasks backed up first).

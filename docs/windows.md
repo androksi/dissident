@@ -25,10 +25,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 |---|---|
 | Telemetry | Turns off the telemetry service and collection tasks, and applies the policies for minimum diagnostics, no ads, no activity history and no Bing in search. Turns off Widgets. |
 | Suggestions | Turns off suggestions, ads and silent app installs (Candy Crush etc.). |
-| Junk apps | Removes Clipchamp, Bing, Solitaire, LinkedIn, Teams, the new Outlook, Copilot and others. |
-| Optional apps | Also removes Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player and OneNote. |
-| Xbox | Removes the Xbox app, Game Bar, Xbox sign-in and Gaming Services, and turns off Game DVR. Store/Game Pass games and games with Xbox sign-in stop working; Steam, Epic and Riot don't. Default no. |
-| Snipping Tool | Removes the Snipping Tool (Snip & Sketch on Windows 10) and frees the Print Screen key for another app such as ShareX. Win+Shift+S stops working. Default no. |
+| Apps to remove | A checklist with only the apps on this PC. **Checked**: rarely used ones (Clipchamp, Copilot, Bing, Solitaire, LinkedIn, Teams, new Outlook, Paint 3D...). **Unchecked**: ones some people use (Phone Link, Sticky Notes, Clock, Media Player, OneNote, Snipping Tool) and Xbox (Xbox app, Game Bar, Xbox sign-in, Gaming Services: Game Pass games and games with Xbox sign-in stop working). Removing the Snipping Tool frees the Print Screen key for ShareX; removing Xbox apps turns off Game DVR. Removed for every user and for new accounts. |
 | OneDrive | Uninstalls OneDrive and keeps it from coming back. |
 | Edge | Edge policies: no telemetry, background mode, sidebar, Copilot or shopping. |
 | Recall | Windows 11: removes Recall and stops it from being turned on (official policies). Only exists on Copilot+ PCs. |
@@ -77,7 +74,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 ## Power
 | Feature | What it does |
 |---|---|
-| Screen, sleep and hibernation | Default: keep as is. Or choose when to turn off the screen, sleep and hibernate, plugged in and (laptops) on battery, from 1 minute to never. Each menu starts at the current value. Hibernation is only asked if it is turned on. Applies to the active power plan, like Settings → System → Power. |
+| Screen, sleep and hibernation | "Default" leaves them as they are. Or choose when to turn off the screen, sleep and hibernate, plugged in and (laptops) on battery, from 1 minute to never. Each menu starts at the current value. Hibernation is only asked if it is turned on. Applies to the active power plan, like Settings → System → Power. |
 
 ## Network
 | Feature | What it does |
