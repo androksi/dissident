@@ -80,28 +80,46 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host (T '  Use the arrows ↑ ↓ and Enter' '  Use as setas ↑ ↓ e Enter') -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
-    foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
-    $top = [Console]::CursorTop - $Options.Count
+    # Long lists (e.g. screen resolutions) scroll: only what fits in the window is drawn, plus a line
+    # saying which part of the list is showing.
+    $visible = [Math]::Max(3, [Math]::Min($Options.Count, [Console]::WindowHeight - 6))
+    $scrolls = $visible -lt $Options.Count
+    $height  = $visible + [int]$scrolls
+    for ($i = 0; $i -lt $height; $i++) { Write-Host '' }       # reserve the menu lines
+    $top = [Console]::CursorTop - $height
     $selected = $Default
+    $first = [Math]::Max(0, $Default - $visible + 1)
     [Console]::CursorVisible = $false
     try {
         while ($true) {
-            for ($i = 0; $i -lt $Options.Count; $i++) {
-                [Console]::SetCursorPosition(0, $top + $i)
+            if ($selected -lt $first) { $first = $selected }
+            if ($selected -ge $first + $visible) { $first = $selected - $visible + 1 }
+            for ($v = 0; $v -lt $visible; $v++) {
+                $i = $first + $v
+                [Console]::SetCursorPosition(0, $top + $v)
                 $marker = if ($i -eq $selected) { '  > ' } else { '    ' }
                 $line = ($marker + $Options[$i]).PadRight([Console]::WindowWidth - 1)
                 if ($i -eq $selected) { Write-Host $line -ForegroundColor Cyan -NoNewline } else { Write-Host $line -NoNewline }
             }
+            if ($scrolls) {
+                [Console]::SetCursorPosition(0, $top + $visible)
+                $range = T "    showing $($first + 1)–$($first + $visible) of $($Options.Count) · ↑ ↓ for more" "    mostrando $($first + 1)–$($first + $visible) de $($Options.Count) · ↑ ↓ para ver mais"
+                Write-Host $range.PadRight([Console]::WindowWidth - 1) -ForegroundColor DarkGray -NoNewline
+            }
             $key = [Console]::ReadKey($true).Key
             if     ($key -eq 'UpArrow')   { $selected = ($selected - 1 + $Options.Count) % $Options.Count }
             elseif ($key -eq 'DownArrow') { $selected = ($selected + 1) % $Options.Count }
+            elseif ($key -eq 'PageUp')    { $selected = [Math]::Max(0, $selected - $visible) }
+            elseif ($key -eq 'PageDown')  { $selected = [Math]::Min($Options.Count - 1, $selected + $visible) }
+            elseif ($key -eq 'Home')      { $selected = 0 }
+            elseif ($key -eq 'End')       { $selected = $Options.Count - 1 }
             elseif ($key -eq 'Enter')     { break }
         }
     } finally {
-        [Console]::SetCursorPosition(0, $top + $Options.Count)
+        [Console]::SetCursorPosition(0, $top + $height)
         [Console]::CursorVisible = $true
     }
     return $selected
@@ -1174,13 +1192,12 @@ function Read-DisplayChoice($Display, [int]$Number, [int]$Count) {
     $recTag = T ' · recommended' ' · recomendada'
     $curTag = T ' · current' ' · atual'
 
-    # Resolution: the largest ones (up to 10), plus the current and the recommended
+    # Resolution: every one the monitor supports, from the largest to the smallest (the menu scrolls)
     $all = @($modes | ForEach-Object { '{0}x{1}' -f $_[0], $_[1] } | Select-Object -Unique |
              Sort-Object { [int]($_ -split 'x')[0] * [int]($_ -split 'x')[1] }, { [int]($_ -split 'x')[0] } -Descending)
     $recKey = if ($Display.PreferredWidth) { '{0}x{1}' -f $Display.PreferredWidth, $Display.PreferredHeight } else { $all[0] }
     $curKey = '{0}x{1}' -f $cur[0], $cur[1]
-    $shown = @($all | Select-Object -First 10)
-    foreach ($k in $recKey, $curKey) { if ($shown -notcontains $k -and $all -contains $k) { $shown += $k } }
+    $shown = $all
     $labels = @($default) + @($shown | ForEach-Object {
         $wh = $_ -split 'x'
         (Format-Resolution $wh[0] $wh[1]) + $(if ($_ -eq $recKey) { $recTag } else { '' }) + $(if ($_ -eq $curKey) { $curTag } else { '' })
