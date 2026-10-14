@@ -44,7 +44,6 @@ The panel stays open after each option, so you can keep it open and go down the 
 
 | Menu option | When |
 |---|---|
-| Maintenance → Check after an update | After a big Windows update, to see whether anything came back. |
 | Formatting the PC → Back up apps and drivers | Every now and then, so the backup is current for the next reinstall. |
 | Maintenance → Repair Windows | Only when Windows acts strange. |
 

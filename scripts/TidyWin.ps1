@@ -92,11 +92,6 @@ function Get-Menu {
         ) 'Start' @((New-Step 'browsers/configure-chrome.ps1' $null 'Chrome'), (New-Step 'browsers/configure-brave.ps1' $null 'Brave'), (New-Step 'browsers/configure-firefox.ps1' $null 'Firefox')) -Form
 
 
-        New-MenuEntry $care 'windows-check' 'E895' 'Check after an update' 'Check after an update' 'Find what a Windows update brought back.' @(
-            'Compares this PC with what you chose the last time you ran Windows.'
-            'Puts back only what changed, after you confirm.'
-        ) 'Check' @(New-Step 'windows/configure-windows.ps1' '-Check') -Form
-
         New-MenuEntry $care 'uninstall' 'E74D' 'Uninstall programs' 'Uninstall programs' 'Remove programs and what they leave behind.' @(
             'Runs the official uninstaller of each program you pick.'
             'Then lists the leftover folders, registry keys and shortcuts.'

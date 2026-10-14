@@ -398,14 +398,6 @@ function Remove-EdgePolicies {
     Remove-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate' @('CreateDesktopShortcutDefault', 'CreateDesktopShortcut{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}')
 }
 
-# Answers saved by Configure-Windows for -Check.
-function Remove-SavedAnswers {
-    # Only this file: the folder also holds fonts.json (Install-Fonts' record for fonts-revert)
-    $dir = Join-Path $env:ProgramData 'TidyWin'
-    Remove-Item (Join-Path $dir 'windows.json') -Force -ErrorAction SilentlyContinue
-    if (-not (Get-ChildItem $dir -Force -ErrorAction SilentlyContinue)) { Remove-Item $dir -Force -ErrorAction SilentlyContinue }
-}
-
 #endregion
 
 
@@ -443,9 +435,6 @@ $fields += @(
     New-Field $Sy 'DeviceApps' 'toggle' 'Download device apps again' 'Windows can download the manufacturer''s apps and icons for your devices again.' $false
     New-Field $Sy 'Wpbt' 'toggle' 'Allow programs from the firmware' 'Windows runs again the programs some PCs install from the firmware (WPBT).' $false
 )
-if (Test-Path (Join-Path $tidyDir 'windows.json')) {
-    $fields += New-Field $Sy 'SavedAnswers' 'toggle' 'Forget the saved choices' 'Check after an update stops finding and reapplying what you chose in Windows.' $false
-}
 $fields += @(
     New-Field $Nw 'DNS' 'toggle' 'DNS back to automatic' 'The DNS servers come from the router again and DNS over HTTPS is turned off, on every adapter.' $false
     New-Field $Nw 'DeliveryOptimization' 'toggle' 'Share updates with other PCs again' 'Windows can get and send updates through other PCs on your network again, the Windows default.' $false
@@ -481,7 +470,6 @@ if ($v.NumLock)              { Write-Step 'Num Lock off at startup';            
 if ($v.BlueScreen)           { Write-Step 'Simple blue screen';                     Restore-BlueScreen; Write-Done 'Back to the Windows default' }
 if ($v.DeviceApps)           { Write-Step 'Device apps download again';             Restore-DeviceApps; Write-Done 'Back to the Windows default' }
 if ($v.Wpbt)                 { Write-Step 'Programs from the firmware allowed';     Restore-Wpbt; Write-Done 'Back to the Windows default' }
-if ($v.SavedAnswers)         { Write-Step 'Forgetting the saved choices';           Remove-SavedAnswers; Write-Done 'Deleted' }
 if ($v.DNS)                  { Write-Step 'DNS back to automatic';                  Restore-DNS }
 if ($v.DeliveryOptimization) { Write-Step 'Update sharing back to default';         Remove-DeliveryOptimizationPolicy; Write-Done 'Back to the Windows default' }
 Write-Host "`nDone." -ForegroundColor Green; Write-Host '  Restart the PC so every change takes effect.' -ForegroundColor DarkGray

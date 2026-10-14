@@ -81,16 +81,6 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 |---|---|
 | DNS | Sets IPv4 and IPv6 DNS manually, with DNS over HTTPS (automatic template) on Windows 11. |
 
-## Check
-
-In the [TidyWin panel](../README.md#quick-start): **Maintenance → Check after an update**. From a local copy:
-
-```powershell
-.\scripts\windows\configure-windows.ps1 -Check
-```
-
-Compares the PC with the answers saved the last time you ran `Configure-Windows` (in `%ProgramData%\TidyWin`), and lists what came back after a Windows update, nothing checked: only what you check is reapplied. Personalization is not checked.
-
 ## Cleanup
 
 In the [TidyWin panel](../README.md#quick-start): **Maintenance → Free up disk space**. From a local copy:
@@ -146,5 +136,5 @@ In the [TidyWin panel](../README.md#quick-start): **Undo → Windows**. From a l
 
 | Feature | What it does |
 |---|---|
-| Revert | A page with one switch per subject, all off: only what you turn on is undone. Covers telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen, `inetpub`, update sharing and the saved choices. |
+| Revert | A page with one switch per subject, all off: only what you turn on is undone. Covers telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen, `inetpub` and update sharing. |
 | Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, screen resolution, refresh rate and scale, screen and sleep times, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

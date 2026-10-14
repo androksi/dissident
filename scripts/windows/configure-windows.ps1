@@ -9,10 +9,6 @@
     In the TidyWin panel every option shows on one page. Run directly, the options are asked one by one
     (arrow-key menus; "Skip" leaves a setting as it is), then everything is applied at once.
 
-    Check later (e.g. after a big Windows update) whether anything came back, and reapply it:
-        powershell -ExecutionPolicy Bypass -File .\configure-windows.ps1 -Check
-    The answers are saved in %ProgramData%\TidyWin\windows.json for that (Revert deletes it).
-
     Each change gets its own line: [OK] changed now, [--] it already was like that. Everything shown while
     applying is also saved to "TidyWin log <date>.txt" on the Desktop (with the answers; no user or PC name).
     If a step fails, the script reports it and moves on to the next one.
@@ -26,12 +22,10 @@
         4. Personalization ........... theme, taskbar (alignment, search, Task View, pins, battery %), File Explorer (hidden files, folder discovery, Home/Gallery), window border
         5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, volume, verbose BSoD, screen/sleep times
         6. Network ................... DNS with DNS over HTTPS
-        7. Check ..................... -Check: compares the PC with the saved answers
-        8. Options ................... every option (the panel's page) and what you chose
-        9. Execution ................. applies the chosen options, in order
+        7. Options ................... every option (the panel's page) and what you chose
+        8. Execution ................. applies the chosen options, in order
 #>
 param(
-    [switch]$Check,
     [string]$Describe,      # the panel: write every option to this file and stop
     [string]$Answers        # the panel: apply the options in this file, without asking
 )
@@ -1356,6 +1350,10 @@ function Disable-StickyKeysShortcut {
     Write-Done 'Sticky Keys shortcut (5x Shift): off'
 }
 
+function Get-RegValue([string]$Path, [string]$Name) {
+    (Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue).$Name
+}
+
 # Num Lock on when Windows starts: on the sign-in screen (.DEFAULT) and for your user.
 # Only bit 2 (Num Lock) is turned on; the other bits of the value are kept.
 $NumLockKeys = @('Registry::HKEY_USERS\.DEFAULT\Control Panel\Keyboard', 'HKCU:\Control Panel\Keyboard')
@@ -1505,210 +1503,7 @@ function Set-DNS([string[]]$V4, [string[]]$V6) {
 #endregion
 
 
-#region ==================== 7. CHECK ====================
-
-# Where the answers are saved, so -Check knows what you chose.
-$StateFile = Join-Path $env:ProgramData 'TidyWin\windows.json'
-
-function Save-State($Options, [string[]]$V4, [string[]]$V6) {
-    New-Item -ItemType Directory -Path (Split-Path $StateFile) -Force | Out-Null
-    [ordered]@{ Saved = (Get-Date).ToString('s'); Options = $Options; DnsV4 = @($V4); DnsV6 = @($V6) } |
-        ConvertTo-Json -Depth 4 | Set-Content -Path $StateFile -Encoding UTF8
-}
-
-function Get-RegValue([string]$Path, [string]$Name) {
-    (Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue).$Name
-}
-
-# Each Test-* returns a list of what is no longer as configured (empty = OK).
-function Test-Telemetry {
-    $bad = @()
-    foreach ($svc in 'DiagTrack', 'dmwappushservice') {
-        $s = Get-Service $svc -ErrorAction SilentlyContinue
-        if ($s -and $s.StartType -ne 'Disabled') { $bad += "service $svc on" }
-    }
-    foreach ($t in $TelemetryTasks) {
-        $task = Get-ScheduledTask -TaskPath $t[0] -TaskName $t[1] -ErrorAction SilentlyContinue
-        if ($task -and $task.State -ne 'Disabled') { $bad += "task $($t[1]) on" }
-    }
-    if ((Get-RegValue "$P\DataCollection" 'AllowTelemetry') -ne 1)          { $bad += 'diagnostic data policy' }
-    if ((Get-RegValue "$P\Windows Search" 'DisableWebSearch') -ne 1)       { $bad += 'Bing in search' }
-    if ((Get-RegValue "$P\AdvertisingInfo" 'DisabledByGroupPolicy') -ne 1) { $bad += 'advertising ID' }
-    if ($isWin11) {
-        $widgetsOff = (Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests') -eq 0 -or
-                      -not (Get-AppxPackage -AllUsers -Name 'MicrosoftWindows.Client.WebExperience' -ErrorAction SilentlyContinue)
-        if (-not $widgetsOff) { $bad += 'Widgets' }
-    } elseif ((Get-RegValue "$P\Windows Feeds" 'EnableFeeds') -ne 0) { $bad += 'News and interests' }
-    $bad
-}
-
-function Test-Suggestions {
-    $CDM = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
-    $bad = @()
-    foreach ($n in 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled') {
-        if ((Get-RegValue $CDM $n) -ne 0) { $bad += $n }
-    }
-    if ((Get-RegValue "$P\CloudContent" 'DisableWindowsConsumerFeatures') -ne 1) { $bad += 'suggested app installs' }
-    $bad
-}
-
-# Apps from the removal list that are installed again (names as Windows shows them in Get-AppxPackage).
-function Get-ReturnedApps([string[]]$List) {
-    @($List | Where-Object { Get-AppxPackage -AllUsers -Name $_ -ErrorAction SilentlyContinue })
-}
-
-function Test-OneDrive {
-    $bad = @()
-    if ((Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") -or (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")) { $bad += 'OneDrive installed again' }
-    if ((Get-RegValue "$P\OneDrive" 'DisableFileSyncNGSC') -ne 1) { $bad += 'policy that blocks OneDrive' }
-    $bad
-}
-
-function Test-Edge {
-    $E = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
-    $bad = @()
-    foreach ($n in 'StartupBoostEnabled', 'BackgroundModeEnabled', 'HubsSidebarEnabled', 'DiagnosticData', 'EdgeShoppingAssistantEnabled') {
-        if ((Get-RegValue $E $n) -ne 0) { $bad += $n }
-    }
-    if ((Get-RegValue $E 'HideFirstRunExperience') -ne 1) { $bad += 'HideFirstRunExperience' }
-    $bad
-}
-
-function Test-EdgeShortcut {
-    $bad = @()
-    if (@(Get-EdgeShortcuts | Where-Object { Test-Path -LiteralPath $_ }).Count) { $bad += 'shortcut is back on the desktop' }
-    if ((Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate' 'CreateDesktopShortcutDefault') -ne 0) { $bad += 'policy that stops the shortcut' }
-    $bad
-}
-
-function Test-NumLock {
-    $n = [int64]0; [void][int64]::TryParse([string](Get-RegValue $NumLockKeys[0] 'InitialKeyboardIndicators'), [ref]$n)
-    if (-not ($n -band 2)) { 'off when Windows starts' }
-}
-
-function Test-Security {
-    $bad = @()
-    try { if ((Get-MpPreference -ErrorAction Stop).PUAProtection -ne 1) { $bad += 'potentially unwanted app blocking' } } catch { }
-    if ((Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications' 'DisableEnhancedNotifications') -ne 1) { $bad += 'informational notifications' }
-    $bad
-}
-
-function Test-RootFolders {
-    $bad = @()
-    $inetpub = Get-Item "$env:SystemDrive\inetpub" -Force -ErrorAction SilentlyContinue
-    if ($inetpub -and -not ($inetpub.Attributes -band [IO.FileAttributes]::Hidden)) { $bad += 'inetpub visible' }
-    if (Test-Path "$env:SystemDrive\PerfLogs") { $bad += 'PerfLogs is back' }
-    $bad
-}
-
-function Test-Value([string]$Path, [string]$Name, $Expected, [string]$Label) {
-    if ((Get-RegValue $Path $Name) -ne $Expected) { $Label }
-}
-
-function Test-DNS([string[]]$V4) {
-    $bad = @()
-    foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -ne 'Disabled')) {
-        $current = @((Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses)
-        if (($current -join ',') -ne ($V4 -join ',')) { $bad += "$($adapter.Name): $(if ($current) { $current -join ', ' } else { 'automatic' })" }
-    }
-    $bad
-}
-
-function Invoke-Check {
-    Write-Host "`n$osLabel" -ForegroundColor Green
-    if (-not (Test-Path $StateFile)) {
-        if ($Describe) {
-            Write-OptionsPage $Describe @(New-Field 'Check' 'Nothing' 'header' 'Nothing to compare with yet' 'Run Set up → Windows first: it saves what you choose, and this compares the PC with it.' $null)
-            return
-        }
-        Write-Host '  No saved answers. Run Configure-Windows first (older versions of it did not save the answers).' -ForegroundColor Yellow
-        return
-    }
-    $state = Get-Content $StateFile -Raw | ConvertFrom-Json
-    $o = $state.Options
-    Write-Host "  Comparing with the answers from $(([datetime]$state.Saved).ToString('yyyy-MM-dd HH:mm'))."
-    Write-Host '  Personalization is not checked: those are preferences you may have changed on purpose.' -ForegroundColor DarkGray
-
-    # Apps chosen in the checklist. Answers saved by older versions had yes/no questions instead.
-    $appList = if ($o.PSObject.Properties['RemoveApps']) { @($o.RemoveApps) } else {
-        @(if ($o.Apps) { $JunkApps }) + @(if ($o.OptionalApps) { $OptionalApps }) + @(if ($o.NoXbox) { $XboxApps }) + @(if ($o.NoSnipping) { $SnippingApps })
-    }
-    $xboxChosen     = [bool]($appList | Where-Object { $XboxApps -contains $_ })
-    $snippingChosen = $appList -contains 'Microsoft.ScreenSketch'
-    $returnedApps = @()
-    # Name shown, chosen?, test, fix
-    $items = @(
-        @{ Name = 'Telemetry';                    On = $o.Telemetry;    Test = { Test-Telemetry };   Fix = { Disable-TelemetryServices; Disable-TelemetryTasks; Set-TelemetryPolicies; Disable-Widgets } }
-        @{ Name = 'Suggestions and ads';          On = $o.Suggestions;  Test = { Test-Suggestions }; Fix = { Disable-Suggestions } }
-        @{ Name = 'Removed apps';                On = [bool]$appList;  Test = { $script:returnedApps = Get-ReturnedApps $appList; @($script:returnedApps | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique) }; Fix = { Remove-Apps $script:returnedApps } }
-        @{ Name = 'Game DVR';                                                On = $xboxChosen;     Test = { if ((Get-RegValue "$P\GameDVR" 'AllowGameDVR') -ne 0) { 'Game DVR' } }; Fix = { Disable-GameDvr } }
-        @{ Name = 'Print Screen key';         On = $snippingChosen; Test = { if ((Get-RegValue 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled') -ne 0) { 'Print Screen' } }; Fix = { Set-PrintScreenFree } }
-        @{ Name = 'OneDrive';                      On = $o.OneDrive;     Test = { Test-OneDrive };    Fix = { Remove-OneDrive } }
-        @{ Name = 'Edge policies';             On = $o.Edge;         Test = { Test-Edge };        Fix = { Set-EdgePolicies } }
-        @{ Name = 'Edge shortcut';                On = $o.NoEdgeShortcut; Test = { Test-EdgeShortcut }; Fix = { Remove-EdgeDesktopShortcut } }
-        @{ Name = 'Windows Security';          On = $o.Security;     Test = { Test-Security };    Fix = { Set-WindowsSecurity } }
-        @{ Name = 'C: folders';                  On = $o.RootFolders;  Test = { Test-RootFolders }; Fix = { Clear-SystemDriveRoot } }
-        @{ Name = 'Manufacturer apps';            On = $o.NoDeviceApps; Test = { Test-Value 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 'manufacturer app downloads' }; Fix = { Disable-DeviceMetadata } }
-        @{ Name = 'Recall';                                                  On = $o.NoRecall;     Test = { Test-Value "$P\WindowsAI" 'AllowRecallEnablement' 0 'allowed' }; Fix = { Disable-Recall } }
-        @{ Name = 'WPBT';                                                    On = $o.NoWpbt;       Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' 1 'firmware programs (WPBT) allowed' }; Fix = { Disable-Wpbt } }
-        @{ Name = 'Hidden account areas';     On = $o.HideAreas;    Test = { Test-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection' 'UILockdown' 1 'Account protection visible' }; Fix = { Hide-SecurityAccountAreas } }
-        @{ Name = 'Long paths';               On = $o.LongPaths;    Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1 'off' }; Fix = { Enable-LongPaths } }
-        @{ Name = 'Detailed blue screen';           On = $o.VerboseBsod;  Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1 'off' }; Fix = { Enable-VerboseBsod } }
-        @{ Name = 'Num Lock';                                                On = $o.NumLock;      Test = { Test-NumLock }; Fix = { Enable-NumLockAtStartup } }
-        @{ Name = 'Fast Startup';             On = $o.NoFastStartup; Test = { Test-Value 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' 0 'on again' }; Fix = { Disable-FastStartup } }
-        @{ Name = 'DNS';                           On = [bool]@($state.DnsV4).Count; Test = { Test-DNS @($state.DnsV4) }; Fix = { Set-DNS @($state.DnsV4) @($state.DnsV6 | Where-Object { $_ }) } }
-    )
-
-    $drifted = @()
-    Write-Host ''
-    foreach ($item in $items) {
-        if (-not $item.On) { continue }
-        $problems = @(& $item.Test | Where-Object { $_ })
-        if ($problems) {
-            $item.Problems = $problems
-            $drifted += $item
-            Write-Host '  [BACK]   ' -ForegroundColor Yellow -NoNewline
-            Write-Host $item.Name -NoNewline
-            Write-Host "  ($($problems -join '; '))" -ForegroundColor DarkGray
-        } else {
-            Write-Host '  [OK]     ' -ForegroundColor Green -NoNewline
-            Write-Host $item.Name
-        }
-    }
-
-    # The panel's page: what came back, nothing checked
-    if ($Describe) {
-        $saved = ([datetime]$state.Saved).ToString('d')
-        $fields = if ($drifted) {
-            @(New-Field 'Check' 'items' 'checklist' 'What came back' "Compared with what you chose on $saved. Only what you check is put back. Personalization is not checked: you may have changed it on purpose." @() @{
-                items = @($drifted | ForEach-Object { [ordered]@{ value = $_.Name; label = $_.Name; note = ($_.Problems -join '; '); group = ''; status = '' } }) })
-        } else {
-            @(New-Field 'Check' 'Nothing' 'header' 'Everything is still as you left it' "Compared with what you chose on $saved." $null)
-        }
-        Write-OptionsPage $Describe $fields
-        return
-    }
-    if (-not $drifted) { Write-Host "`nEverything is still as you left it." -ForegroundColor Green; return }
-    Write-Host ''
-    if ($Answers) {
-        $picked = @(([IO.File]::ReadAllText($Answers) | ConvertFrom-Json).items)
-        $drifted = @($drifted | Where-Object { $picked -contains $_.Name })
-        if (-not $drifted) { Write-Host 'Nothing was selected, so nothing was changed.'; return }
-    } elseif (-not (Ask "Reapply what came back ($($drifted.Count) item(s))?" $true)) { Write-Host 'Nothing was changed.'; return }
-    foreach ($item in $drifted) { Invoke-Step $item.Name $item.Fix }
-    if ($script:Failures.Count) {
-        Write-Host "`nSteps that failed:" -ForegroundColor Yellow
-        $script:Failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
-    }
-    Write-Step 'Done. Restart the computer.'
-}
-
-if ($Check) { Invoke-Check; return }
-
-#endregion
-
-
-#region ==================== 8. OPTIONS ====================
+#region ==================== 7. OPTIONS ====================
 
 # Every option, written once. The panel shows them all (-Describe writes them to a file), sends back what
 # you chose (-Answers) and nothing is asked; without the panel they are asked here, one by one.
@@ -1997,7 +1792,7 @@ if ($Answers) {
     Read-FieldsFromConsole $fields $values
 }
 
-# --- The answers as the steps below use them ($opt is also what -Check compares)
+# --- The answers as the steps below use them
 $chosenApps = @($values.RemoveApps)
 $displayChanges = @()
 for ($i = 0; $i -lt $script:Displays.Count; $i++) {
@@ -2091,7 +1886,7 @@ if ($chosen) {
 #endregion
 
 
-#region ==================== 9. EXECUTION ====================
+#region ==================== 8. EXECUTION ====================
 
 # --- Log file on the Desktop, starting with the answers
 Start-Log
@@ -2099,8 +1894,8 @@ if ($script:LogFile -and $answerLines) {
     Add-Content -LiteralPath $script:LogFile -Value (@('', 'Chosen:') + $answerLines) -Encoding UTF8
 }
 
-# --- Save the answers for -Check
-try { Save-State $opt $dnsV4 $dnsV6 } catch { Write-Warning "Could not save the answers for -Check: $($_.Exception.Message)" }
+# --- Older versions saved the answers to %ProgramData%\TidyWin\windows.json; nothing reads it anymore
+Remove-Item (Join-Path $env:ProgramData 'TidyWin\windows.json') -Force -ErrorAction SilentlyContinue
 
 # --- Restore point (if there is already one from the last 24 h, Windows just warns and moves on)
 Write-Step 'Creating restore point'
@@ -2220,7 +2015,6 @@ if ($script:Failures.Count) {
 }
 Write-Host "`nDone. Restart the computer." -ForegroundColor Green
 Write-Host '  To undo: TidyWin → Undo → Windows.' -ForegroundColor DarkGray
-Write-Host '  After a big Windows update: TidyWin → Maintenance → Check after an update.' -ForegroundColor DarkGray
 if ($script:LogFile) {
     $file = $script:LogFile
     $script:LogFile = $null      # this last line only on screen
