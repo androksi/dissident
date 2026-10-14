@@ -20,7 +20,7 @@
         2. System detection .......... Windows version and available features
         3. Privacy and cleanup ....... telemetry, suggestions, apps, OneDrive, Edge, Windows Security, C:\ root folders, device apps
         4. Personalization ........... theme, taskbar (alignment, search, Task View, pins, battery %), File Explorer (hidden files, folder discovery, Home/Gallery), window border
-        5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, volume, verbose BSoD, screen/sleep times
+        5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, verbose BSoD, screen/sleep times
         6. Network ................... DNS with DNS over HTTPS
         7. Options ................... every option (the panel's page) and what you chose
         8. Execution ................. applies the chosen options, in order
@@ -474,7 +474,7 @@ function Disable-TelemetryTasks {
         $task = Get-ScheduledTask -TaskPath '\Microsoft\Windows\Application Experience\' -TaskName $name -ErrorAction SilentlyContinue
         if ($task -and $task.State -eq 'Disabled') {
             Enable-ScheduledTask -InputObject $task -ErrorAction SilentlyContinue | Out-Null
-            Write-Host "  Re-enabled: $name"; Write-Host '  Needed for the yearly feature update.' -ForegroundColor DarkGray
+            Write-Done "Re-enabled: $name"; Write-Host '  Needed for the yearly feature update.' -ForegroundColor DarkGray
         }
     }
 }
@@ -788,7 +788,7 @@ function Set-WindowsSecurity {
     # "Informational" notifications (suggestions, summaries). Important alerts — threat found,
     # protection turned off — keep showing up.
     Set-Reg "$WSC\Notifications" 'DisableEnhancedNotifications' 1
-    Write-Host '  Informational notifications: hidden'; Write-Host '  Important alerts still show up.' -ForegroundColor DarkGray
+    Write-Done 'Informational notifications: hidden'; Write-Host '  Important alerts still show up.' -ForegroundColor DarkGray
 
     # "Set up OneDrive for ransomware recovery" card: without OneDrive it only causes the
     # exclamation mark on the icon. Hidden only when OneDrive is not installed.
@@ -796,9 +796,9 @@ function Set-WindowsSecurity {
                    (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")
     if (-not $hasOneDrive) {
         Set-Reg "$WSC\Virus and threat protection" 'HideRansomwareRecovery' 1
-        Write-Host '  OneDrive backup warning: hidden'; Write-Host '  OneDrive is not installed.' -ForegroundColor DarkGray
+        Write-Done 'OneDrive backup warning: hidden'; Write-Host '  OneDrive is not installed.' -ForegroundColor DarkGray
     } else {
-        Write-Host '  OneDrive backup warning: kept'; Write-Host '  OneDrive is installed.' -ForegroundColor DarkGray
+        Write-Skip 'OneDrive backup warning: kept'; Write-Host '  OneDrive is installed.' -ForegroundColor DarkGray
     }
 }
 
@@ -807,7 +807,7 @@ function Set-WindowsSecurity {
 # Note: some vendor installers (e.g. Razer) ship inside the driver package itself and may still appear.
 function Disable-DeviceMetadata {
     Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1
-    Write-Host '  Manufacturer apps and icons for devices: no longer downloaded'; Write-Host '  Drivers still are.' -ForegroundColor DarkGray
+    Write-Done 'Manufacturer apps and icons for devices: no longer downloaded'; Write-Host '  Drivers still are.' -ForegroundColor DarkGray
 }
 
 # Recall (Copilot+ PCs only): official policies that remove it and stop it from being turned on, and
@@ -815,7 +815,7 @@ function Disable-DeviceMetadata {
 function Disable-Recall {
     Set-Reg "$P\WindowsAI" 'AllowRecallEnablement' 0
     Set-Reg "$P\WindowsAI" 'DisableAIDataAnalysis' 1
-    Write-Host '  Recall: removed and blocked'; Write-Host '  After restarting. Recall only exists on Copilot+ PCs.' -ForegroundColor DarkGray
+    Write-Done 'Recall: removed and blocked'; Write-Host '  After restarting. Recall only exists on Copilot+ PCs.' -ForegroundColor DarkGray
 }
 
 # WPBT (Windows Platform Binary Table): lets the PC's firmware hand Windows a program to run at every
@@ -823,7 +823,7 @@ function Disable-Recall {
 # This stops Windows from running it; the firmware itself is not touched.
 function Disable-Wpbt {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' 1
-    Write-Host '  WPBT: Windows no longer runs programs provided by the firmware'; Write-Host '  After restarting.' -ForegroundColor DarkGray
+    Write-Done 'WPBT: Windows no longer runs programs provided by the firmware'; Write-Host '  After restarting.' -ForegroundColor DarkGray
 }
 
 # Hides the "Account protection" and "Device security" areas of Windows Security (official policy).
@@ -833,7 +833,7 @@ function Hide-SecurityAccountAreas {
     $WSC = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center'
     Set-Reg "$WSC\Account protection" 'UILockdown' 1
     Set-Reg "$WSC\Device security"    'UILockdown' 1
-    Write-Host '  "Account protection" and "Device security": hidden from Windows Security'
+    Write-Done '"Account protection" and "Device security": hidden from Windows Security'
 }
 
 # --- System drive root -------------------------------------------------------
@@ -848,7 +848,7 @@ function Clear-SystemDriveRoot {
     if (Test-Path $inetpub) {
         $folder = Get-Item $inetpub -Force
         $folder.Attributes = $folder.Attributes -bor [IO.FileAttributes]::Hidden   # -bor: safe if already hidden
-        Write-Host '  inetpub: hidden'; Write-Host '  Not deleted: a Windows security fix needs it.' -ForegroundColor DarkGray
+        Write-Done 'inetpub: hidden'; Write-Host '  Not deleted: a Windows security fix needs it.' -ForegroundColor DarkGray
     }
     if (Test-Path $perfLogs) {
         Remove-Item $perfLogs -Recurse -Force -ErrorAction Stop
@@ -918,7 +918,7 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, stri
     }
     # SPI_SETDESKWALLPAPER = 0x14; SPIF_UPDATEINIFILE | SPIF_SENDCHANGE = 3
     if ([CfgWin.Wallpaper]::SystemParametersInfo(0x14, 0, $wallpaper, 3)) {
-        Write-Host "  Theme wallpaper: $(Split-Path $wallpaper -Leaf)"; Write-Host '  Windows Spotlight is off.' -ForegroundColor DarkGray
+        Write-Done "Theme wallpaper: $(Split-Path $wallpaper -Leaf)"; Write-Host '  Windows Spotlight is off.' -ForegroundColor DarkGray
     } else {
         Write-Host '  Could not change the wallpaper. Pick one in Settings → Personalization → Background.' -ForegroundColor DarkYellow
     }
@@ -928,7 +928,7 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, stri
 function Set-Explorer([bool]$ShowExtensions, [bool]$HideFrequent, [bool]$HideRecent) {
     $Exp = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer'
     if ($ShowExtensions) { Set-Reg "$Exp\Advanced" 'HideFileExt' 0; Write-Done 'File extensions visible' }
-    if ($HideFrequent)   { Set-Reg $Exp 'ShowFrequent' 0;          Write-Host '  Frequent folders hidden'; Write-Host '  The ones you pinned stay.' -ForegroundColor DarkGray }
+    if ($HideFrequent)   { Set-Reg $Exp 'ShowFrequent' 0;          Write-Done 'Frequent folders hidden'; Write-Host '  The ones you pinned stay.' -ForegroundColor DarkGray }
     if ($HideRecent) {
         Set-Reg $Exp 'ShowRecent' 0
         if ($isWin11) { Set-Reg $Exp 'ShowRecommendations' 0 }
@@ -953,7 +953,7 @@ function Hide-HomeAndGallery {
 function Enable-ClassicContextMenu {
     reg.exe add 'HKCU\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' /ve /f | Out-Null   # /ve without /d = empty default value
     if ($LASTEXITCODE) { throw 'could not write the classic menu key' }
-    Write-Host '  Classic context menu: on'; Write-Host '  No "Show more options".' -ForegroundColor DarkGray
+    Write-Done 'Classic context menu: on'; Write-Host '  No "Show more options".' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -966,12 +966,12 @@ function Unpin-QuickAccessMusic {
     $item  = $quick.Items() | Where-Object { $_.Path -eq $music }
     if (-not $item) { Write-Skip 'Music was not pinned to Quick access'; return }
     $item.InvokeVerb('unpinfromhome')
-    Write-Host '  Music unpinned from Quick access'; Write-Host '  The folder stays where it is.' -ForegroundColor DarkGray
+    Write-Done 'Music unpinned from Quick access'; Write-Host '  The folder stays where it is.' -ForegroundColor DarkGray
 }
 
 function Show-HiddenFiles {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Hidden' 1
-    Write-Host '  Hidden files and folders: visible'; Write-Host '  Protected system files stay hidden.' -ForegroundColor DarkGray
+    Write-Done 'Hidden files and folders: visible'; Write-Host '  Protected system files stay hidden.' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -982,7 +982,7 @@ function Disable-FolderDiscovery {
     $shell = 'HKCU:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\Shell'
     Remove-Item "$shell\Bags", "$shell\BagMRU" -Recurse -Force -ErrorAction SilentlyContinue
     Set-Reg "$shell\Bags\AllFolders\Shell" 'FolderType' 'NotSpecified' 'String'
-    Write-Host '  Automatic folder type discovery: off'; Write-Host '  Folder views were reset.' -ForegroundColor DarkGray
+    Write-Done 'Automatic folder type discovery: off'; Write-Host '  Folder views were reset.' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -990,7 +990,7 @@ function Disable-FolderDiscovery {
 # On older builds the value is simply ignored.
 function Enable-BatteryPercentage {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'IsBatteryPercentageEnabled' 1
-    Write-Host '  Battery percentage on the taskbar: on'; Write-Host '  If your Windows version has the option.' -ForegroundColor DarkGray
+    Write-Done 'Battery percentage on the taskbar: on'; Write-Host '  If your Windows version has the option.' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -998,7 +998,7 @@ function Enable-BatteryPercentage {
 # Windows default: -60. Takes effect after signing out and back in.
 function Set-ThinBorder {
     Set-Reg 'HKCU:\Control Panel\Desktop\WindowMetrics' 'PaddedBorderWidth' '0' 'String'
-    Write-Host '  Border thinned'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
+    Write-Done 'Border thinned'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
 }
 
 # Snap windows off (Settings → System → Multitasking): no snapping to screen edges, no Snap layouts.
@@ -1320,7 +1320,7 @@ function Enable-LongPaths {
 
 function Enable-EndTask {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings' 'TaskbarEndTask' 1
-    Write-Host '  "End task" on the taskbar: on'
+    Write-Done '"End task" on the taskbar: on'
     $script:RestartExplorer = $true
 }
 
@@ -1332,7 +1332,7 @@ function Enable-Sudo {
 
 function Enable-ClipboardHistory {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Clipboard' 'EnableClipboardHistory' 1
-    Write-Host '  Clipboard history (Win+V): on'; Write-Host '  This PC only, no sync.' -ForegroundColor DarkGray
+    Write-Done 'Clipboard history (Win+V): on'; Write-Host '  This PC only, no sync.' -ForegroundColor DarkGray
 }
 
 function Disable-MouseAcceleration {
@@ -1340,7 +1340,7 @@ function Disable-MouseAcceleration {
     Set-Reg $mouse 'MouseSpeed'      '0' 'String'
     Set-Reg $mouse 'MouseThreshold1' '0' 'String'
     Set-Reg $mouse 'MouseThreshold2' '0' 'String'
-    Write-Host '  Enhance pointer precision: off'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
+    Write-Done 'Enhance pointer precision: off'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
 }
 
 # 506 = Sticky Keys off and WITHOUT the 5x Shift shortcut (Windows default is 510).
@@ -1369,70 +1369,13 @@ function Enable-NumLockAtStartup {
 # updates load fresh and dual boot works. Startup gets a few seconds slower. Restart is not affected.
 function Disable-FastStartup {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' 0
-    Write-Host '  Fast Startup: off'; Write-Host '  "Shut down" now really shuts down.' -ForegroundColor DarkGray
+    Write-Done 'Fast Startup: off'; Write-Host '  "Shut down" now really shuts down.' -ForegroundColor DarkGray
 }
 
 # Blue screen (BSoD) also shows the technical parameters of the error, which helps to look up the cause.
 function Enable-VerboseBsod {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1
-    Write-Host '  Detailed blue screen: on'; Write-Host '  Only shows up if the PC crashes.' -ForegroundColor DarkGray
-}
-
-# Sets the volume of the default playback device (speakers/headphones in use) through the Windows
-# Core Audio API. Each device keeps its own volume, so a device plugged in later keeps its own level.
-function Set-MaxVolume {
-    if (-not ('CfgWin.Audio' -as [type])) {
-        Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-namespace CfgWin {
-    [ComImport, Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IAudioEndpointVolume {
-        int RegisterControlChangeNotify(IntPtr notify);
-        int UnregisterControlChangeNotify(IntPtr notify);
-        int GetChannelCount(out uint count);
-        int SetMasterVolumeLevel(float levelDb, ref Guid context);
-        int SetMasterVolumeLevelScalar(float level, ref Guid context);
-        int GetMasterVolumeLevel(out float levelDb);
-        int GetMasterVolumeLevelScalar(out float level);
-    }
-    [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IMMDevice {
-        int Activate(ref Guid iid, int clsCtx, IntPtr activationParams, [MarshalAs(UnmanagedType.IUnknown)] out object target);
-    }
-    [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IMMDeviceEnumerator {
-        int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
-        int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
-    }
-    [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-    class MMDeviceEnumerator { }
-
-    public static class Audio {
-        static IAudioEndpointVolume Endpoint() {
-            var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
-            IMMDevice device;
-            Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(0, 1, out device));   // eRender, eMultimedia
-            Guid iid = typeof(IAudioEndpointVolume).GUID;
-            object volume;
-            Marshal.ThrowExceptionForHR(device.Activate(ref iid, 23, IntPtr.Zero, out volume));  // CLSCTX_ALL
-            return (IAudioEndpointVolume)volume;
-        }
-        public static void SetVolume(float level) {
-            Guid context = Guid.Empty;
-            Marshal.ThrowExceptionForHR(Endpoint().SetMasterVolumeLevelScalar(level, ref context));
-        }
-        public static float GetVolume() {
-            float level;
-            Marshal.ThrowExceptionForHR(Endpoint().GetMasterVolumeLevelScalar(out level));
-            return level;
-        }
-    }
-}
-'@
-    }
-    [CfgWin.Audio]::SetVolume(1.0)
-    Write-Done "Windows volume: $([math]::Round([CfgWin.Audio]::GetVolume() * 100))%"
+    Write-Done 'Detailed blue screen: on'; Write-Host '  Only shows up if the PC crashes.' -ForegroundColor DarkGray
 }
 
 # --- Power: screen and sleep times ------------------------------------------
@@ -1494,7 +1437,7 @@ function Set-DNS([string[]]$V4, [string[]]$V6) {
             foreach ($ip in $V4) { Set-Reg "$doh\Doh\$ip"  'DohFlags' 1 'QWord' }
             foreach ($ip in $V6) { Set-Reg "$doh\Doh6\$ip" 'DohFlags' 1 'QWord' }
         }
-        Write-Host "  $($adapter.Name): $($all -join ', ')$(if ($isWin11) { ' (encrypted, automatic template)' })"
+        Write-Done "$($adapter.Name): $($all -join ', ')$(if ($isWin11) { ' (encrypted, automatic template)' })"
     }
     Clear-DnsClientCache
     if (-not $V6) { Write-Host '  IPv6: kept automatic, from the router.' -ForegroundColor DarkGray }
@@ -1655,7 +1598,7 @@ function Get-PowerFields {
 }
 
 function Get-Fields {
-    $T = 'Privacy'; $A = 'Apps'; $L = 'Appearance'; $E = 'File Explorer'; $U = 'Everyday'; $N = 'Network'
+    $T = 'Privacy'; $A = 'Apps'; $L = 'Appearance'; $E = 'File Explorer'; $U = 'Everyday'; $N = 'Network'; $M = 'Misc'
 
     New-Field $T 'Telemetry' 'toggle' 'Turn off telemetry' 'Windows stops sending usage and diagnostic data to Microsoft. Widgets are turned off too.' $false
     New-Field $T 'Suggestions' 'toggle' 'Turn off ads and suggestions' 'No tips, no suggestions in Start and Settings, and no apps like Candy Crush installed without asking.' $false
@@ -1684,30 +1627,23 @@ function Get-Fields {
     New-Field $L 'Search' 'choice' 'Search on the taskbar' 'Hidden, just the icon, or the full search box.' '' @{ options = (Get-ChoiceOptions $searchIds $searchNames) }
     New-Field $L 'TaskView' 'choice' 'Task View button' 'Shows your open windows and desktops. Win+Tab works either way.' '' @{ options = (Get-ChoiceOptions $taskViewIds $taskViewNames) }
     New-Field $L 'ClearPins' 'toggle' 'Unpin everything from the taskbar' 'Removes every pinned icon, File Explorer and Edge included. Nothing is uninstalled.' $false
-    if ($isWin11 -and $hasBattery) { New-Field $L 'BatteryPercent' 'toggle' 'Show the battery percentage' 'Next to the battery icon on the taskbar.' $false }
     if ($isWin11) { New-Field $L 'ClassicMenu' 'toggle' 'Classic right-click menu' 'The full menu opens right away, without "Show more options".' $false }
     New-Field $L 'NoSnap' 'toggle' 'Turn off Snap windows' 'Windows stop resizing when you drag them to the screen edges, and the Snap layouts menu goes away.' $false
-    New-Field $L 'ThinBorder' 'toggle' 'Thinner resize border' 'The invisible edge used to resize windows gets smaller, so you resize less by accident. Applies after signing out.' $false
 
     New-Field $E 'ShowExtensions' 'toggle' 'Show file extensions' 'File names show their end, like .txt and .exe, so you can tell files apart.' $false
     New-Field $E 'ShowHidden' 'toggle' 'Show hidden files' 'Hidden files and folders show up. Protected system files stay hidden.' $false
     New-Field $E 'HideFrequent' 'toggle' 'Hide frequent folders' 'Quick access stops listing the folders you open most.' $false
     New-Field $E 'HideRecent' 'toggle' 'Hide recent files' 'File Explorer stops listing the files you opened recently.' $false
-    New-Field $E 'UnpinMusic' 'toggle' 'Unpin Music from Quick access' 'The Music folder itself stays.' $false
     New-Field $E 'NoFolderSniff' 'toggle' 'Open large folders faster' 'File Explorer stops guessing each folder''s type. The views you saved for each folder are reset.' $false
     if ($isWin11) { New-Field $E 'HideHomeGallery' 'toggle' 'Remove Home and Gallery' 'File Explorer opens in This PC.' $false }
-    New-Field $E 'RootFolders' 'toggle' 'Tidy up drive C:' 'Hides the inetpub folder, which a Windows update needs, and deletes the empty PerfLogs folder.' $false
 
     Get-DisplayFields
 
     New-Field $U 'ClipboardHistory' 'toggle' 'Clipboard history' 'Win+V shows the things you copied before.' $false
     if ($hasEndTask) { New-Field $U 'EndTask' 'toggle' 'End task on the taskbar' 'Right-click a frozen app on the taskbar to close it.' $false }
-    New-Field $U 'NumLock' 'toggle' 'Num Lock on at startup' 'The number keys work right away, on the sign-in screen too.' $false
     New-Field $U 'NoStickyKeys' 'toggle' 'Turn off the Sticky Keys prompt' 'No prompt when you press Shift five times. Sticky Keys is still in Settings.' $false
     New-Field $U 'NoMouseAccel' 'toggle' 'Turn off mouse acceleration' 'The pointer moves the same distance however fast you move the mouse. Applies after signing out.' $false
-    New-Field $U 'MaxVolume' 'toggle' 'Volume at 100%' 'Sets the volume of the speakers or headphones in use to 100%.' $false
     New-Field $U 'LongPaths' 'toggle' 'Allow long file paths' 'Programs can use paths longer than 260 characters.' $false
-    if ($hasSudo) { New-Field $U 'Sudo' 'toggle' 'Turn on sudo' 'Run a command as administrator from a normal terminal.' $false }
     New-Field $U 'VerboseBsod' 'toggle' 'Error details on the blue screen' 'When Windows crashes, the blue screen shows the technical cause, which helps when asking for help.' $false
     New-Field $U 'NoFastStartup' 'toggle' 'Turn off Fast Startup' '"Shut down" fully shuts down, which avoids some driver and dual-boot problems. Startup takes a few seconds longer.' $false
 
@@ -1721,6 +1657,13 @@ function Get-Fields {
     New-Field $N 'Dns4b' 'text' 'Alternate IPv4 DNS' '' '' @{ placeholder = '1.0.0.1'; validate = 'ipv4'; optional = $true; when = $dns }
     New-Field $N 'Dns6a' 'text' 'Preferred IPv6 DNS' 'Leave it empty to keep the router''s IPv6 DNS.' '' @{ placeholder = '2606:4700:4700::1111'; validate = 'ipv6'; optional = $true; when = $dns }
     New-Field $N 'Dns6b' 'text' 'Alternate IPv6 DNS' '' '' @{ placeholder = '2606:4700:4700::1001'; validate = 'ipv6'; optional = $true; when = $dns }
+
+    if ($isWin11 -and $hasBattery) { New-Field $M 'BatteryPercent' 'toggle' 'Show the battery percentage' 'Next to the battery icon on the taskbar.' $false }
+    New-Field $M 'ThinBorder' 'toggle' 'Thinner resize border' 'The invisible edge used to resize windows gets smaller, so you resize less by accident. Applies after signing out.' $false
+    New-Field $M 'UnpinMusic' 'toggle' 'Unpin Music from Quick access' 'The Music folder itself stays.' $false
+    New-Field $M 'RootFolders' 'toggle' 'Tidy up drive C:' 'Hides the inetpub folder, which a Windows update needs, and deletes the empty PerfLogs folder.' $false
+    New-Field $M 'NumLock' 'toggle' 'Num Lock on at startup' 'The number keys work right away, on the sign-in screen too.' $false
+    if ($hasSudo) { New-Field $M 'Sudo' 'toggle' 'Turn on sudo' 'Run a command as administrator from a normal terminal.' $false }
 }
 
 function Test-FieldShown($Field, $Values) {
@@ -1836,7 +1779,7 @@ $opt = [ordered]@{
     HideHomeGallery = & $flag 'HideHomeGallery'; ClassicMenu = & $flag 'ClassicMenu'; NoSnap = & $flag 'NoSnap'; ThinBorder = & $flag 'ThinBorder'
     LongPaths = & $flag 'LongPaths'; EndTask = & $flag 'EndTask'; Sudo = & $flag 'Sudo'; ClipboardHistory = & $flag 'ClipboardHistory'
     NoMouseAccel = & $flag 'NoMouseAccel'; NoStickyKeys = & $flag 'NoStickyKeys'; NumLock = & $flag 'NumLock'
-    NoFastStartup = & $flag 'NoFastStartup'; MaxVolume = & $flag 'MaxVolume'; VerboseBsod = & $flag 'VerboseBsod'
+    NoFastStartup = & $flag 'NoFastStartup'; VerboseBsod = & $flag 'VerboseBsod'
     Power = $powerText
     DNS = $(if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' })
 }
@@ -1854,7 +1797,7 @@ $labels = @{
     Search = 'Search'; TaskView = 'Task View'; ClearPins = 'No pins'; NoStartAds = 'No Start ads'
     ShowExtensions = 'Extensions'; HideFrequent = 'No frequent'; UnpinMusic = 'No Music in Quick access'; HideRecent = 'No recent'; HideHomeGallery = 'No Home/Gallery'; ClassicMenu = 'Classic menu'; NoSnap = 'No Snap'; ThinBorder = 'Thin border'
     LongPaths = 'Long paths'; EndTask = 'End task'; Sudo = 'Sudo'; ClipboardHistory = 'Win+V history'
-    NoMouseAccel = 'No acceleration'; NoStickyKeys = 'No Sticky Keys'; MaxVolume = 'Volume 100%'; DNS = 'DNS'
+    NoMouseAccel = 'No acceleration'; NoStickyKeys = 'No Sticky Keys'; DNS = 'DNS'
     NoDeviceApps = 'No device apps'; NoWpbt = 'No WPBT'; NoRecall = 'No Recall'; NoEdgeShortcut = 'No Edge shortcut'; NumLock = 'Num Lock'; NoFastStartup = 'No Fast Startup'; BatteryPercent = 'Battery %'; ShowHidden = 'Hidden files'
     NoFolderSniff = 'No folder discovery'; VerboseBsod = 'Detailed blue screen'; Power = 'Power'
 }
@@ -1978,7 +1921,6 @@ if ($opt.LongPaths -or $opt.EndTask -or $opt.Sudo -or $opt.ClipboardHistory -or 
         if ($opt.NoStickyKeys)     { Disable-StickyKeysShortcut }
     }
 }
-if ($opt.MaxVolume) { Invoke-Step 'Windows volume at 100%' { Set-MaxVolume } }
 if ($opt.NumLock)       { Invoke-Step 'Num Lock' { Enable-NumLockAtStartup } }
 if ($opt.NoFastStartup) { Invoke-Step 'Fast Startup' { Disable-FastStartup } }
 if ($opt.VerboseBsod) { Invoke-Step 'Detailed blue screen' { Enable-VerboseBsod } }
