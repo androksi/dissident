@@ -251,9 +251,9 @@ $UninstallRoots = @(
 
 # Folder path without quotes, trailing backslash or a file at the end (some programs write "C:\App\app.exe,0").
 function Get-CleanPath([string]$Path) {
-    $p = "$Path".Trim().Trim('"') -replace ',\s*-?\d+$', ''
-    if (-not $p) { return '' }
+    $p = ("$Path".Trim() -replace ',\s*-?\d+$', '').Trim().Trim('"')     # "C:\x\app.exe",0
     $p = [Environment]::ExpandEnvironmentVariables($p).TrimEnd('\')
+    if (-not (Test-FullPath $p)) { return '' }
     if ($p -match '\.(exe|dll|ico)$') { $p = Split-Path $p -Parent }
     return $p
 }
@@ -286,6 +286,12 @@ function Get-InstalledPrograms {
     return @($list | Sort-Object Name, Version -Unique | Sort-Object Name)
 }
 
+# True for a full path like C:\x\y.exe. Some programs register broken commands (stray quotes, < > |):
+# those are not a path, and [IO.Path] would stop with "invalid characters in path".
+function Test-FullPath($Path) {
+    return [bool]($Path -and $Path.IndexOfAny([IO.Path]::GetInvalidPathChars()) -lt 0 -and [IO.Path]::IsPathRooted($Path))
+}
+
 # Splits an uninstall command into program and arguments: "C:\x\unins000.exe" /SILENT -> exe + args.
 # MSI programs always use msiexec /x {GUID} (some register /I, which opens "modify" instead).
 function Split-UninstallCommand($Program) {
@@ -293,13 +299,16 @@ function Split-UninstallCommand($Program) {
     $cmd = [Environment]::ExpandEnvironmentVariables($Program.UninstallString)
     $c = if ($cmd -match '^\s*"([^"]+)"\s*(.*)$') { @{ File = $Matches[1]; Args = $Matches[2] } }
          elseif ($cmd -match '^\s*(.+?\.exe)\s*(.*)$') { @{ File = $Matches[1]; Args = $Matches[2] } }
+         elseif ((Test-FullPath $cmd.Trim()) -and (Test-Path -LiteralPath $cmd.Trim())) { @{ File = $cmd.Trim(); Args = '' } }   # C:\Program Files\x\uninstall.bat
+         elseif ($cmd -match '^\s*(\S+)\s*(.*)$') { @{ File = $Matches[1]; Args = $Matches[2] } }   # cmd /c "...", without .exe
          else { @{ File = $cmd; Args = '' } }
+    $c.File = $c.File.Trim().Trim('"')
     # "MsiExec.exe /I{...}", "rundll32.exe ...": a name without a folder is a Windows program
-    if (-not [IO.Path]::IsPathRooted($c.File)) {
+    if ($c.File -and -not (Test-FullPath $c.File)) {
         $found = Get-Command $c.File -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($found) { $c.File = $found.Source }
     }
-    if ((Split-Path $c.File -Leaf) -ieq 'msiexec.exe') { $c.Args = $c.Args -replace '(?i)/I\s*(\{)', '/X$1' }   # /I opens "modify"
+    if ($c.File -match '(?i)(^|\\)msiexec(\.exe)?$') { $c.Args = $c.Args -replace '(?i)/I\s*(\{)', '/X$1' }   # /I opens "modify"
     return $c
 }
 
@@ -309,7 +318,7 @@ function Split-UninstallCommand($Program) {
 # Returns: Removed, Kept (still installed: cancelled or failed) or Restart (removed; restart to finish).
 function Invoke-Uninstall($Program) {
     $c = Split-UninstallCommand $Program
-    if (-not (Test-Path -LiteralPath $c.File)) {
+    if (-not (Test-FullPath $c.File) -or -not (Test-Path -LiteralPath $c.File)) {
         Write-Result 'WARN' (T "the uninstaller is missing ($($c.File)): the program is already partly removed" "o desinstalador não existe ($($c.File)): o programa já está parcialmente removido")
         return 'Orphan'
     }
@@ -385,7 +394,7 @@ $ProtectedNames = @('microsoft', 'windows', 'common files', 'commonfiles', 'pack
 function Get-ProgramFolders($Program) {
     $list = @($Program.InstallLocation, $Program.Icon)
     $c = Split-UninstallCommand $Program
-    if ([IO.Path]::IsPathRooted($c.File)) { $list += Split-Path $c.File -Parent }
+    if (Test-FullPath $c.File) { $list += Split-Path $c.File -Parent }
     # Drive roots and Program Files/AppData themselves are never a program's own folder (a stray icon there
     # would otherwise protect everything under it)
     $roots = @($FolderRoots | ForEach-Object { $_.TrimEnd('\') })
@@ -557,7 +566,7 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
     foreach ($task in (Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.TaskPath -notlike '\Microsoft\*' })) {
         foreach ($action in @($task.Actions | Where-Object { $_.Execute })) {
             $exe = [Environment]::ExpandEnvironmentVariables($action.Execute.Trim('"'))
-            if (-not [IO.Path]::IsPathRooted($exe) -or (Test-Path -LiteralPath $exe)) { continue }   # "powershell.exe": a Windows program
+            if (-not (Test-FullPath $exe) -or (Test-Path -LiteralPath $exe)) { continue }   # "powershell.exe": a Windows program
             $ours = ($location -and $exe -like "$location\*") -or ($names | Where-Object { (Get-NameKey $task.TaskName).Contains($_) })
             if ($ours) { & $add 'Task' "$($task.TaskPath)$($task.TaskName)" (T 'scheduled task of a program that no longer exists' 'tarefa agendada de um programa que não existe mais') $true 0; break }
         }
