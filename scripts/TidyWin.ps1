@@ -74,7 +74,7 @@ function Get-Menu {
             'Creates a restore point first and saves a log on your Desktop.'
         ) 'Start' @(New-Step 'windows/configure-windows.ps1') -Form
 
-        New-MenuEntry $setup 'apps' 'E71D' 'Applications' 'Applications' 'Install the apps you use, all at once.' @(
+        New-MenuEntry $setup 'apps' 'E71D' 'Apps' 'Apps' 'Install the apps you use, all at once.' @(
             'Pick from 105 apps: browsers, games, media, development and more.'
             'Installs them from their official sources with WinGet.'
             'Apps you already have are marked.'
@@ -92,18 +92,18 @@ function Get-Menu {
         ) 'Start' @((New-Step 'browsers/configure-chrome.ps1' $null 'Chrome'), (New-Step 'browsers/configure-brave.ps1' $null 'Brave'), (New-Step 'browsers/configure-firefox.ps1' $null 'Firefox')) -Form
 
 
-        New-MenuEntry $care 'uninstall' 'E74D' 'Uninstall programs' 'Uninstall programs' 'Remove programs and what they leave behind.' @(
+        New-MenuEntry $care 'uninstall' 'E74D' 'Remove apps' 'Remove apps' 'Remove programs and what they leave behind.' @(
             'Runs the official uninstaller of each program you pick.'
             'Then lists the leftover folders, registry keys and shortcuts.'
             'Deletes only what you confirm: folders go to the Recycle Bin and registry keys are backed up.'
         ) 'Uninstall' @(New-Step 'apps/uninstall-apps.ps1') -Form
 
-        New-MenuEntry $care 'cleanup' 'EDA2' 'Free up disk space' 'Free up disk space' 'Delete files Windows doesn''t need.' @(
+        New-MenuEntry $care 'cleanup' 'EDA2' 'Disk space' 'Disk space' 'Delete files Windows doesn''t need.' @(
             'Temporary files, old update downloads, error reports and more.'
             'Shows the size of each and asks before deleting it.'
         ) 'Clean' @(New-Step 'windows/clean-windows.ps1') -Form
 
-        New-MenuEntry $care 'repair' 'E90F' 'Repair Windows' 'Repair Windows' 'Fix Windows when it acts strange.' @(
+        New-MenuEntry $care 'repair' 'E90F' 'Fix Windows' 'Fix Windows' 'Fix Windows when it acts strange.' @(
             'Checks and repairs the system files with Windows'' own tools.'
             'Checks the disk for errors.'
             'Creates a restore point first. Takes 10 to 30 minutes.'
@@ -1433,7 +1433,7 @@ function Update-Describes {
     }
 }
 
-# What an option changes shows on other pages too (an app from Applications in Uninstall programs, a policy
+# What an option changes shows on other pages too (an app from Apps in Remove apps, a policy
 # in Undo): when one is applied, and when it finishes, every page is dropped and read again when opened.
 # Pages still being read are stopped: they could have read the PC halfway through the change.
 function Reset-Pages {

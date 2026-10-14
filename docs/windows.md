@@ -83,7 +83,7 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 
 ## Cleanup
 
-In the [TidyWin panel](../README.md#quick-start): **Maintenance → Free up disk space**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Disk space**. From a local copy:
 
 ```powershell
 .\scripts\windows\clean-windows.ps1
@@ -105,7 +105,7 @@ Measures each item and shows a switch for each one with its size, all off. Only 
 
 ## Repair
 
-In the [TidyWin panel](../README.md#quick-start): **Maintenance → Repair Windows**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Fix Windows**. From a local copy:
 
 ```powershell
 .\scripts\windows\repair-windows.ps1

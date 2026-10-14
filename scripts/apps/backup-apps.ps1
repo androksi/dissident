@@ -326,10 +326,10 @@ function Invoke-Import {
 
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     if ($Describe) {
-        Write-OptionsPage $Describe @(New-Field $(if ($Import) { 'Apps' } else { 'Backup' }) 'NoWinget' 'header' 'WinGet is not installed' 'Open Set up → Applications first: it installs WinGet. Then come back here.' $null)
+        Write-OptionsPage $Describe @(New-Field $(if ($Import) { 'Apps' } else { 'Backup' }) 'NoWinget' 'header' 'WinGet is not installed' 'Open Set up → Apps first: it installs WinGet. Then come back here.' $null)
         return
     }
-    Write-Host 'WinGet is not installed. In TidyWin, choose "Applications", which installs it, and try again.' -ForegroundColor Yellow
+    Write-Host 'WinGet is not installed. In TidyWin, choose "Apps", which installs it, and try again.' -ForegroundColor Yellow
     return
 }
 

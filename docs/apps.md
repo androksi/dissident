@@ -2,7 +2,7 @@
 
 # Apps
 
-In the [TidyWin panel](../README.md#quick-start): **Set up → Applications**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Set up → Apps**. From a local copy:
 
 ```powershell
 .\scripts\apps\configure-apps.ps1
@@ -201,7 +201,7 @@ Export saves `tidywin-apps-<PC>-<date>.json` with every app WinGet knows, where 
 
 ## Uninstalling
 
-In the [TidyWin panel](../README.md#quick-start): **Maintenance → Uninstall programs**.
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Remove apps**.
 
 | Step | What it does |
 |---|---|

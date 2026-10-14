@@ -35,17 +35,17 @@ The panel stays open after each option, so you can keep it open and go down the 
 9. **Microsoft Store** → Library → **Update all**. This updates WinGet (App Installer), which installs your apps back; on a fresh Windows it sometimes doesn't work yet.
 10. **Restore your apps and drivers**: panel → **Formatting the PC → Restore apps and drivers**. First the drivers Windows Update didn't bring back, then your apps.
 11. **Video driver**: install it (clean install) and restart.
-12. **Windows**: panel → **Set up → Windows**. Creates a restore point, then cleans up and configures Windows. Restart at the end. Then **Set up → Applications** for anything new.
+12. **Windows**: panel → **Set up → Windows**. Creates a restore point, then cleans up and configures Windows. Restart at the end. Then **Set up → Apps** for anything new.
 13. **Browsers**, after installing them, only the ones you use: panel → **Set up → Browsers**, turning on Firefox, Brave or Chrome.
 14. **Your files**: copy them back from the backup and sign in to your accounts.
-15. **Free up disk space**: panel → **Maintenance → Free up disk space**. You can also turn on *Old Windows components*. Restart one last time.
+15. **Disk space**: panel → **Maintenance → Disk space**. You can also turn on *Old Windows components*. Restart one last time.
 
 ## From time to time
 
 | Menu option | When |
 |---|---|
 | Formatting the PC → Back up apps and drivers | Every now and then, so the backup is current for the next reinstall. |
-| Maintenance → Repair Windows | Only when Windows acts strange. |
+| Maintenance → Fix Windows | Only when Windows acts strange. |
 
 ## Games with anti-cheat
 
