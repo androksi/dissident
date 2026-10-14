@@ -4,7 +4,6 @@
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
         powershell -ExecutionPolicy Bypass -File .\Reset-Network.ps1
-    Add -Lang en or -Lang pt to skip the language question.
 
     For "connected, no internet", sites that don't open or a connection that keeps dropping.
     Shows the network adapters and asks how far to go:
@@ -22,8 +21,6 @@
         3. Execution
 #>
 param(
-    [ValidateSet('en', 'pt')]
-    [string]$Lang
 )
 
 $ErrorActionPreference = 'Continue'
@@ -31,8 +28,6 @@ $ErrorActionPreference = 'Continue'
 
 #region ==================== 1. HELPERS ====================
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
@@ -45,15 +40,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  Number [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+            Write-Host "  Type a number from 1 to $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host '  (use the arrows ↑ ↓ and Enter)' -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -82,15 +77,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
 
 # Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 # Result line: [OK] text / [WARNING] text / [ERROR] text
 function Write-Result([ValidateSet('OK', 'WARN', 'ERROR')][string]$Status, [string]$Text) {
     $label, $color = switch ($Status) {
         'OK'    { '[OK]', 'Green' }
-        'WARN'  { (T '[WARNING]' '[ATENÇÃO]'), 'Yellow' }
-        'ERROR' { (T '[ERROR]' '[ERRO]'), 'Red' }
+        'WARN'  { '[WARNING]', 'Yellow' }
+        'ERROR' { '[ERROR]', 'Red' }
     }
     Write-Host "  $label " -ForegroundColor $color -NoNewline
     Write-Host $Text
@@ -147,12 +142,9 @@ function Test-Internet {
     } catch { return $false }
 }
 
-# Language: asked once at the start (default English), unless -Lang was given.
-if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
-$script:Lang = $Lang
 
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
-    Write-Warning (T 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).' 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).')
+    Write-Warning 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).'
     return
 }
 
@@ -169,7 +161,7 @@ function Save-NetworkBackup($Dns) {
     $doh = Join-Path $BackupDir 'doh.reg'
     Remove-Item $doh -Force -ErrorAction SilentlyContinue
     & reg.exe export $DohKey $doh /y *> $null
-    Write-Result 'OK' (T "DNS saved to $BackupDir" "DNS salvo em $BackupDir")
+    Write-Result 'OK' "DNS saved to $BackupDir"
 }
 
 function Reset-Winsock {
@@ -184,7 +176,7 @@ function Reset-TcpIp {
     $v4 = $LASTEXITCODE
     & netsh int ipv6 reset $log *> $null
     if ($v4 -eq 0 -and $LASTEXITCODE -eq 0) { Write-Result 'OK' 'TCP/IP (IPv4 + IPv6)' }
-    else { Write-Result 'WARN' (T 'TCP/IP: done, with some items Windows did not let it change (normal)' 'TCP/IP: feito, com alguns itens que o Windows não deixou mudar (normal)') }
+    else { Write-Result 'WARN' 'TCP/IP: done, with some items Windows did not let it change (normal)' }
     Remove-Item $log -Force -ErrorAction SilentlyContinue
 }
 
@@ -194,22 +186,22 @@ function Restore-NetworkBackup($Dns) {
     if (Test-Path $doh) { & reg.exe import $doh *> $null }
     $now = @(Get-ManualDns)
     $missing = @($Dns | Where-Object { $s = $_; -not ($now | Where-Object { $_.Guid -eq $s.Guid -and $_.Family -eq $s.Family -and $_.Servers -eq $s.Servers }) })
-    if ($missing) { Write-Result 'ERROR' (T "DNS not restored on $($missing.Count) interface(s); the backup is in $BackupDir" "DNS não restaurado em $($missing.Count) interface(s); o backup está em $BackupDir") }
-    elseif ($Dns) { Write-Result 'OK' (T 'your DNS servers are back' 'seus servidores DNS estão de volta') }
+    if ($missing) { Write-Result 'ERROR' "DNS not restored on $($missing.Count) interface(s); the backup is in $BackupDir" }
+    elseif ($Dns) { Write-Result 'OK' 'your DNS servers are back' }
 }
 
 function Clear-NetworkCaches {
     Clear-DnsClientCache
     & netsh interface ip delete arpcache *> $null
-    Write-Result 'OK' (T 'DNS and ARP caches cleared' 'caches de DNS e ARP limpos')
+    Write-Result 'OK' 'DNS and ARP caches cleared'
 }
 
 # New IP from the router, only on adapters with an automatic IP (ipconfig skips the others).
 function Update-IpAddress {
-    Write-Host (T '  getting a new IP from the router (the connection drops for a few seconds)...' '  pedindo um IP novo ao roteador (a conexão cai por alguns segundos)...') -ForegroundColor DarkGray
+    Write-Host '  getting a new IP from the router (the connection drops for a few seconds)...' -ForegroundColor DarkGray
     & ipconfig /release *> $null
     & ipconfig /renew *> $null
-    Write-Result 'OK' (T 'new IP requested' 'IP novo pedido')
+    Write-Result 'OK' 'new IP requested'
 }
 
 #endregion
@@ -218,17 +210,17 @@ function Update-IpAddress {
 #region ==================== 3. EXECUTION ====================
 
 Write-Host "`nReset-Network" -ForegroundColor Green
-Write-Host (T '  Fixes common internet problems with Windows'' own commands. Your DNS is kept.' '  Corrige problemas comuns de internet com os comandos do próprio Windows. Seu DNS é mantido.') -ForegroundColor DarkGray
+Write-Host '  Fixes common internet problems with Windows'' own commands. Your DNS is kept.' -ForegroundColor DarkGray
 
 # --- What is on this PC
 $dns = @(Get-ManualDns)
 $adapters = @(Get-AdapterInfo $dns)
-Write-Host (T "`n  Network adapters:" "`n  Adaptadores de rede:")
-if (-not $adapters) { Write-Host (T '    (no physical adapter found)' '    (nenhum adaptador físico encontrado)') -ForegroundColor DarkGray }
+Write-Host "`n  Network adapters:"
+if (-not $adapters) { Write-Host '    (no physical adapter found)' -ForegroundColor DarkGray }
 foreach ($a in $adapters) {
-    $state = if ($a.Connected) { T 'connected' 'conectado' } else { T 'not connected' 'desconectado' }
-    $ip    = if ($a.ManualIp) { T 'manual IP' 'IP manual' } else { T 'automatic IP' 'IP automático' }
-    $dnsTx = if ($a.Dns) { (T 'DNS ' 'DNS ') + ($a.Dns -join ', ') + (T ' (kept)' ' (mantido)') } else { T 'DNS from the router' 'DNS do roteador' }
+    $state = if ($a.Connected) { 'connected' } else { 'not connected' }
+    $ip    = if ($a.ManualIp) { 'manual IP' } else { 'automatic IP' }
+    $dnsTx = if ($a.Dns) { 'DNS ' + ($a.Dns -join ', ') + ' (kept)' } else { 'DNS from the router' }
     Write-Host ("    {0,-22} {1,-14} {2,-14} {3}" -f $a.Name, $state, $ip, $dnsTx)
 }
 $hasManualIp = [bool]($adapters | Where-Object ManualIp)
@@ -236,48 +228,48 @@ $hasManualIp = [bool]($adapters | Where-Object ManualIp)
 # --- Questions
 Write-Host ''
 $levels = @(
-    (T 'Quick: clear DNS/ARP caches and get a new IP (no restart)' 'Rápido: limpar caches de DNS/ARP e pegar um IP novo (sem reiniciar)'),
-    (T 'Full: also reset Winsock and TCP/IP (needs a restart)' 'Completo: também redefinir o Winsock e o TCP/IP (precisa reiniciar)')
+    'Quick: clear DNS/ARP caches and get a new IP (no restart)',
+    'Full: also reset Winsock and TCP/IP (needs a restart)'
 )
-$full = (Choose (T 'What to do?' 'O que fazer?') $levels 0) -eq 1
+$full = (Choose 'What to do?' $levels 0) -eq 1
 if ($full -and $hasManualIp) {
-    Write-Host (T '  A network adapter has a manual IP: the TCP/IP reset will be skipped so it is not erased.' '  Um adaptador tem IP manual: o reset do TCP/IP será pulado para não apagá-lo.') -ForegroundColor Yellow
+    Write-Host '  A network adapter has a manual IP: the TCP/IP reset will be skipped so it is not erased.' -ForegroundColor Yellow
 }
 if ($env:SESSIONNAME -like 'RDP*') {
-    Write-Host (T '  You are connected through Remote Desktop: the session will drop and may not come back by itself.' '  Você está conectado pela Área de Trabalho Remota: a sessão vai cair e pode não voltar sozinha.') -ForegroundColor Yellow
-    if (-not (Ask (T 'Continue anyway?' 'Continuar mesmo assim?') $false)) { Write-Host (T 'Nothing was changed.' 'Nada foi alterado.'); return }
+    Write-Host '  You are connected through Remote Desktop: the session will drop and may not come back by itself.' -ForegroundColor Yellow
+    if (-not (Ask 'Continue anyway?' $false)) { Write-Host 'Nothing was changed.'; return }
 }
-Write-Host (T '  Close downloads and calls first: the connection drops for a few seconds.' '  Feche downloads e chamadas antes: a conexão cai por alguns segundos.') -ForegroundColor DarkGray
-if (-not (Ask (T 'Reset the network now?' 'Redefinir a rede agora?') $true)) { Write-Host (T 'Nothing was changed.' 'Nada foi alterado.'); return }
+Write-Host '  Close downloads and calls first: the connection drops for a few seconds.' -ForegroundColor DarkGray
+if (-not (Ask 'Reset the network now?' $true)) { Write-Host 'Nothing was changed.'; return }
 
 # --- Steps (the quick ones don't touch the DNS settings, so only the full reset saves and restores them)
 $total = if ($full) { 5 } else { 2 }; $n = 0
 if ($full) {
-    $n++; Write-Step (T "$n/$total Saving your DNS" "$n/$total Salvando seu DNS")
+    $n++; Write-Step "$n/$total Saving your DNS"
     Save-NetworkBackup $dns
-    $n++; Write-Step (T "$n/$total Winsock and TCP/IP" "$n/$total Winsock e TCP/IP")
+    $n++; Write-Step "$n/$total Winsock and TCP/IP"
     Reset-Winsock
-    if ($hasManualIp) { Write-Host (T '  [--] TCP/IP skipped (manual IP)' '  [--] TCP/IP pulado (IP manual)') -ForegroundColor DarkGray } else { Reset-TcpIp }
-    $n++; Write-Step (T "$n/$total Putting your DNS back" "$n/$total Devolvendo seu DNS")
+    if ($hasManualIp) { Write-Host '  [--] TCP/IP skipped (manual IP)' -ForegroundColor DarkGray } else { Reset-TcpIp }
+    $n++; Write-Step "$n/$total Putting your DNS back"
     Restore-NetworkBackup $dns
 }
-$n++; Write-Step (T "$n/$total Caches" "$n/$total Caches")
+$n++; Write-Step "$n/$total Caches"
 Clear-NetworkCaches
-$n++; Write-Step (T "$n/$total IP address" "$n/$total Endereço IP")
+$n++; Write-Step "$n/$total IP address"
 Update-IpAddress
 
 # --- Result
-Write-Step (T 'Testing the internet' 'Testando a internet')
+Write-Step 'Testing the internet'
 Start-Sleep -Seconds 3      # the renewed adapter takes a moment to be ready
-if (Test-Internet) { Write-Result 'OK' (T 'internet is working' 'a internet está funcionando') }
-else { Write-Result 'WARN' (T 'no internet yet' 'ainda sem internet') }
+if (Test-Internet) { Write-Result 'OK' 'internet is working' }
+else { Write-Result 'WARN' 'no internet yet' }
 
 if ($full) {
-    Write-Host (T "`nDone. Restart the PC to finish the reset." "`nPronto. Reinicie o PC para concluir a redefinição.") -ForegroundColor Green
-    if (Ask (T 'Restart now?' 'Reiniciar agora?') $false) { Restart-Computer -Force }
+    Write-Host "`nDone. Restart the PC to finish the reset." -ForegroundColor Green
+    if (Ask 'Restart now?' $false) { Restart-Computer -Force }
 } else {
-    Write-Host (T "`nDone." "`nPronto.") -ForegroundColor Green
-    Write-Host (T '  Still not working? Run it again and choose Full, or restart the router.' '  Ainda não funciona? Rode de novo e escolha Completo, ou reinicie o roteador.') -ForegroundColor DarkGray
+    Write-Host "`nDone." -ForegroundColor Green
+    Write-Host '  Still not working? Run it again and choose Full, or restart the router.' -ForegroundColor DarkGray
 }
 
 #endregion

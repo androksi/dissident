@@ -20,7 +20,7 @@ Right-click the Start button, choose **Terminal** (or PowerShell) and run:
 irm androksi.github.io/tidywin/run | iex
 ```
 
-It asks for administrator rights and the language (English or Portuguese), then opens the menu: pick an option with the arrows and press <kbd>Enter</kbd>. When it finishes, you're back in the menu.
+It asks for administrator rights, then opens the menu: pick an option with the arrows and press <kbd>Enter</kbd>. When it finishes, you're back in the menu.
 
 > [!TIP]
 > Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the menu options in the right order.

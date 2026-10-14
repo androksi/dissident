@@ -4,7 +4,6 @@
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
         powershell -ExecutionPolicy Bypass -File .\Revert-Configure-Windows.ps1
-    Language: asked at the start (English by default); skip the question with -Lang en or -Lang pt.
 
     What does NOT come back on its own:
         - removed apps .............. reinstall from the Microsoft Store
@@ -23,8 +22,6 @@
 #>
 
 param(
-    [ValidateSet('en', 'pt')]
-    [string]$Lang
 )
 
 $ErrorActionPreference = 'Continue'
@@ -33,8 +30,6 @@ $P = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows'
 
 #region ==================== 1. HELPERS ====================
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
 # The "use the arrows" hint is shown only on the first menu.
@@ -45,15 +40,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  Number [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+            Write-Host "  Type a number from 1 to $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host '  (use the arrows ↑ ↓ and Enter)' -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -88,9 +83,6 @@ function Remove-Reg([string]$Path, [string[]]$Names) {
 # Step title in the terminal.
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
-# Language: asked once at the start (default English), unless -Lang was given.
-if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
-$script:Lang = $Lang
 
 #endregion
 
@@ -174,7 +166,7 @@ function Restore-Border {
     $wm = 'HKCU:\Control Panel\Desktop\WindowMetrics'
     if ((Get-ItemProperty $wm -Name PaddedBorderWidth -ErrorAction SilentlyContinue).PaddedBorderWidth -eq '0') {
         Set-ItemProperty $wm -Name PaddedBorderWidth -Value '-60'
-        Write-Host (T '  border restored (takes effect after signing out and back in)' '  borda restaurada (vale depois de sair da conta e entrar de novo)')
+        Write-Host '  border restored (takes effect after signing out and back in)'
     }
 }
 
@@ -183,7 +175,7 @@ function Restore-Border {
 # whose app was never installed can't be pinned again: Windows only shows it on new accounts.
 function Restore-StartPins {
     $file = Join-Path $env:ProgramData 'TidyWin\start-unpinned.json'
-    if (-not (Test-Path $file)) { Write-Host (T '  nothing was unpinned' '  nada foi desafixado'); return }
+    if (-not (Test-Path $file)) { Write-Host '  nothing was unpinned'; return }
     $names = @(Get-Content $file -Raw -Encoding UTF8 | ConvertFrom-Json)
     if (-not ('RevWin.Res' -as [type])) {
         Add-Type -Namespace RevWin -Name Res -MemberDefinition @'
@@ -204,8 +196,8 @@ public static extern int LoadString(System.IntPtr module, uint id, System.Text.S
         if ($verb) { $verb.DoIt(); $done += $item.Name }
     }
     $left = @($names | Where-Object { $done -notcontains $_ })
-    if ($done) { Write-Host "  $(T 'pinned back' 'fixados de volta'): $($done -join ', ')" }
-    if ($left) { Write-Host "  $(T 'not available to pin (app not installed)' 'não dá para fixar (app não instalado)'): $($left -join ', ')" -ForegroundColor DarkGray }
+    if ($done) { Write-Host "  pinned back: $($done -join ', ')" }
+    if ($left) { Write-Host "  not available to pin (app not installed): $($left -join ', ')" -ForegroundColor DarkGray }
     Remove-Item $file -Force -ErrorAction SilentlyContinue
 }
 
@@ -214,7 +206,7 @@ function Restore-SnapWindows {
     $d = 'HKCU:\Control Panel\Desktop'
     if ((Get-ItemProperty $d -Name WindowArrangementActive -ErrorAction SilentlyContinue).WindowArrangementActive -eq '0') {
         Set-ItemProperty $d -Name WindowArrangementActive -Value '1'
-        Write-Host (T '  Snap windows: on (after signing out and back in)' '  Ajustar janelas: ligado (depois de sair da conta e entrar de novo)')
+        Write-Host '  Snap windows: on (after signing out and back in)'
     }
 }
 
@@ -224,7 +216,7 @@ function Restore-DNS {
     foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue)) {
         Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ResetServerAddresses -ErrorAction SilentlyContinue
         Remove-Item "$base\$($adapter.InterfaceGuid)\DohInterfaceSettings" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host (T "  $($adapter.Name): automatic" "  $($adapter.Name): automático")
+        Write-Host "  $($adapter.Name): automatic"
     }
     Clear-DnsClientCache
 }
@@ -242,7 +234,7 @@ function Restore-HomeAndGallery {
         $pinned = $shell.Namespace('shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}').Items() | Where-Object { $_.Path -eq $music }
         if (-not $pinned -and (Test-Path $music)) { $shell.Namespace($music).Self.InvokeVerb('pintohome') }
     } catch { }
-    Write-Host (T '  Home, Gallery, Music in Quick access and the new right-click menu are back (some show up after restarting)' '  Início, Galeria, Músicas no Acesso rápido e o menu novo do botão direito de volta (alguns aparecem depois de reiniciar)')
+    Write-Host '  Home, Gallery, Music in Quick access and the new right-click menu are back (some show up after restarting)'
 }
 
 # Folder type discovery, manufacturer apps for devices, WPBT, Fast Startup, Num Lock and verbose blue screen back to the Windows default.
@@ -269,7 +261,7 @@ function Show-Inetpub {
     if (Test-Path $inetpub) {
         $folder = Get-Item $inetpub -Force
         $folder.Attributes = $folder.Attributes -band -bnot [IO.FileAttributes]::Hidden
-        Write-Host (T '  inetpub: visible again' '  inetpub: visível de novo')
+        Write-Host '  inetpub: visible again'
     }
 }
 
@@ -292,19 +284,19 @@ function Remove-SavedAnswers {
 
 #region ==================== 3. EXECUTION ====================
 
-Write-Step (T 'Telemetry services back to default' 'Serviços de telemetria de volta ao padrão'); Restore-TelemetryServices
-Write-Step (T 'Re-enabling scheduled tasks' 'Reativando tarefas agendadas'); Restore-TelemetryTasks
-Write-Step (T 'Removing policies' 'Removendo políticas'); Remove-WindowsPolicies
-Write-Step (T 'Windows suggestions back to default' 'Sugestões do Windows de volta ao padrão'); Restore-Suggestions
-Write-Step (T 'Window border back to default' 'Borda das janelas de volta ao padrão'); Restore-Border
-Write-Step (T 'Snap windows back on' 'Ajustar janelas de volta'); Restore-SnapWindows
-Write-Step (T 'DNS back to automatic (from the router)' 'DNS de volta ao automático (do roteador)'); Restore-DNS
-Write-Step (T 'Home and Gallery back in File Explorer' 'Início e Galeria de volta no Explorador'); Restore-HomeAndGallery
-Write-Step (T 'Folders, devices, startup and blue screen back to default' 'Pastas, periféricos, inicialização e tela azul no padrão'); Restore-ExplorerAndDeviceDefaults
-Write-Step (T 'inetpub folder visible again' 'Pasta inetpub visível de novo'); Show-Inetpub
-Write-Step (T 'Removing Edge policies' 'Removendo políticas do Edge'); Remove-EdgePolicies
-Write-Step (T 'Ad shortcuts back in Start' 'Atalhos de propaganda de volta no Iniciar'); Restore-StartPins
-Write-Step (T 'Deleting the saved answers (TidyWin)' 'Apagando as respostas salvas (TidyWin)'); Remove-SavedAnswers
-Write-Step (T 'Done. Restart the computer.' 'Concluído. Reinicie o computador.')
+Write-Step 'Telemetry services back to default'; Restore-TelemetryServices
+Write-Step 'Re-enabling scheduled tasks'; Restore-TelemetryTasks
+Write-Step 'Removing policies'; Remove-WindowsPolicies
+Write-Step 'Windows suggestions back to default'; Restore-Suggestions
+Write-Step 'Window border back to default'; Restore-Border
+Write-Step 'Snap windows back on'; Restore-SnapWindows
+Write-Step 'DNS back to automatic (from the router)'; Restore-DNS
+Write-Step 'Home and Gallery back in File Explorer'; Restore-HomeAndGallery
+Write-Step 'Folders, devices, startup and blue screen back to default'; Restore-ExplorerAndDeviceDefaults
+Write-Step 'inetpub folder visible again'; Show-Inetpub
+Write-Step 'Removing Edge policies'; Remove-EdgePolicies
+Write-Step 'Ad shortcuts back in Start'; Restore-StartPins
+Write-Step 'Deleting the saved answers (TidyWin)'; Remove-SavedAnswers
+Write-Step 'Done. Restart the computer.'
 
 #endregion

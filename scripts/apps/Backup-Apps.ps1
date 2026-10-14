@@ -14,7 +14,6 @@
     Only the apps are saved: not their settings, logins or files.
     Leaves nothing on the PC besides the .json you saved; delete it whenever you want.
 
-    Language: asked at the start (English by default); skip the question with -Lang en or -Lang pt.
 
     FILE LAYOUT
         1. Helpers
@@ -24,9 +23,7 @@
 #>
 param(
     [switch]$Export,
-    [switch]$Import,
-    [ValidateSet('en', 'pt')]
-    [string]$Lang
+    [switch]$Import
 )
 
 $ErrorActionPreference = 'Continue'
@@ -34,8 +31,6 @@ $ErrorActionPreference = 'Continue'
 
 #region ==================== 1. HELPERS ====================
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
@@ -48,15 +43,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  Number [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host (T "  Enter a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+            Write-Host "  Enter a number from 1 to $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host '  (use the arrows ↑ ↓ and Enter)' -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -83,20 +78,17 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
     return $selected
 }
 
-# Yes/no question shown as a "Sim / Não" menu (same as Choose). The default comes selected.
+# Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
-# Language: asked once at the start (default English), unless -Lang was given.
-if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
-$script:Lang = $Lang
 
 # Folders where the file is saved and searched, in this order (only the ones that exist).
 function Get-BackupFolders {
     $list = [ordered]@{
-        (T 'Desktop' 'Área de Trabalho') = [Environment]::GetFolderPath('Desktop')
-        (T 'Documents' 'Documentos')     = [Environment]::GetFolderPath('MyDocuments')
+        'Desktop' = [Environment]::GetFolderPath('Desktop')
+        'Documents'     = [Environment]::GetFolderPath('MyDocuments')
         'Downloads'        = Join-Path $env:USERPROFILE 'Downloads'
         'OneDrive'         = $env:OneDrive
     }
@@ -118,26 +110,26 @@ function Get-PackageIds([string]$File) {
 function Invoke-Export {
     Write-Host "`nBackup-Apps -Export" -ForegroundColor Green
     $folders = Get-BackupFolders
-    $names = @($folders.Keys) + (T 'Another folder (type the path)' 'Outra pasta (digitar o caminho)')
+    $names = @($folders.Keys) + 'Another folder (type the path)'
     $default = [math]::Max(0, [array]::IndexOf(@($folders.Keys), 'OneDrive'))
-    $choice = Choose (T 'Where to save the app list? (pick a place that survives formatting)' 'Onde salvar a lista de apps? (escolha um lugar que não some ao formatar)') $names $default
+    $choice = Choose 'Where to save the app list? (pick a place that survives formatting)' $names $default
     if ($choice -eq $names.Count - 1) {
-        $dir = "$(Read-Host (T '  Folder' '  Pasta'))".Trim().Trim('"')
-        if (-not (Test-Path $dir -PathType Container)) { Write-Host (T "  Folder not found: $dir" "  Pasta não encontrada: $dir") -ForegroundColor Red; return }
+        $dir = "$(Read-Host '  Folder')".Trim().Trim('"')
+        if (-not (Test-Path $dir -PathType Container)) { Write-Host "  Folder not found: $dir" -ForegroundColor Red; return }
     } else {
         $dir = $folders[$names[$choice]]
     }
     $file = Join-Path $dir ("tidywin-apps-{0}-{1}.json" -f $env:COMPUTERNAME, (Get-Date -Format 'yyyy-MM-dd'))
 
-    Write-Step (T 'Creating the list with WinGet' 'Gerando a lista com o WinGet')
-    Write-Host (T '  (apps that are not in WinGet show up as warnings and are left out)' '  (apps que não existem no WinGet aparecem como aviso e ficam de fora)') -ForegroundColor DarkGray
+    Write-Step 'Creating the list with WinGet'
+    Write-Host '  (apps that are not in WinGet show up as warnings and are left out)' -ForegroundColor DarkGray
     & winget export -o $file --accept-source-agreements
-    if (-not (Test-Path $file)) { Write-Host (T "`nCould not create the file." "`nNão foi possível criar o arquivo.") -ForegroundColor Red; return }
+    if (-not (Test-Path $file)) { Write-Host "`nCould not create the file." -ForegroundColor Red; return }
 
     $ids = Get-PackageIds $file
-    Write-Host (T "`nDone: $($ids.Count) apps saved to" "`nPronto: $($ids.Count) apps salvos em") -ForegroundColor Green
+    Write-Host "`nDone: $($ids.Count) apps saved to" -ForegroundColor Green
     Write-Host "  $file"
-    Write-Host (T 'After formatting, choose "Restore apps and drivers" in the TidyWin menu.' 'Depois de formatar, escolha "Restaurar apps e drivers" no menu do TidyWin.') -ForegroundColor DarkGray
+    Write-Host 'After formatting, choose "Restore apps and drivers" in the TidyWin menu.' -ForegroundColor DarkGray
 }
 
 #endregion
@@ -151,30 +143,30 @@ function Invoke-Import {
         Get-ChildItem -Path $_ -Filter 'tidywin-apps-*.json' -File -ErrorAction SilentlyContinue
     } | Sort-Object FullName -Unique | Sort-Object LastWriteTime -Descending)
 
-    $labels = @($found | ForEach-Object { "$($_.Name)  ($(Split-Path $_.DirectoryName -Leaf))" }) + (T 'Another file (type the path)' 'Outro arquivo (digitar o caminho)')
+    $labels = @($found | ForEach-Object { "$($_.Name)  ($(Split-Path $_.DirectoryName -Leaf))" }) + 'Another file (type the path)'
     if ($found) {
-        $choice = Choose (T 'Which list to install?' 'Qual lista instalar?') $labels 0
+        $choice = Choose 'Which list to install?' $labels 0
     } else {
-        Write-Host (T '  No list found in Desktop, Documents, Downloads or OneDrive.' '  Nenhuma lista encontrada na Área de Trabalho, Documentos, Downloads ou OneDrive.') -ForegroundColor DarkYellow
+        Write-Host '  No list found in Desktop, Documents, Downloads or OneDrive.' -ForegroundColor DarkYellow
         $choice = $labels.Count - 1
     }
     if ($choice -eq $labels.Count - 1) {
-        $file = "$(Read-Host (T '  Path to the .json file' '  Caminho do arquivo .json'))".Trim().Trim('"')
-        if (-not (Test-Path $file -PathType Leaf)) { Write-Host (T "  File not found: $file" "  Arquivo não encontrado: $file") -ForegroundColor Red; return }
+        $file = "$(Read-Host '  Path to the .json file')".Trim().Trim('"')
+        if (-not (Test-Path $file -PathType Leaf)) { Write-Host "  File not found: $file" -ForegroundColor Red; return }
     } else {
         $file = $found[$choice].FullName
     }
 
-    try { $ids = Get-PackageIds $file } catch { Write-Host (T '  This file is not a WinGet list.' '  Esse arquivo não é uma lista do WinGet.') -ForegroundColor Red; return }
-    Write-Host (T "`n  $($ids.Count) apps in the list:" "`n  $($ids.Count) apps na lista:")
+    try { $ids = Get-PackageIds $file } catch { Write-Host '  This file is not a WinGet list.' -ForegroundColor Red; return }
+    Write-Host "`n  $($ids.Count) apps in the list:"
     $ids | Sort-Object | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
     Write-Host ''
-    if (-not (Ask (T "Install the apps that are not on this PC yet?" "Instalar os apps que ainda não estão neste PC?") $true)) { Write-Host (T 'Nothing was installed.' 'Nada foi instalado.'); return }
+    if (-not (Ask "Install the apps that are not on this PC yet?" $true)) { Write-Host 'Nothing was installed.'; return }
 
-    Write-Step (T 'Installing with WinGet (apps already installed are skipped)' 'Instalando com o WinGet (os que já estão instalados são pulados)')
+    Write-Step 'Installing with WinGet (apps already installed are skipped)'
     & winget import -i $file --ignore-unavailable --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -eq 0) { Write-Host (T "`nDone." "`nPronto.") -ForegroundColor Green }
-    else { Write-Host (T "`nFinished with warnings: see above for the apps that were not installed." "`nTerminou com avisos: veja acima os apps que não foram instalados.") -ForegroundColor Yellow }
+    if ($LASTEXITCODE -eq 0) { Write-Host "`nDone." -ForegroundColor Green }
+    else { Write-Host "`nFinished with warnings: see above for the apps that were not installed." -ForegroundColor Yellow }
 }
 
 #endregion
@@ -183,14 +175,14 @@ function Invoke-Import {
 #region ==================== 4. EXECUTION ====================
 
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host (T 'WinGet is not installed. In the TidyWin menu, choose "Install apps", which offers to install it, and try again.' 'O WinGet não está instalado. No menu do TidyWin, escolha "Instalar apps", que oferece instalar, e tente de novo.') -ForegroundColor Yellow
+    Write-Host 'WinGet is not installed. In the TidyWin menu, choose "Install apps", which offers to install it, and try again.' -ForegroundColor Yellow
     return
 }
 
 if     ($Export) { Invoke-Export }
 elseif ($Import) { Invoke-Import }
 else {
-    $mode = Choose (T 'What do you want to do?' 'O que fazer?') @((T 'Save the list of apps on this PC' 'Salvar a lista de apps deste PC'), (T 'Install apps from a saved list' 'Instalar apps de uma lista salva')) 0
+    $mode = Choose 'What do you want to do?' @('Save the list of apps on this PC', 'Install apps from a saved list') 0
     if ($mode -eq 0) { Invoke-Export } else { Invoke-Import }
 }
 

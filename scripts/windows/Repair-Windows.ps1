@@ -4,7 +4,6 @@
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
         powershell -ExecutionPolicy Bypass -File .\Repair-Windows.ps1
-    Add -Lang en or -Lang pt to skip the language question.
 
     Use it when Windows acts strange: errors opening Settings or the Start menu, updates that keep
     failing, apps from Windows crashing. In order:
@@ -25,23 +24,19 @@
 #>
 
 param(
-    [ValidateSet('en', 'pt')]
-    [string]$Lang
 )
 
 $ErrorActionPreference = 'Continue'
 
 
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
-    Write-Warning $(if ($Lang -eq 'pt') { 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).' } else { 'Run in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).' })   # T is not defined yet
+    Write-Warning 'Run in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).'
     return
 }
 
 
 #region ==================== 1. HELPERS ====================
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
@@ -54,15 +49,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  Number [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+            Write-Host "  Type a number from 1 to $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host '  (use the arrows ↑ ↓ and Enter)' -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -91,17 +86,14 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
 
 # Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
-# Language: asked once at the start (default English), unless -Lang was given.
-if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
-$script:Lang = $Lang
 
 # $Status is a language-independent key (OK / FIXED / WARN / ERROR) that picks the color; the tag shown is translated.
 function Write-Result([ValidateSet('OK', 'FIXED', 'WARN', 'ERROR')][string]$Status, [string]$Text) {
     $color = @{ OK = 'Green'; FIXED = 'Green'; WARN = 'Yellow'; ERROR = 'Red' }[$Status]
-    $label = @{ OK = 'OK'; FIXED = (T 'FIXED' 'CORRIGIDO'); WARN = (T 'WARNING' 'ATENÇÃO'); ERROR = (T 'ERROR' 'ERRO') }[$Status]
+    $label = @{ OK = 'OK'; FIXED = 'FIXED'; WARN = 'WARNING'; ERROR = 'ERROR' }[$Status]
     Write-Host ("  [{0}] " -f $label) -ForegroundColor $color -NoNewline
     Write-Host $Text
 }
@@ -128,46 +120,46 @@ function Add-Summary([string]$Text, [ValidateSet('Ok', 'Fixed', 'Issue')][string
 function New-RestorePoint {
     try {
         Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction SilentlyContinue
-        Checkpoint-Computer -Description (T 'Before Repair-Windows' 'Antes do Repair-Windows') -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
-        Write-Result 'OK' (T 'restore point created' 'ponto de restauração criado')
+        Checkpoint-Computer -Description 'Before Repair-Windows' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+        Write-Result 'OK' 'restore point created'
         return $true
     } catch {
-        Write-Result 'WARN' (T "could not create the restore point ($($_.Exception.Message.Trim()))" "não foi possível criar o ponto de restauração ($($_.Exception.Message.Trim()))")
-        return (Ask (T 'Continue anyway? (the repairs only use Windows'' own tools)' 'Continuar mesmo assim? (os reparos só usam ferramentas do próprio Windows)') $false)
+        Write-Result 'WARN' "could not create the restore point ($($_.Exception.Message.Trim()))"
+        return (Ask 'Continue anyway? (the repairs only use Windows'' own tools)' $false)
     }
 }
 
 # DISM through its PowerShell cmdlet: the result (Healthy / Repairable / NonRepairable) does not depend
 # on the Windows language. ScanHealth only reads; RestoreHealth downloads clean copies from Windows Update.
 function Repair-Image {
-    Write-Host (T '  checking (a few minutes; the progress bar may stall for a while, that is normal)...' '  verificando (alguns minutos; a barra de progresso pode parar um tempo, é normal)...') -ForegroundColor DarkGray
+    Write-Host '  checking (a few minutes; the progress bar may stall for a while, that is normal)...' -ForegroundColor DarkGray
     try { $scan = Repair-WindowsImage -Online -ScanHealth -ErrorAction Stop }
-    catch { Write-Result 'ERROR' (T "the check failed: $($_.Exception.Message.Trim())" "a verificação falhou: $($_.Exception.Message.Trim())"); Add-Summary (T 'Windows image: check failed' 'Imagem do Windows: verificação falhou') 'Issue'; return }
+    catch { Write-Result 'ERROR' "the check failed: $($_.Exception.Message.Trim())"; Add-Summary 'Windows image: check failed' 'Issue'; return }
 
     switch ("$($scan.ImageHealthState)") {
         'Healthy' {
-            Write-Result 'OK' (T 'Windows image has no problems' 'imagem do Windows sem problemas')
-            Add-Summary (T 'Windows image: OK' 'Imagem do Windows: OK') 'Ok'
+            Write-Result 'OK' 'Windows image has no problems'
+            Add-Summary 'Windows image: OK' 'Ok'
         }
         'Repairable' {
-            Write-Host (T '  problems found; repairing with copies from Windows Update...' '  problemas encontrados; reparando com cópias do Windows Update...') -ForegroundColor DarkGray
+            Write-Host '  problems found; repairing with copies from Windows Update...' -ForegroundColor DarkGray
             try {
                 $fix = Repair-WindowsImage -Online -RestoreHealth -ErrorAction Stop
                 if ("$($fix.ImageHealthState)" -eq 'Healthy') {
-                    Write-Result 'FIXED' (T 'Windows image repaired' 'imagem do Windows reparada')
-                    Add-Summary (T 'Windows image: repaired' 'Imagem do Windows: reparada') 'Fixed'
+                    Write-Result 'FIXED' 'Windows image repaired'
+                    Add-Summary 'Windows image: repaired' 'Fixed'
                 } else {
-                    Write-Result 'WARN' (T "the repair finished, but the state is: $($fix.ImageHealthState)" "o reparo terminou, mas o estado é: $($fix.ImageHealthState)")
-                    Add-Summary (T 'Windows image: repair incomplete' 'Imagem do Windows: reparo incompleto') 'Issue'
+                    Write-Result 'WARN' "the repair finished, but the state is: $($fix.ImageHealthState)"
+                    Add-Summary 'Windows image: repair incomplete' 'Issue'
                 }
             } catch {
-                Write-Result 'ERROR' (T "the repair failed: $($_.Exception.Message.Trim()). Check the internet connection and Windows Update and try again." "o reparo falhou: $($_.Exception.Message.Trim()). Confira a internet e o Windows Update e tente de novo.")
-                Add-Summary (T 'Windows image: repair failed' 'Imagem do Windows: reparo falhou') 'Issue'
+                Write-Result 'ERROR' "the repair failed: $($_.Exception.Message.Trim()). Check the internet connection and Windows Update and try again."
+                Add-Summary 'Windows image: repair failed' 'Issue'
             }
         }
         default {
-            Write-Result 'ERROR' (T 'the Windows image is too damaged to repair from here. The way forward is "Fix problems using Windows Update" in Settings > System > Recovery, which reinstalls Windows keeping your files and apps.' 'a imagem do Windows está danificada demais para reparar por aqui. O caminho é "Corrigir problemas usando o Windows Update" em Configurações > Sistema > Recuperação, que reinstala o Windows mantendo arquivos e apps.')
-            Add-Summary (T 'Windows image: not repairable from here' 'Imagem do Windows: não reparável por aqui') 'Issue'
+            Write-Result 'ERROR' 'the Windows image is too damaged to repair from here. The way forward is "Fix problems using Windows Update" in Settings > System > Recovery, which reinstalls Windows keeping your files and apps.'
+            Add-Summary 'Windows image: not repairable from here' 'Issue'
         }
     }
 }
@@ -176,7 +168,7 @@ function Repair-Image {
 # encoding is switched while it runs. The final message is Windows' own, in its language.
 # The result comes from the exit code and from the [SR] lines it writes in CBS.log (always in English).
 function Repair-SystemFiles {
-    Write-Host (T '  checking (about 10 minutes)...' '  verificando (uns 10 minutos)...') -ForegroundColor DarkGray
+    Write-Host '  checking (about 10 minutes)...' -ForegroundColor DarkGray
     $start = Get-Date
     $previous = [Console]::OutputEncoding
     try {
@@ -198,17 +190,17 @@ function Repair-SystemFiles {
     $failed   = @($sr | Where-Object { $_ -match 'Cannot repair' }).Count
 
     if ($failed) {
-        Write-Result 'WARN' (T "$failed file(s) could not be repaired. Restart the PC and run the repair again." "$failed arquivo(s) não puderam ser reparados. Reinicie o PC e rode de novo.")
-        Add-Summary (T 'System files: some not repaired' 'Arquivos do sistema: alguns não reparados') 'Issue'
+        Write-Result 'WARN' "$failed file(s) could not be repaired. Restart the PC and run the repair again."
+        Add-Summary 'System files: some not repaired' 'Issue'
     } elseif ($repaired) {
-        Write-Result 'FIXED' (T 'damaged system files were replaced. Restart the PC.' 'arquivos do sistema danificados foram substituídos. Reinicie o PC.')
-        Add-Summary (T 'System files: repaired' 'Arquivos do sistema: reparados') 'Fixed'
+        Write-Result 'FIXED' 'damaged system files were replaced. Restart the PC.'
+        Add-Summary 'System files: repaired' 'Fixed'
     } elseif ($LASTEXITCODE -eq 0) {
-        Write-Result 'OK' (T 'system files have no problems' 'arquivos do sistema sem problemas')
-        Add-Summary (T 'System files: OK' 'Arquivos do sistema: OK') 'Ok'
+        Write-Result 'OK' 'system files have no problems'
+        Add-Summary 'System files: OK' 'Ok'
     } else {
-        Write-Result 'WARN' (T 'sfc did not finish normally; see the message above.' 'o sfc não terminou normalmente; veja a mensagem acima.')
-        Add-Summary (T 'System files: check incomplete' 'Arquivos do sistema: verificação incompleta') 'Issue'
+        Write-Result 'WARN' 'sfc did not finish normally; see the message above.'
+        Add-Summary 'System files: check incomplete' 'Issue'
     }
 }
 
@@ -216,31 +208,31 @@ function Repair-SystemFiles {
 # (SpotFix) needs the drive offline, so it is only scheduled for the next restart if you agree.
 function Repair-Disk {
     $letter = $env:SystemDrive.TrimEnd(':')
-    Write-Host (T "  checking drive $($letter): (may take a few minutes)..." "  verificando o disco $($letter): (pode levar alguns minutos)...") -ForegroundColor DarkGray
+    Write-Host "  checking drive $($letter): (may take a few minutes)..." -ForegroundColor DarkGray
     try { $result = "$(Repair-Volume -DriveLetter $letter -Scan -ErrorAction Stop)" }
-    catch { Write-Result 'ERROR' (T "the check failed: $($_.Exception.Message.Trim())" "a verificação falhou: $($_.Exception.Message.Trim())"); Add-Summary (T 'Disk: check failed' 'Disco: verificação falhou') 'Issue'; return }
+    catch { Write-Result 'ERROR' "the check failed: $($_.Exception.Message.Trim())"; Add-Summary 'Disk: check failed' 'Issue'; return }
 
     if ($result -eq 'NoErrorsFound') {
-        Write-Result 'OK' (T "drive $($letter): no errors" "disco $($letter): sem erros")
-        Add-Summary (T 'Disk: OK' 'Disco: OK') 'Ok'
+        Write-Result 'OK' "drive $($letter): no errors"
+        Add-Summary 'Disk: OK' 'Ok'
         return
     }
-    Write-Result 'WARN' (T "errors were found on drive $($letter): ($result)" "foram encontrados erros no disco $($letter): ($result)")
+    Write-Result 'WARN' "errors were found on drive $($letter): ($result)"
     # SpotFixNeeded: quick fix at the next restart. Anything else: full offline check (can take a while at startup).
     $quick = $result -eq 'SpotFixNeeded'
-    $how = if ($quick) { (T 'takes a few seconds at startup' 'leva poucos segundos na inicialização') } else { (T 'startup may take several minutes' 'a inicialização pode demorar vários minutos') }
-    if (Ask (T "Schedule the fix for the next time the PC restarts? ($how)" "Agendar a correção para a próxima vez que o PC reiniciar? ($how)") $true) {
+    $how = if ($quick) { 'takes a few seconds at startup' } else { 'startup may take several minutes' }
+    if (Ask "Schedule the fix for the next time the PC restarts? ($how)" $true) {
         try {
             if ($quick) { Repair-Volume -DriveLetter $letter -SpotFix -ErrorAction Stop | Out-Null }
             else        { Repair-Volume -DriveLetter $letter -OfflineScanAndFix -ErrorAction Stop | Out-Null }
-            Write-Result 'OK' (T 'fix scheduled; restart the PC' 'correção agendada; reinicie o PC')
-            Add-Summary (T 'Disk: fix scheduled for the next restart' 'Disco: correção agendada para o próximo reinício') 'Fixed'
+            Write-Result 'OK' 'fix scheduled; restart the PC'
+            Add-Summary 'Disk: fix scheduled for the next restart' 'Fixed'
         } catch {
-            Write-Result 'ERROR' (T "could not schedule it: $($_.Exception.Message.Trim())" "não foi possível agendar: $($_.Exception.Message.Trim())")
-            Add-Summary (T 'Disk: errors found, fix not scheduled' 'Disco: erros encontrados, correção não agendada') 'Issue'
+            Write-Result 'ERROR' "could not schedule it: $($_.Exception.Message.Trim())"
+            Add-Summary 'Disk: errors found, fix not scheduled' 'Issue'
         }
     } else {
-        Add-Summary (T 'Disk: errors found, fix not scheduled' 'Disco: erros encontrados, correção não agendada') 'Issue'
+        Add-Summary 'Disk: errors found, fix not scheduled' 'Issue'
     }
 }
 
@@ -250,34 +242,34 @@ function Repair-Disk {
 #region ==================== 3. EXECUTION ====================
 
 Write-Host "`nRepair-Windows" -ForegroundColor Green
-Write-Host (T '  Checks and repairs the Windows image, the system files and the disk, with Windows'' own tools.' '  Verifica e repara a imagem do Windows, os arquivos do sistema e o disco, com as ferramentas do próprio Windows.')
-Write-Host (T '  Takes 10 to 30 minutes. You can use the PC meanwhile; leave the window open.' '  Leva de 10 a 30 minutos. Dá para usar o PC enquanto isso; deixe a janela aberta.') -ForegroundColor DarkGray
+Write-Host '  Checks and repairs the Windows image, the system files and the disk, with Windows'' own tools.'
+Write-Host '  Takes 10 to 30 minutes. You can use the PC meanwhile; leave the window open.' -ForegroundColor DarkGray
 
 if (Test-PendingReboot) {
     Write-Host ''
-    Write-Result 'WARN' (T 'an update is waiting for the PC to restart; the repairs may fail until then.' 'há uma atualização esperando o PC reiniciar; os reparos podem falhar até lá.')
-    if (-not (Ask (T 'Continue anyway? (restarting first is recommended)' 'Continuar mesmo assim? (o recomendado é reiniciar antes)') $false)) { Write-Host (T 'Nothing was done. Restart the PC and run again.' 'Nada foi feito. Reinicie o PC e rode de novo.'); return }
+    Write-Result 'WARN' 'an update is waiting for the PC to restart; the repairs may fail until then.'
+    if (-not (Ask 'Continue anyway? (restarting first is recommended)' $false)) { Write-Host 'Nothing was done. Restart the PC and run again.'; return }
 }
 Write-Host ''
-if (-not (Ask (T 'Start?' 'Começar?') $true)) { Write-Host (T 'Nothing was done.' 'Nada foi feito.'); return }
+if (-not (Ask 'Start?' $true)) { Write-Host 'Nothing was done.'; return }
 
-Write-Step (T '1/4 Restore point' '1/4 Ponto de restauração')
-if (-not (New-RestorePoint)) { Write-Host (T 'Nothing was done.' 'Nada foi feito.'); return }
+Write-Step '1/4 Restore point'
+if (-not (New-RestorePoint)) { Write-Host 'Nothing was done.'; return }
 
-Write-Step (T '2/4 Windows image (DISM)' '2/4 Imagem do Windows (DISM)')
+Write-Step '2/4 Windows image (DISM)'
 Repair-Image
 
-Write-Step (T '3/4 System files (sfc)' '3/4 Arquivos do sistema (sfc)')
+Write-Step '3/4 System files (sfc)'
 Repair-SystemFiles
 
-Write-Step (T '4/4 Disk' '4/4 Disco')
+Write-Step '4/4 Disk'
 Repair-Disk
 
-Write-Step (T 'Summary' 'Resumo')
+Write-Step 'Summary'
 $script:Summary | ForEach-Object { Write-Host "  $_" }
 $allOk = -not ($script:SummaryStatus | Where-Object { $_ -ne 'Ok' })
-if ($allOk) { Write-Host (T "`nNo problems found." "`nNenhum problema encontrado.") -ForegroundColor Green }
-elseif ($script:SummaryStatus -contains 'Fixed') { Write-Host (T "`nRestart the computer to finish." "`nReinicie o computador para concluir.") -ForegroundColor Yellow }
-else { Write-Host (T "`nSome items were not resolved; see the messages above." "`nAlguns itens não foram resolvidos; veja as mensagens acima.") -ForegroundColor Yellow }
+if ($allOk) { Write-Host "`nNo problems found." -ForegroundColor Green }
+elseif ($script:SummaryStatus -contains 'Fixed') { Write-Host "`nRestart the computer to finish." -ForegroundColor Yellow }
+else { Write-Host "`nSome items were not resolved; see the messages above." -ForegroundColor Yellow }
 
 #endregion

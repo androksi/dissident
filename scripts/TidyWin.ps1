@@ -7,7 +7,6 @@
     or from a copy of the repository (Windows PowerShell 5.1 as Administrator):
         powershell -ExecutionPolicy Bypass -File .\scripts\TidyWin.ps1
 
-    Asks for the language once and passes it on (-Lang), so the scripts don't ask again.
     Each choice downloads its script from the site (or uses the local copy next to this file, when there
     is one), runs it, and comes back to the menu. Esc closes it.
     Every script asks before changing anything.
@@ -21,8 +20,6 @@
         4. Execution
 #>
 param(
-    [ValidateSet('en', 'pt')]
-    [string]$Lang,
     [string]$Base = 'https://androksi.github.io/tidywin'      # where the scripts are published (GitHub Pages)
 )
 
@@ -33,39 +30,6 @@ $ProgressPreference    = 'SilentlyContinue'    # the progress bar makes download
 
 #region ==================== 1. HELPERS ====================
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
-
-# Language menu (the only question this script asks): ↑ ↓ and Enter, or a number without a real console.
-function Select-Language {
-    $options = @('English', 'Português (Brasil)')
-    Write-Host '  Language / Idioma:'
-    if (($Host.Name -ne 'ConsoleHost') -or [Console]::IsInputRedirected) {
-        Write-Host '    1) English'; Write-Host '    2) Português (Brasil)'
-        return @('en', 'pt')[[int]("$(Read-Host '  Number / Número [1]')".Trim() -eq '2')]
-    }
-    Write-Host '  (↑ ↓ Enter)' -ForegroundColor DarkGray
-    foreach ($o in $options) { Write-Host '' }
-    $top = [Console]::CursorTop - $options.Count
-    $sel = 0
-    [Console]::CursorVisible = $false
-    try {
-        while ($true) {
-            for ($i = 0; $i -lt $options.Count; $i++) {
-                [Console]::SetCursorPosition(0, $top + $i)
-                $line = $(if ($i -eq $sel) { '  > ' } else { '    ' }) + $options[$i]
-                if ($i -eq $sel) { Write-Host $line.PadRight([Console]::WindowWidth - 1) -ForegroundColor Cyan -NoNewline } else { Write-Host $line.PadRight([Console]::WindowWidth - 1) -NoNewline }
-            }
-            $key = [Console]::ReadKey($true).Key
-            if ($key -in 'UpArrow', 'DownArrow') { $sel = 1 - $sel }
-            elseif ($key -eq 'Enter') { break }
-        }
-    } finally {
-        [Console]::SetCursorPosition(0, $top + $options.Count)
-        [Console]::CursorVisible = $true
-    }
-    return @('en', 'pt')[$sel]
-}
 
 # Windows name and version for the menu header.
 function Get-WindowsLabel {
@@ -107,36 +71,36 @@ function New-MenuSequence($Group, $Id, [object[]]$Steps, $Name, $Desc) {
 }
 
 function Get-Menu {
-    $setup = T 'Set up' 'Configurar'; $care = T 'Maintenance' 'Manutenção'; $format = T 'Formatting the PC' 'Formatar o PC'; $undo = T 'Undo' 'Desfazer'
+    $setup = 'Set up'; $care = 'Maintenance'; $format = 'Formatting the PC'; $undo = 'Undo'
     @(
-        New-MenuItem $setup  'windows'        'windows/Configure-Windows.ps1'        $null      (T 'Windows' 'Windows')                       (T 'Turns off telemetry, ads and suggestions, removes preinstalled apps and OneDrive, adjusts the taskbar, File Explorer, power and DNS. Asks before each change and creates a restore point.' 'Desliga telemetria, anúncios e sugestões, remove apps pré-instalados e o OneDrive, ajusta a barra de tarefas, o Explorador, a energia e o DNS. Pergunta antes de cada mudança e cria um ponto de restauração.')
-        New-MenuItem $setup  'apps'           'apps/Configure-Apps.ps1'              $null      (T 'Install apps' 'Instalar apps')            (T 'Pick from 104 apps (browsers, games, development, utilities...) and install them with WinGet.' 'Escolha entre 104 apps (navegadores, jogos, programação, utilitários...) e instale com o WinGet.')
-        New-MenuItem $setup  'fonts'          'fonts/Install-Fonts.ps1'              $null      (T 'Install fonts' 'Instalar fontes')         (T 'Fonts for code (JetBrains Mono, Fira Code...), for the terminal with icons (Nerd Fonts) and for text (Inter, Roboto...).' 'Fontes para código (JetBrains Mono, Fira Code...), para o terminal com ícones (Nerd Fonts) e para texto (Inter, Roboto...).')
-        New-MenuItem $setup  'chrome'         'browsers/Configure-Chrome.ps1'        $null      'Chrome'                                     (T 'Privacy: turns off telemetry, Gemini and other AI features, third-party cookies and background mode. Google sign-in keeps working.' 'Privacidade: desliga telemetria, Gemini e outros recursos de IA, cookies de terceiros e o segundo plano. O login do Google continua funcionando.')
-        New-MenuItem $setup  'brave'          'browsers/Configure-Brave.ps1'         $null      'Brave'                                      (T 'Turns off Wallet, VPN, Rewards, Leo (AI), News and usage reports. Ad blocking stays on.' 'Desliga Wallet, VPN, Recompensas, Leo (IA), News e relatórios de uso. O bloqueio de anúncios continua ligado.')
-        New-MenuItem $setup  'firefox'        'browsers/Configure-Firefox.ps1'       $null      'Firefox'                                    (T 'Turns off telemetry, sponsored content and AI features, and installs uBlock Origin and Bitwarden.' 'Desliga telemetria, conteúdo patrocinado e recursos de IA, e instala o uBlock Origin e o Bitwarden.')
-        New-MenuItem $setup  'dev'            'dev/Configure-Dev.ps1'                $null      (T 'Development' 'Programação')               (T 'Editors, Git, SSH key sent to GitHub, signed commits, Windows Terminal with a Nerd Font, languages and WSL.' 'Editores, Git, chave SSH enviada ao GitHub, commits assinados, Windows Terminal com Nerd Font, linguagens e WSL.')
-        New-MenuItem $setup  'wallpapers'     'wallpapers/Get-Wallpapers.ps1'        $null      (T 'Wallpapers' 'Papéis de parede')           (T 'Pick wallpapers from the TidyWin collection and download them; can set one as the background.' 'Escolha papéis de parede da coleção do TidyWin e baixe; pode definir um como fundo.')
+        New-MenuItem $setup  'windows'        'windows/Configure-Windows.ps1'        $null      'Windows'                       'Turns off telemetry, ads and suggestions, removes preinstalled apps and OneDrive, adjusts the taskbar, File Explorer, power and DNS. Asks before each change and creates a restore point.'
+        New-MenuItem $setup  'apps'           'apps/Configure-Apps.ps1'              $null      'Install apps'            'Pick from 104 apps (browsers, games, development, utilities...) and install them with WinGet.'
+        New-MenuItem $setup  'fonts'          'fonts/Install-Fonts.ps1'              $null      'Install fonts'         'Fonts for code (JetBrains Mono, Fira Code...), for the terminal with icons (Nerd Fonts) and for text (Inter, Roboto...).'
+        New-MenuItem $setup  'chrome'         'browsers/Configure-Chrome.ps1'        $null      'Chrome'                                     'Privacy: turns off telemetry, Gemini and other AI features, third-party cookies and background mode. Google sign-in keeps working.'
+        New-MenuItem $setup  'brave'          'browsers/Configure-Brave.ps1'         $null      'Brave'                                      'Turns off Wallet, VPN, Rewards, Leo (AI), News and usage reports. Ad blocking stays on.'
+        New-MenuItem $setup  'firefox'        'browsers/Configure-Firefox.ps1'       $null      'Firefox'                                    'Turns off telemetry, sponsored content and AI features, and installs uBlock Origin and Bitwarden.'
+        New-MenuItem $setup  'dev'            'dev/Configure-Dev.ps1'                $null      'Development'               'Editors, Git, SSH key sent to GitHub, signed commits, Windows Terminal with a Nerd Font, languages and WSL.'
+        New-MenuItem $setup  'wallpapers'     'wallpapers/Get-Wallpapers.ps1'        $null      'Wallpapers'           'Pick wallpapers from the TidyWin collection and download them; can set one as the background.'
 
-        New-MenuItem $care   'report'         'windows/Get-Report.ps1'               $null      (T 'PC report' 'Relatório do PC')             (T 'Only reads: activation, TPM and Secure Boot, disks, battery, drivers and crashes, in a page that opens in the browser. Good to send when asking for help.' 'Só lê: ativação, TPM e Secure Boot, discos, bateria, drivers e travamentos, numa página que abre no navegador. Bom para mandar ao pedir ajuda.')
-        New-MenuItem $care   'windows-check'  'windows/Configure-Windows.ps1'        '-Check'   (T 'Check after a Windows update' 'Conferir após atualização do Windows') (T 'Finds what a big Windows update brought back (telemetry, removed apps, OneDrive...) and offers to reapply only that.' 'Encontra o que uma atualização grande do Windows trouxe de volta (telemetria, apps removidos, OneDrive...) e oferece reaplicar só isso.')
-        New-MenuItem $care   'uninstall'      'apps/Uninstall-Apps.ps1'              $null      (T 'Uninstall programs' 'Desinstalar programas')  (T 'Uninstalls the programs you pick with their official uninstaller, then shows the leftovers and deletes only what you confirm, with a backup.' 'Desinstala os programas que você escolher com o desinstalador oficial e depois mostra os resquícios, apagando só o que você confirmar, com backup.')
-        New-MenuItem $care   'cleanup'        'windows/Clean-Windows.ps1'            $null      (T 'Free up disk space' 'Liberar espaço')      (T 'Temporary files, Windows Update downloads, error reports and more. Shows the size of each and asks before deleting.' 'Arquivos temporários, downloads do Windows Update, relatórios de erro e mais. Mostra o tamanho de cada um e pergunta antes de apagar.')
-        New-MenuItem $care   'repair'         'windows/Repair-Windows.ps1'           $null      (T 'Repair Windows' 'Reparar o Windows')      (T 'For when Windows acts strange: checks and repairs the system files and the disk with Windows'' own tools (DISM, sfc). 10 to 30 minutes.' 'Para quando o Windows estiver estranho: verifica e repara os arquivos do sistema e o disco com as ferramentas do próprio Windows (DISM, sfc). De 10 a 30 minutos.')
-        New-MenuItem $care   'network-reset'  'windows/Reset-Network.ps1'            $null      (T 'Reset the network' 'Redefinir a rede')    (T 'For "connected, no internet" or sites that don''t open. Quick or full, keeping your DNS.' 'Para "conectado, sem internet" ou sites que não abrem. Rápido ou completo, mantendo seu DNS.')
+        New-MenuItem $care   'report'         'windows/Get-Report.ps1'               $null      'PC report'             'Only reads: activation, TPM and Secure Boot, disks, battery, drivers and crashes, in a page that opens in the browser. Good to send when asking for help.'
+        New-MenuItem $care   'windows-check'  'windows/Configure-Windows.ps1'        '-Check'   'Check after a Windows update' 'Finds what a big Windows update brought back (telemetry, removed apps, OneDrive...) and offers to reapply only that.'
+        New-MenuItem $care   'uninstall'      'apps/Uninstall-Apps.ps1'              $null      'Uninstall programs'  'Uninstalls the programs you pick with their official uninstaller, then shows the leftovers and deletes only what you confirm, with a backup.'
+        New-MenuItem $care   'cleanup'        'windows/Clean-Windows.ps1'            $null      'Free up disk space'      'Temporary files, Windows Update downloads, error reports and more. Shows the size of each and asks before deleting.'
+        New-MenuItem $care   'repair'         'windows/Repair-Windows.ps1'           $null      'Repair Windows'      'For when Windows acts strange: checks and repairs the system files and the disk with Windows'' own tools (DISM, sfc). 10 to 30 minutes.'
+        New-MenuItem $care   'network-reset'  'windows/Reset-Network.ps1'            $null      'Reset the network'    'For "connected, no internet" or sites that don''t open. Quick or full, keeping your DNS.'
 
         # Backup: apps, then drivers. Restore: drivers first (network, video), then the apps, which need the internet.
-        $apps    = T 'App list' 'Lista de apps'
-        $drivers = T 'Drivers' 'Drivers'
-        New-MenuSequence $format 'backup' @((New-Step 'apps/Backup-Apps.ps1' '-Export' $apps), (New-Step 'drivers/Backup-Drivers.ps1' '-Export' $drivers)) (T 'Back up apps and drivers' 'Fazer backup de apps e drivers') (T 'Before formatting: saves the list of installed apps and the drivers you pick, one after the other (each can be skipped). Keep them on a USB drive.' 'Antes de formatar: salva a lista de apps instalados e os drivers que você escolher, um depois do outro (dá para pular qualquer um). Guarde num pendrive.')
-        New-MenuSequence $format 'restore' @((New-Step 'drivers/Backup-Drivers.ps1' '-Import' $drivers), (New-Step 'apps/Backup-Apps.ps1' '-Import' $apps)) (T 'Restore apps and drivers' 'Restaurar apps e drivers') (T 'After formatting and Windows Update: installs the saved drivers Windows didn''t bring back, then the saved apps (each can be skipped).' 'Depois de formatar e do Windows Update: instala os drivers salvos que o Windows não trouxe de volta e depois os apps salvos (dá para pular qualquer um).')
+        $apps    = 'App list'
+        $drivers = 'Drivers'
+        New-MenuSequence $format 'backup' @((New-Step 'apps/Backup-Apps.ps1' '-Export' $apps), (New-Step 'drivers/Backup-Drivers.ps1' '-Export' $drivers)) 'Back up apps and drivers' 'Before formatting: saves the list of installed apps and the drivers you pick, one after the other (each can be skipped). Keep them on a USB drive.'
+        New-MenuSequence $format 'restore' @((New-Step 'drivers/Backup-Drivers.ps1' '-Import' $drivers), (New-Step 'apps/Backup-Apps.ps1' '-Import' $apps)) 'Restore apps and drivers' 'After formatting and Windows Update: installs the saved drivers Windows didn''t bring back, then the saved apps (each can be skipped).'
 
-        New-MenuItem $undo   'windows-revert' 'windows/Revert-Configure-Windows.ps1' $null      'Windows'                                    (T 'Undoes most of what Windows changed: telemetry, policies, suggestions, DNS. Removed apps come back from the Microsoft Store.' 'Desfaz a maior parte do que o Windows mudou: telemetria, políticas, sugestões, DNS. Apps removidos voltam pela Microsoft Store.')
-        New-MenuItem $undo   'chrome-revert'  'browsers/Configure-Chrome.ps1'        '-Revert'  'Chrome'                                     (T 'Removes every Chrome setting applied by TidyWin.' 'Remove todas as configurações do Chrome aplicadas pelo TidyWin.')
-        New-MenuItem $undo   'brave-revert'   'browsers/Configure-Brave.ps1'         '-Revert'  'Brave'                                      (T 'Removes every Brave setting applied by TidyWin.' 'Remove todas as configurações do Brave aplicadas pelo TidyWin.')
-        New-MenuItem $undo   'firefox-revert' 'browsers/Configure-Firefox.ps1'       '-Revert'  'Firefox'                                    (T 'Removes every Firefox setting applied by TidyWin.' 'Remove todas as configurações do Firefox aplicadas pelo TidyWin.')
-        New-MenuItem $undo   'dev-revert'     'dev/Configure-Dev.ps1'                '-Revert'  (T 'Development' 'Programação')               (T 'Undoes the Windows settings changed by Development: Developer Mode, default terminal, Windows Terminal settings. Apps, Git and SSH keys stay.' 'Desfaz os ajustes do Windows feitos por Programação: Modo de Desenvolvedor, terminal padrão, configurações do Windows Terminal. Apps, Git e chaves SSH ficam.')
-        New-MenuItem $undo   'fonts-revert'   'fonts/Install-Fonts.ps1'              '-Revert'  (T 'Fonts' 'Fontes')                          (T 'Removes the fonts TidyWin installed. Fonts installed some other way stay.' 'Remove as fontes que o TidyWin instalou. Fontes instaladas de outro jeito ficam.')
+        New-MenuItem $undo   'windows-revert' 'windows/Revert-Configure-Windows.ps1' $null      'Windows'                                    'Undoes most of what Windows changed: telemetry, policies, suggestions, DNS. Removed apps come back from the Microsoft Store.'
+        New-MenuItem $undo   'chrome-revert'  'browsers/Configure-Chrome.ps1'        '-Revert'  'Chrome'                                     'Removes every Chrome setting applied by TidyWin.'
+        New-MenuItem $undo   'brave-revert'   'browsers/Configure-Brave.ps1'         '-Revert'  'Brave'                                      'Removes every Brave setting applied by TidyWin.'
+        New-MenuItem $undo   'firefox-revert' 'browsers/Configure-Firefox.ps1'       '-Revert'  'Firefox'                                    'Removes every Firefox setting applied by TidyWin.'
+        New-MenuItem $undo   'dev-revert'     'dev/Configure-Dev.ps1'                '-Revert'  'Development'               'Undoes the Windows settings changed by Development: Developer Mode, default terminal, Windows Terminal settings. Apps, Git and SSH keys stay.'
+        New-MenuItem $undo   'fonts-revert'   'fonts/Install-Fonts.ps1'              '-Revert'  'Fonts'                          'Removes the fonts TidyWin installed. Fonts installed some other way stay.'
     )
 }
 
@@ -192,7 +156,7 @@ function Show-Menu([object[]]$Items, [int]$Start, [string]$Header) {
             & $line '' 'Gray'
             & $line "  $(if ($desc.Count -gt 0) { $desc[0] })" 'White'
             & $line "  $(if ($desc.Count -gt 1) { $desc[1] + $(if ($desc.Count -gt 2) { '…' }) })" 'White'
-            & $line (T '  ↑ ↓ choose   Enter run   Esc quit' '  ↑ ↓ escolher   Enter executar   Esc sair') 'DarkGray'
+            & $line '  ↑ ↓ choose   Enter run   Esc quit' 'DarkGray'
 
             switch ([Console]::ReadKey($true).Key) {
                 'UpArrow'   { $cursor = [Math]::Max(0, $cursor - 1) }
@@ -218,7 +182,7 @@ function Show-MenuPlain([object[]]$Items) {
         if ($Items[$i].Group -ne $last) { Write-Host "`n  $($Items[$i].Group)" -ForegroundColor Yellow; $last = $Items[$i].Group }
         Write-Host ("    {0,2}) {1}" -f ($i + 1), $Items[$i].Name)
     }
-    $answer = "$(Read-Host (T "`n  Number (Enter quits)" "`n  Número (Enter sai)"))".Trim()
+    $answer = "$(Read-Host "`n  Number (Enter quits)")".Trim()
     $n = 0
     if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Items.Count) { return @{ Item = $Items[$n - 1]; Index = $n - 1 } }
     return $null
@@ -230,24 +194,24 @@ function Invoke-Step($Step) {
     $file = Join-Path $PSScriptRoot $Step.Script
     if (-not (Test-Path -LiteralPath $file)) {
         $file = Join-Path $PSScriptRoot (Split-Path $Step.Script -Leaf)
-        Write-Host (T "  downloading $($Step.Script)..." "  baixando $($Step.Script)...") -ForegroundColor DarkGray
+        Write-Host "  downloading $($Step.Script)..." -ForegroundColor DarkGray
         try { Invoke-WebRequest "$Base/scripts/$($Step.Script)" -OutFile $file -UseBasicParsing -ErrorAction Stop }
         catch {
-            Write-Host (T "  Could not download it: $($_.Exception.Message)" "  Não foi possível baixar: $($_.Exception.Message)") -ForegroundColor Red
+            Write-Host "  Could not download it: $($_.Exception.Message)" -ForegroundColor Red
             return
         }
     }
     # A separate Windows PowerShell 5.1 process: the scripts expect a fresh session, and the menu survives their "return"s
-    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $file, '-Lang', $script:Lang) + $Step.Args
+    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $file) + $Step.Args
     & powershell.exe @argv
 }
 
 # Enter = run the step, Esc = skip it. Without a real console: Enter or "s".
 function Confirm-Step([string]$Text) {
     if (($Host.Name -ne 'ConsoleHost') -or [Console]::IsInputRedirected) {
-        return "$(Read-Host (T "  $Text — Enter runs, S skips" "  $Text — Enter executa, P pula"))".Trim() -notmatch '^[sSpP]'
+        return "$(Read-Host "  $Text — Enter runs, S skips")".Trim() -notmatch '^[sS]'
     }
-    Write-Host (T "  $Text — Enter runs, Esc skips" "  $Text — Enter executa, Esc pula") -ForegroundColor Cyan
+    Write-Host "  $Text — Enter runs, Esc skips" -ForegroundColor Cyan
     while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
     while ($true) {
         $key = [Console]::ReadKey($true).Key
@@ -261,9 +225,9 @@ function Invoke-MenuItem($Item) {
     $steps = @($Item.Steps)
     if ($steps.Count -eq 1) { Invoke-Step $steps[0]; return }
     for ($i = 0; $i -lt $steps.Count; $i++) {
-        Write-Host "`n-- $(T 'Step' 'Passo') $($i + 1)/$($steps.Count): $($steps[$i].Name)" -ForegroundColor Green
+        Write-Host "`n-- Step $($i + 1)/$($steps.Count): $($steps[$i].Name)" -ForegroundColor Green
         if (Confirm-Step $steps[$i].Name) { Invoke-Step $steps[$i] }
-        else { Write-Host (T '  skipped' '  pulado') -ForegroundColor DarkGray }
+        else { Write-Host '  skipped' -ForegroundColor DarkGray }
     }
 }
 
@@ -272,16 +236,13 @@ function Invoke-MenuItem($Item) {
 
 #region ==================== 4. EXECUTION ====================
 
-if (-not $Lang) { $Lang = Select-Language }
-$script:Lang = $Lang
-
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
-    Write-Warning (T 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).' 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).')
+    Write-Warning 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).'
     return
 }
 
 $menu = @(Get-Menu)
-$header = "$(Get-WindowsLabel) · $(T 'every option asks before changing anything' 'toda opção pergunta antes de mudar qualquer coisa')"
+$header = "$(Get-WindowsLabel) · every option asks before changing anything"
 $plain = ($Host.Name -ne 'ConsoleHost') -or [Console]::IsInputRedirected
 $index = 0
 while ($true) {
@@ -291,8 +252,8 @@ while ($true) {
     Write-Host "`n== $($choice.Item.Group) · $($choice.Item.Name)" -ForegroundColor Green
     Invoke-MenuItem $choice.Item
     Write-Host ''
-    [void](Read-Host (T '  Press Enter to go back to the menu' '  Aperte Enter para voltar ao menu'))
+    [void](Read-Host '  Press Enter to go back to the menu')
 }
-Write-Host (T '  TidyWin closed.' '  TidyWin fechado.') -ForegroundColor DarkGray
+Write-Host '  TidyWin closed.' -ForegroundColor DarkGray
 
 #endregion

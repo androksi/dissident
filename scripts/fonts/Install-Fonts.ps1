@@ -6,7 +6,6 @@
         powershell -ExecutionPolicy Bypass -File .\Install-Fonts.ps1
     Undo (removes only the fonts this script installed):
         powershell -ExecutionPolicy Bypass -File .\Install-Fonts.ps1 -Revert
-    Language: asked at the start (English by default); skip the question with -Lang en or -Lang pt.
 
     Each font comes from its official source: the project's latest GitHub release, or the
     Google Fonts repository. Installed in C:\Windows\Fonts and usable right away, no restart.
@@ -21,9 +20,7 @@
         5. Execution
 #>
 param(
-    [switch]$Revert,
-    [ValidateSet('en', 'pt')]
-    [string]$Lang
+    [switch]$Revert
 )
 
 $ErrorActionPreference = 'Continue'
@@ -33,8 +30,6 @@ $ProgressPreference    = 'SilentlyContinue'    # the progress bar makes download
 
 #region ==================== 1. HELPERS ====================
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 function Write-Ok([string]$Text)   { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host $Text }
@@ -49,15 +44,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  Number [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+            Write-Host "  Type a number from 1 to $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host '  (use the arrows ↑ ↓ and Enter)' -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -86,7 +81,7 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
 
 # Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 # Checklist: ↑ ↓ move, Space checks, Enter confirms. $Items: objects with Label, Checked, Note.
@@ -99,14 +94,14 @@ function Select-Many([string]$Question, [object[]]$Items) {
             $mark = if ($Items[$i].Checked) { '[x]' } else { '[ ]' }
             Write-Host "    $($i + 1)) $mark $($Items[$i].Label)  $($Items[$i].Note)"
         }
-        $answer = "$(Read-Host (T '  Numbers separated by commas (Enter keeps the checked ones)' '  Números separados por vírgula (Enter mantém os marcados)'))".Trim()
+        $answer = "$(Read-Host '  Numbers separated by commas (Enter keeps the checked ones)')".Trim()
         if ($answer) {
             $picked = @($answer -split '[,\s]+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ - 1 })
             for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = $picked -contains $i }
         }
         return @($Items | Where-Object Checked)
     }
-    Write-Host (T '  (↑ ↓ move, Space checks/unchecks, Enter confirms)' '  (↑ ↓ navega, Espaço marca/desmarca, Enter confirma)') -ForegroundColor DarkGray
+    Write-Host '  (↑ ↓ move, Space checks/unchecks, Enter confirms)' -ForegroundColor DarkGray
     foreach ($it in $Items) { Write-Host '' }
     $top = [Console]::CursorTop - $Items.Count
     $sel = 0
@@ -158,12 +153,9 @@ function Send-FontChange {
     [void][TidyWin.FontApi]::SendMessageTimeout([IntPtr]0xFFFF, 0x1D, [UIntPtr]::Zero, [IntPtr]::Zero, 2, 1000, [ref]$r)
 }
 
-# Language: asked once at the start (default English), unless -Lang was given.
-if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
-$script:Lang = $Lang
 
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
-    Write-Warning (T 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).' 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).')
+    Write-Warning 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).'
     return
 }
 
@@ -189,25 +181,25 @@ function Get-StaticNames([string]$Prefix, [string[]]$Weights) {
 $AllWeights = 'Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'
 
 $Fonts = @(
-    New-Font Code  'JetBrains Mono'  'JetBrains Mono'  (T 'made for code, with ligatures (JetBrains IDEs)' 'feita para código, com ligaduras (IDEs da JetBrains)') release 'JetBrains/JetBrainsMono' 'JetBrainsMono-{v}.zip' '^fonts/ttf/JetBrainsMono-[^/]+\.ttf$'
-    New-Font Code  'Fira Code'       'Fira Code'       (T 'with ligatures (=> != ===)' 'com ligaduras (=> != ===)') release 'tonsky/FiraCode' 'Fira_Code_v{v}.zip' '^ttf/[^/]+\.ttf$'
-    New-Font Code  'Geist Mono'      'Geist Mono'      (T 'by Vercel, clean and modern' 'da Vercel, limpa e moderna') release 'vercel/geist-font' 'geist-font-v{v}.zip' '/GeistMono/ttf/[^/]+\.ttf$'
-    New-Font Code  'Source Code Pro' 'Source Code Pro' (T 'by Adobe, classic and very readable' 'da Adobe, clássica e muito legível') google 'ofl/sourcecodepro' $null @('SourceCodePro[wght].ttf', 'SourceCodePro-Italic[wght].ttf')
-    New-Font Code  'IBM Plex Mono'   'IBM Plex Mono'   (T 'by IBM, slightly rounded' 'da IBM, levemente arredondada') google 'ofl/ibmplexmono' $null @(Get-StaticNames 'IBMPlexMono' ('Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold'))
-    New-Font Code  'Hack'            'Hack'            (T 'simple, made for small sizes' 'simples, feita para tamanhos pequenos') release 'source-foundry/Hack' 'Hack-v{v}-ttf.zip' '^ttf/[^/]+\.ttf$'
-    New-Font Icons 'JetBrainsMono Nerd Font'  'JetBrainsMono Nerd Font'  (T 'JetBrains Mono + icons (download ~130 MB)' 'JetBrains Mono + ícones (download ~130 MB)') release 'ryanoasis/nerd-fonts' 'JetBrainsMono.zip' '^JetBrainsMonoNerdFont-[^/]+\.ttf$'
-    New-Font Icons 'CaskaydiaCove Nerd Font'  'CaskaydiaCove Nerd Font'  (T 'Cascadia Code (Windows Terminal) + icons (download ~55 MB)' 'Cascadia Code (Windows Terminal) + ícones (download ~55 MB)') release 'ryanoasis/nerd-fonts' 'CascadiaCode.zip' '^CaskaydiaCoveNerdFont-[^/]+\.ttf$'
-    New-Font Icons 'FiraCode Nerd Font'       'FiraCode Nerd Font'       (T 'Fira Code + icons (download ~30 MB)' 'Fira Code + ícones (download ~30 MB)') release 'ryanoasis/nerd-fonts' 'FiraCode.zip' '^FiraCodeNerdFont-[^/]+\.ttf$'
-    New-Font Icons 'MesloLGS Nerd Font'       'MesloLGS Nerd Font'       (T 'the one Oh My Posh and Powerlevel10k recommend (download ~110 MB)' 'a que o Oh My Posh e o Powerlevel10k recomendam (download ~110 MB)') release 'ryanoasis/nerd-fonts' 'Meslo.zip' '^MesloLGSNerdFont-[^/]+\.ttf$'
-    New-Font Text  'Inter'           'Inter Variable'  (T 'made for screens; popular in apps and websites' 'feita para telas; muito usada em apps e sites') release 'rsms/inter' 'Inter-{v}.zip' '^InterVariable(-Italic)?\.ttf$'
-    New-Font Text  'Geist'           'Geist'           (T 'by Vercel, pairs with Geist Mono' 'da Vercel, combina com a Geist Mono') release 'vercel/geist-font' 'geist-font-v{v}.zip' '/Geist/ttf/[^/]+\.ttf$'
-    New-Font Text  'IBM Plex Sans'   'IBM Plex Sans'   (T 'by IBM, pairs with IBM Plex Mono' 'da IBM, combina com a IBM Plex Mono') google 'ofl/ibmplexsans' $null @('IBMPlexSans[wdth,wght].ttf', 'IBMPlexSans-Italic[wdth,wght].ttf')
-    New-Font Text  'Roboto'          'Roboto'          (T 'Android and Google' 'Android e Google') google 'ofl/roboto' $null @('Roboto[wdth,wght].ttf', 'Roboto-Italic[wdth,wght].ttf')
-    New-Font Text  'Open Sans'       'Open Sans'       (T 'neutral, very readable' 'neutra, muito legível') google 'ofl/opensans' $null @('OpenSans[wdth,wght].ttf', 'OpenSans-Italic[wdth,wght].ttf')
-    New-Font Text  'Noto Sans'       'Noto Sans'       (T 'covers almost every language' 'cobre quase todos os idiomas') google 'ofl/notosans' $null @('NotoSans[wdth,wght].ttf', 'NotoSans-Italic[wdth,wght].ttf')
-    New-Font Text  'Lato'            'Lato'            (T 'warm, good for documents' 'calorosa, boa para documentos') google 'ofl/lato' $null @(Get-StaticNames 'Lato' $AllWeights)
-    New-Font Text  'Montserrat'      'Montserrat'      (T 'geometric, good for titles' 'geométrica, boa para títulos') google 'ofl/montserrat' $null @('Montserrat[wght].ttf', 'Montserrat-Italic[wght].ttf')
-    New-Font Text  'Poppins'         'Poppins'         (T 'geometric and round, good for presentations' 'geométrica e redonda, boa para apresentações') google 'ofl/poppins' $null @(Get-StaticNames 'Poppins' $AllWeights)
+    New-Font Code  'JetBrains Mono'  'JetBrains Mono'  'made for code, with ligatures (JetBrains IDEs)' release 'JetBrains/JetBrainsMono' 'JetBrainsMono-{v}.zip' '^fonts/ttf/JetBrainsMono-[^/]+\.ttf$'
+    New-Font Code  'Fira Code'       'Fira Code'       'with ligatures (=> != ===)' release 'tonsky/FiraCode' 'Fira_Code_v{v}.zip' '^ttf/[^/]+\.ttf$'
+    New-Font Code  'Geist Mono'      'Geist Mono'      'by Vercel, clean and modern' release 'vercel/geist-font' 'geist-font-v{v}.zip' '/GeistMono/ttf/[^/]+\.ttf$'
+    New-Font Code  'Source Code Pro' 'Source Code Pro' 'by Adobe, classic and very readable' google 'ofl/sourcecodepro' $null @('SourceCodePro[wght].ttf', 'SourceCodePro-Italic[wght].ttf')
+    New-Font Code  'IBM Plex Mono'   'IBM Plex Mono'   'by IBM, slightly rounded' google 'ofl/ibmplexmono' $null @(Get-StaticNames 'IBMPlexMono' ('Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold'))
+    New-Font Code  'Hack'            'Hack'            'simple, made for small sizes' release 'source-foundry/Hack' 'Hack-v{v}-ttf.zip' '^ttf/[^/]+\.ttf$'
+    New-Font Icons 'JetBrainsMono Nerd Font'  'JetBrainsMono Nerd Font'  'JetBrains Mono + icons (download ~130 MB)' release 'ryanoasis/nerd-fonts' 'JetBrainsMono.zip' '^JetBrainsMonoNerdFont-[^/]+\.ttf$'
+    New-Font Icons 'CaskaydiaCove Nerd Font'  'CaskaydiaCove Nerd Font'  'Cascadia Code (Windows Terminal) + icons (download ~55 MB)' release 'ryanoasis/nerd-fonts' 'CascadiaCode.zip' '^CaskaydiaCoveNerdFont-[^/]+\.ttf$'
+    New-Font Icons 'FiraCode Nerd Font'       'FiraCode Nerd Font'       'Fira Code + icons (download ~30 MB)' release 'ryanoasis/nerd-fonts' 'FiraCode.zip' '^FiraCodeNerdFont-[^/]+\.ttf$'
+    New-Font Icons 'MesloLGS Nerd Font'       'MesloLGS Nerd Font'       'the one Oh My Posh and Powerlevel10k recommend (download ~110 MB)' release 'ryanoasis/nerd-fonts' 'Meslo.zip' '^MesloLGSNerdFont-[^/]+\.ttf$'
+    New-Font Text  'Inter'           'Inter Variable'  'made for screens; popular in apps and websites' release 'rsms/inter' 'Inter-{v}.zip' '^InterVariable(-Italic)?\.ttf$'
+    New-Font Text  'Geist'           'Geist'           'by Vercel, pairs with Geist Mono' release 'vercel/geist-font' 'geist-font-v{v}.zip' '/Geist/ttf/[^/]+\.ttf$'
+    New-Font Text  'IBM Plex Sans'   'IBM Plex Sans'   'by IBM, pairs with IBM Plex Mono' google 'ofl/ibmplexsans' $null @('IBMPlexSans[wdth,wght].ttf', 'IBMPlexSans-Italic[wdth,wght].ttf')
+    New-Font Text  'Roboto'          'Roboto'          'Android and Google' google 'ofl/roboto' $null @('Roboto[wdth,wght].ttf', 'Roboto-Italic[wdth,wght].ttf')
+    New-Font Text  'Open Sans'       'Open Sans'       'neutral, very readable' google 'ofl/opensans' $null @('OpenSans[wdth,wght].ttf', 'OpenSans-Italic[wdth,wght].ttf')
+    New-Font Text  'Noto Sans'       'Noto Sans'       'covers almost every language' google 'ofl/notosans' $null @('NotoSans[wdth,wght].ttf', 'NotoSans-Italic[wdth,wght].ttf')
+    New-Font Text  'Lato'            'Lato'            'warm, good for documents' google 'ofl/lato' $null @(Get-StaticNames 'Lato' $AllWeights)
+    New-Font Text  'Montserrat'      'Montserrat'      'geometric, good for titles' google 'ofl/montserrat' $null @('Montserrat[wght].ttf', 'Montserrat-Italic[wght].ttf')
+    New-Font Text  'Poppins'         'Poppins'         'geometric and round, good for presentations' google 'ofl/poppins' $null @(Get-StaticNames 'Poppins' $AllWeights)
 )
 
 #endregion
@@ -242,8 +234,8 @@ function Save-Url([string]$Url, [string]$Path) {
     catch {
         Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
         $status = $_.Exception.Response.StatusCode.value__
-        if ($status -eq 404) { throw (T "not found: $Url" "não encontrado: $Url") }
-        if ($status -eq 403 -or $status -eq 429) { throw (T 'GitHub is limiting downloads from this connection; try again later' 'o GitHub está limitando downloads desta conexão; tente de novo mais tarde') }
+        if ($status -eq 404) { throw "not found: $Url" }
+        if ($status -eq 403 -or $status -eq 429) { throw 'GitHub is limiting downloads from this connection; try again later' }
         throw
     }
     Move-Item -LiteralPath $tmp -Destination $Path -Force
@@ -256,7 +248,7 @@ function Get-LatestTag([string]$Repo) {
     $req.Method = 'HEAD'; $req.AllowAutoRedirect = $false; $req.UserAgent = 'TidyWin'
     $resp = $req.GetResponse()
     try { $location = $resp.Headers['Location'] } finally { $resp.Close() }
-    if ($location -notmatch '/releases/tag/([^/?#]+)$') { throw (T "could not find the latest version of $Repo" "não foi possível achar a última versão de $Repo") }
+    if ($location -notmatch '/releases/tag/([^/?#]+)$') { throw "could not find the latest version of $Repo" }
     $script:Tags[$Repo] = [uri]::UnescapeDataString($Matches[1])
     return $script:Tags[$Repo]
 }
@@ -268,7 +260,7 @@ function Get-FontFiles($Font) {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 
     if ($Font.Source -eq 'google') {
-        Write-Host (T "  downloading $(@($Font.Files).Count) file(s) from Google Fonts..." "  baixando $(@($Font.Files).Count) arquivo(s) do Google Fonts...")
+        Write-Host "  downloading $(@($Font.Files).Count) file(s) from Google Fonts..."
         foreach ($name in $Font.Files) {
             Save-Url "https://raw.githubusercontent.com/google/fonts/main/$($Font.Repo)/$([uri]::EscapeDataString($name))" (Join-Path $dir $name)
         }
@@ -281,7 +273,7 @@ function Get-FontFiles($Font) {
         }
         if (-not $script:Zips.ContainsKey($url)) {
             $zip = Join-Path $Work (Split-Path $url -Leaf)
-            Write-Host (T "  downloading $(Split-Path $url -Leaf)..." "  baixando $(Split-Path $url -Leaf)...")
+            Write-Host "  downloading $(Split-Path $url -Leaf)..."
             Save-Url $url $zip
             $script:Zips[$url] = $zip
         }
@@ -298,7 +290,7 @@ function Get-FontFiles($Font) {
     }
 
     $result = @(Get-ChildItem -LiteralPath $dir -File)
-    if (-not $result) { throw (T 'no font files in the package' 'nenhum arquivo de fonte no pacote') }
+    if (-not $result) { throw 'no font files in the package' }
     return $result
 }
 
@@ -370,15 +362,15 @@ function Save-State([object[]]$State) {
 function Invoke-Revert {
     Write-Host "`nInstall-Fonts -Revert" -ForegroundColor Green
     $state = @(Get-State)
-    if (-not $state) { Write-Host (T '  No fonts installed by TidyWin on this PC.' '  Nenhuma fonte instalada pelo TidyWin neste PC.'); return }
+    if (-not $state) { Write-Host '  No fonts installed by TidyWin on this PC.'; return }
 
     $items = @($state | ForEach-Object {
-        [pscustomobject]@{ Label = $_.Name; Note = (T "$(@($_.Files).Count) file(s)" "$(@($_.Files).Count) arquivo(s)"); Checked = $true; Entry = $_ }
+        [pscustomobject]@{ Label = $_.Name; Note = "$(@($_.Files).Count) file(s)"; Checked = $true; Entry = $_ }
     })
     Write-Host ''
-    $chosen = @(Select-Many (T 'Which fonts to remove?' 'Quais fontes remover?') $items)
-    if (-not $chosen) { Write-Host (T 'Nothing selected.' 'Nada selecionado.'); return }
-    Write-Host (T '  Close the apps that use these fonts (editors, Word, the terminal...) so the files can be deleted.' '  Feche os apps que usam essas fontes (editores, Word, o terminal...) para os arquivos poderem ser apagados.') -ForegroundColor DarkYellow
+    $chosen = @(Select-Many 'Which fonts to remove?' $items)
+    if (-not $chosen) { Write-Host 'Nothing selected.'; return }
+    Write-Host '  Close the apps that use these fonts (editors, Word, the terminal...) so the files can be deleted.' -ForegroundColor DarkYellow
 
     $locked = $false
     foreach ($c in $chosen) {
@@ -395,9 +387,9 @@ function Invoke-Revert {
         }
         if ($left) {
             $locked = $true
-            Write-Host (T "  [--] $($left.Count) file(s) in use, not deleted" "  [--] $($left.Count) arquivo(s) em uso, não apagado(s)") -ForegroundColor Yellow
+            Write-Host "  [--] $($left.Count) file(s) in use, not deleted" -ForegroundColor Yellow
         } else {
-            Write-Ok (T 'removed' 'removida')
+            Write-Ok 'removed'
         }
         $c.Entry.Files = $left
     }
@@ -405,9 +397,9 @@ function Invoke-Revert {
     Save-State $state
 
     if ($locked) {
-        Write-Host (T "`nSome files were in use. Restart the PC and run this again to finish." "`nAlguns arquivos estavam em uso. Reinicie o PC e rode de novo para terminar.") -ForegroundColor Yellow
+        Write-Host "`nSome files were in use. Restart the PC and run this again to finish." -ForegroundColor Yellow
     } else {
-        Write-Host (T "`nDone." "`nPronto.") -ForegroundColor Green
+        Write-Host "`nDone." -ForegroundColor Green
     }
 }
 
@@ -420,18 +412,18 @@ Initialize-FontApi
 if ($Revert) { Invoke-Revert; return }
 
 Write-Host "`nInstall-Fonts" -ForegroundColor Green
-Write-Host (T '  Installed for every user of this PC, from each font''s official source.' '  Instaladas para todos os usuários do PC, da fonte oficial de cada uma.') -ForegroundColor DarkGray
+Write-Host '  Installed for every user of this PC, from each font''s official source.' -ForegroundColor DarkGray
 
-$groups = @{ Code = (T 'code' 'código'); Icons = (T 'icons' 'ícones'); Text = (T 'text' 'texto') }
+$groups = @{ Code = 'code'; Icons = 'icons'; Text = 'text' }
 $width  = ($Fonts | ForEach-Object { $_.Name.Length } | Measure-Object -Maximum).Maximum
 $items = @($Fonts | ForEach-Object {
     $installed = Test-FontInstalled $_.Family
-    $note = $groups[$_.Group].PadRight(8) + $_.Note + $(if ($installed) { T '  (installed)' '  (instalada)' } else { '' })
+    $note = $groups[$_.Group].PadRight(8) + $_.Note + $(if ($installed) { '  (installed)' } else { '' })
     [pscustomobject]@{ Label = $_.Name.PadRight($width); Note = $note; Checked = $false; Font = $_ }
 })
 Write-Host ''
-$chosen = @(Select-Many (T 'Which fonts to install?' 'Quais fontes instalar?') $items)
-if (-not $chosen) { Write-Host (T 'Nothing selected.' 'Nada selecionado.'); return }
+$chosen = @(Select-Many 'Which fonts to install?' $items)
+if (-not $chosen) { Write-Host 'Nothing selected.'; return }
 
 $state    = [Collections.ArrayList]@(Get-State)
 $failures = @()
@@ -452,14 +444,14 @@ try {
                 if ($entry) { $entry.Files = @($entry.Files) + $done }
                 else { [void]$state.Add([pscustomobject]@{ Name = $font.Name; Files = $done }) }
                 Save-State $state     # after each font: a later failure doesn't lose the record
-                $extra = if ($skipped) { T " ($skipped already existed)" " ($skipped já existiam)" } else { '' }
-                Write-Ok (T "$($done.Count) style(s) installed$extra" "$($done.Count) estilo(s) instalado(s)$extra")
+                $extra = if ($skipped) { " ($skipped already existed)" } else { '' }
+                Write-Ok "$($done.Count) style(s) installed$extra"
             } else {
-                Write-Skip (T 'already installed' 'já instalada')
+                Write-Skip 'already installed'
             }
         } catch {
             $failures += $font.Name
-            Write-Host (T "  [ERROR] $($_.Exception.Message)" "  [ERRO] $($_.Exception.Message)") -ForegroundColor Red
+            Write-Host "  [ERROR] $($_.Exception.Message)" -ForegroundColor Red
         }
     }
 } finally {
@@ -469,9 +461,9 @@ try {
 }
 
 if ($failures) {
-    Write-Host (T "`nNot installed: $($failures -join ', '). Run again to retry." "`nNão instaladas: $($failures -join ', '). Rode de novo para tentar outra vez.") -ForegroundColor Yellow
+    Write-Host "`nNot installed: $($failures -join ', '). Run again to retry." -ForegroundColor Yellow
 }
-Write-Host (T "`nDone. The fonts can be used now; apps that were already open may need to be reopened to see them." "`nPronto. As fontes já podem ser usadas; apps que já estavam abertos podem precisar ser reabertos para vê-las.") -ForegroundColor Green
-Write-Host (T '  To remove them: TidyWin menu → Undo → Fonts' '  Para remover: menu do TidyWin → Desfazer → Fontes') -ForegroundColor DarkGray
+Write-Host "`nDone. The fonts can be used now; apps that were already open may need to be reopened to see them." -ForegroundColor Green
+Write-Host '  To remove them: TidyWin menu → Undo → Fonts' -ForegroundColor DarkGray
 
 #endregion

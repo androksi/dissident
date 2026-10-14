@@ -3,7 +3,6 @@
 
     HOW TO RUN (Windows PowerShell 5.1):
         powershell -ExecutionPolicy Bypass -File .\Get-Wallpapers.ps1
-    Language: asked at the start (English by default); skip the question with -Lang en or -Lang pt.
 
     Shows the list of wallpapers (previews: github.com/androksi/tidywin/blob/main/docs/wallpapers.md),
     you check the ones you want, choose the folder (Pictures\Wallpapers by default) and they are
@@ -12,8 +11,6 @@
     To remove: delete the downloaded images (and the folder, if it was created).
 #>
 param(
-    [ValidateSet('en', 'pt')]
-    [string]$Lang,
     [string]$Base = 'https://androksi.github.io/tidywin'      # where the wallpapers are published (GitHub Pages)
 )
 
@@ -27,8 +24,6 @@ $Gallery = 'https://github.com/androksi/tidywin/blob/main/docs/wallpapers.md'
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
 # The "use the arrows" hint is shown only on the first menu.
@@ -39,15 +34,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host (T "  Number [$($Default + 1)]" "  Número [$($Default + 1)]"))".Trim()
+            $answer = "$(Read-Host "  Number [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+            Write-Host "  Type a number from 1 to $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host '  (use the arrows ↑ ↓ and Enter)' -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -76,7 +71,7 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
 
 # Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 # Checklist: ↑ ↓ move, Space checks, Enter confirms. $Items: objects with Label, Checked, Note.
@@ -89,14 +84,14 @@ function Select-Many([string]$Question, [object[]]$Items) {
             $mark = if ($Items[$i].Checked) { '[x]' } else { '[ ]' }
             Write-Host "    $($i + 1)) $mark $($Items[$i].Label)  $($Items[$i].Note)"
         }
-        $answer = "$(Read-Host (T '  Numbers separated by commas (Enter keeps the checked ones)' '  Números separados por vírgula (Enter mantém os marcados)'))".Trim()
+        $answer = "$(Read-Host '  Numbers separated by commas (Enter keeps the checked ones)')".Trim()
         if ($answer) {
             $picked = @($answer -split '[,\s]+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ - 1 })
             for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = $picked -contains $i }
         }
         return @($Items | Where-Object Checked)
     }
-    Write-Host (T '  (↑ ↓ move, Space checks/unchecks, Enter confirms)' '  (↑ ↓ navega, Espaço marca/desmarca, Enter confirma)') -ForegroundColor DarkGray
+    Write-Host '  (↑ ↓ move, Space checks/unchecks, Enter confirms)' -ForegroundColor DarkGray
     foreach ($it in $Items) { Write-Host '' }
     $top = [Console]::CursorTop - $Items.Count
     $sel = 0
@@ -124,9 +119,6 @@ function Select-Many([string]$Question, [object[]]$Items) {
     return @($Items | Where-Object Checked)
 }
 
-# Language: asked once at the start (default English), unless -Lang was given.
-if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
-$script:Lang = $Lang
 function Format-Size([double]$Bytes) {
     if ($Bytes -ge 1MB) { return '{0:N1} MB' -f ($Bytes / 1MB) }
     return '{0:N0} KB' -f ($Bytes / 1KB)
@@ -150,7 +142,7 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, stri
 '@
     }
     # SPI_SETDESKWALLPAPER = 0x14; SPIF_UPDATEINIFILE | SPIF_SENDCHANGE = 3
-    if (-not [TidyWin.Wallpaper]::SystemParametersInfo(0x14, 0, $Path, 3)) { throw (T 'Windows did not accept the image' 'o Windows não aceitou a imagem') }
+    if (-not [TidyWin.Wallpaper]::SystemParametersInfo(0x14, 0, $Path, 3)) { throw 'Windows did not accept the image' }
 }
 
 #endregion
@@ -164,43 +156,43 @@ Write-Host "`nGet-Wallpapers" -ForegroundColor Green
 try {
     $list = @((Invoke-RestMethod "$Base/assets/wallpapers/index.json" -UseBasicParsing -ErrorAction Stop) | ForEach-Object { $_ })   # unroll the JSON array
 } catch {
-    Write-Host (T "Could not get the list of wallpapers ($Base/assets/wallpapers/index.json)." "Não foi possível baixar a lista de papéis de parede ($Base/assets/wallpapers/index.json).") -ForegroundColor Red
+    Write-Host "Could not get the list of wallpapers ($Base/assets/wallpapers/index.json)." -ForegroundColor Red
     Write-Host "  $($_.Exception.Message)" -ForegroundColor DarkGray
     return
 }
-if (-not $list) { Write-Host (T 'The list is empty.' 'A lista está vazia.'); return }
+if (-not $list) { Write-Host 'The list is empty.'; return }
 
-Write-Host (T "  Previews: $Gallery" "  Prévias: $Gallery") -ForegroundColor DarkGray
-if (Ask (T 'Open the previews in the browser first?' 'Abrir as prévias no navegador antes?') $false) { Start-Process $Gallery }
+Write-Host "  Previews: $Gallery" -ForegroundColor DarkGray
+if (Ask 'Open the previews in the browser first?' $false) { Start-Process $Gallery }
 
 $items = @($list | ForEach-Object {
     [pscustomobject]@{ Label = $_.name; Note = "$($_.width)x$($_.height), $(Format-Size $_.size)"; Checked = $false; File = $_.file; Size = $_.size }
 })
 Write-Host ''
-$chosen = @(Select-Many (T 'Which ones to download?' 'Quais baixar?') $items)
-if (-not $chosen) { Write-Host (T 'Nothing selected.' 'Nada selecionado.'); return }
+$chosen = @(Select-Many 'Which ones to download?' $items)
+if (-not $chosen) { Write-Host 'Nothing selected.'; return }
 
 # --- Destination
 $pictures = [Environment]::GetFolderPath('MyPictures')
 if (-not $pictures) { $pictures = Join-Path $HOME 'Pictures' }
 $folders = @((Join-Path $pictures 'Wallpapers'), $pictures, (Join-Path $HOME 'Downloads'))
-$labels  = @($folders) + (T 'Other folder (type the path)' 'Outra pasta (digitar o caminho)')
-$pick = Choose (T 'Save to:' 'Salvar em:') $labels 0
+$labels  = @($folders) + 'Other folder (type the path)'
+$pick = Choose 'Save to:' $labels 0
 if ($pick -eq $labels.Count - 1) {
-    $dest = "$(Read-Host (T '  Folder' '  Pasta'))".Trim().Trim('"')
+    $dest = "$(Read-Host '  Folder')".Trim().Trim('"')
 } else {
     $dest = $folders[$pick]
 }
 try { New-Item -ItemType Directory -Path $dest -Force -ErrorAction Stop | Out-Null }
-catch { Write-Host (T "Could not use the folder: $dest" "Não foi possível usar a pasta: $dest") -ForegroundColor Red; return }
+catch { Write-Host "Could not use the folder: $dest" -ForegroundColor Red; return }
 
 # --- Download
-Write-Step (T "Downloading $($chosen.Count) wallpaper(s)" "Baixando $($chosen.Count) papel(éis) de parede")
+Write-Step "Downloading $($chosen.Count) wallpaper(s)"
 $saved = @()
 foreach ($w in $chosen) {
     $target = Join-Path $dest $w.File
     if (Test-Path -LiteralPath $target) {
-        Write-Host (T "  [--] $($w.File) already exists, skipped" "  [--] $($w.File) já existe, pulado") -ForegroundColor DarkGray
+        Write-Host "  [--] $($w.File) already exists, skipped" -ForegroundColor DarkGray
         $saved += $target
         continue
     }
@@ -210,22 +202,22 @@ foreach ($w in $chosen) {
         Write-Host "$($w.File)  ($(Format-Size $w.Size))"
         $saved += $target
     } catch {
-        Write-Host (T "  [ERROR] $($w.File): $($_.Exception.Message)" "  [ERRO] $($w.File): $($_.Exception.Message)") -ForegroundColor Red
+        Write-Host "  [ERROR] $($w.File): $($_.Exception.Message)" -ForegroundColor Red
         Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
     }
 }
 if (-not $saved) { return }
 
 # --- Optional: use one as the desktop background
-$noneLabel = T "Don't change the background" 'Não mudar o fundo'
+$noneLabel = "Don't change the background"
 $bgLabels = @($saved | ForEach-Object { Split-Path $_ -Leaf }) + $noneLabel
 Write-Host ''
-$bg = Choose (T 'Use one as the desktop background?' 'Usar um deles como fundo da área de trabalho?') $bgLabels ($bgLabels.Count - 1)
+$bg = Choose 'Use one as the desktop background?' $bgLabels ($bgLabels.Count - 1)
 if ($bg -lt $saved.Count) {
-    try { Set-DesktopWallpaper $saved[$bg]; Write-Host (T '  [OK] desktop background changed' '  [OK] fundo da área de trabalho trocado') -ForegroundColor Green }
-    catch { Write-Host (T "  [ERROR] $($_.Exception.Message)" "  [ERRO] $($_.Exception.Message)") -ForegroundColor Red }
+    try { Set-DesktopWallpaper $saved[$bg]; Write-Host '  [OK] desktop background changed' -ForegroundColor Green }
+    catch { Write-Host "  [ERROR] $($_.Exception.Message)" -ForegroundColor Red }
 }
 
-Write-Host (T "`nDone. Wallpapers in: $dest" "`nPronto. Papéis de parede em: $dest") -ForegroundColor Green
+Write-Host "`nDone. Wallpapers in: $dest" -ForegroundColor Green
 
 #endregion

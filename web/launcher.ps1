@@ -4,7 +4,6 @@
 # Template: web/launcher.ps1. The Pages workflow replaces the __...__ placeholders and publishes it
 # as "run". It asks for administrator rights, downloads the menu (scripts/TidyWin.ps1) and runs it;
 # the menu downloads the script you pick. ASCII and no BOM on purpose: a BOM breaks "irm | iex".
-# Messages are in English: the menu asks for the language right after.
 
 & {
     $Name   = '__NAME__'      # shortcut name (last part of the URL)

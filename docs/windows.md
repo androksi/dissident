@@ -15,7 +15,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Feature | What it does |
 |---|---|
 | Restore point | Creates a restore point before any change. |
-| Summary | Shows everything that was chosen and asks "Aplicar agora?" (apply now?). |
+| Summary | Shows everything that was chosen and asks "Apply now?". |
 | Fault tolerant | If a step fails, it warns and moves on to the next one. |
 | Detailed log | One line per setting: `[OK]` changed now, `[--]` it already was like that. At the end, a summary with how many changed, were already set or failed. |
 | Log file | Everything shown while applying, plus your answers, is saved to `TidyWin log <date>.txt` on the Desktop. No user or PC name in it, so it can be sent when asking for help. |
@@ -41,9 +41,9 @@ To use only the defaults, with no questions: `-NoPrompt`.
 |---|---|
 | Theme | Default, light or dark. Turns off Windows Spotlight and applies the theme's wallpaper. |
 | Screen | For each monitor: resolution, refresh rate and scale, from the ones the monitor supports, with the recommended and current ones marked. **Default** changes nothing. After a resolution or refresh change, Enter keeps it; otherwise it goes back by itself in 15 seconds. |
-| Taskbar | Keep, icons centered or on the left. |
-| Search | Keep, hidden, icon only or search box. |
-| Task View | Keep, show or hide the button. |
+| Taskbar | Default, icons centered or on the left. |
+| Search | Default, hidden, icon only or search box. |
+| Task View | Default, show or hide the button. |
 | No pins | Removes every pinned icon from the taskbar. |
 | No Start ads | Unpins only the ad shortcuts from Start (LinkedIn, Spotify, TikTok, Solitaire, Candy Crush...); everything else pinned stays. Default yes. |
 | Battery % | Shows the battery percentage on the taskbar (laptops only). |

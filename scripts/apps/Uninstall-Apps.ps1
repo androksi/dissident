@@ -4,7 +4,6 @@
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
         powershell -ExecutionPolicy Bypass -File .\Uninstall-Apps.ps1
-    Language: asked at the start (English by default); skip the question with -Lang en or -Lang pt.
 
     1. Lists the installed programs (the same list as Settings → Apps → Installed apps, without system
        components and updates). Check the ones to remove.
@@ -31,8 +30,6 @@
         4. Execution
 #>
 param(
-    [ValidateSet('en', 'pt')]
-    [string]$Lang
 )
 
 $ErrorActionPreference = 'Continue'
@@ -40,14 +37,12 @@ $ErrorActionPreference = 'Continue'
 
 #region ==================== 1. HELPERS ====================
 
-# Text in the chosen language: T 'English text' 'Texto em português'
-function T([string]$En, [string]$Pt) { if ($script:Lang -eq 'pt') { $Pt } else { $En } }
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 
 function Write-Result([ValidateSet('OK', 'SKIP', 'WARN', 'ERROR')][string]$Status, [string]$Text) {
     $color = @{ OK = 'Green'; SKIP = 'DarkGray'; WARN = 'Yellow'; ERROR = 'Red' }[$Status]
-    $label = @{ OK = 'OK'; SKIP = '--'; WARN = (T 'WARNING' 'ATENÇÃO'); ERROR = (T 'ERROR' 'ERRO') }[$Status]
+    $label = @{ OK = 'OK'; SKIP = '--'; WARN = 'WARNING'; ERROR = 'ERROR' }[$Status]
     Write-Host ("  [{0}] " -f $label) -ForegroundColor $color -NoNewline
     Write-Host $Text
 }
@@ -61,15 +56,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         # No real console (e.g. PowerShell ISE): numbered menu instead
         for ($i = 0; $i -lt $Options.Count; $i++) { Write-Host "    $($i + 1)) $($Options[$i])" }
         while ($true) {
-            $answer = "$(Read-Host "  $(T 'Number' 'Número') [$($Default + 1)]")".Trim()
+            $answer = "$(Read-Host "  Number [$($Default + 1)]")".Trim()
             if ($answer -eq '') { return $Default }
             $n = 0
             if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n - 1 }
-            Write-Host (T "  Type a number from 1 to $($Options.Count)." "  Digite um número de 1 a $($Options.Count).") -ForegroundColor DarkYellow
+            Write-Host "  Type a number from 1 to $($Options.Count)." -ForegroundColor DarkYellow
         }
     }
     if (-not $script:ArrowHintShown) {
-        Write-Host (T '  (use the arrows ↑ ↓ and Enter)' '  (use as setas ↑ ↓ e Enter)') -ForegroundColor DarkGray
+        Write-Host '  (use the arrows ↑ ↓ and Enter)' -ForegroundColor DarkGray
         $script:ArrowHintShown = $true
     }
     foreach ($o in $Options) { Write-Host '' }                # reserve the menu lines
@@ -98,7 +93,7 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
 
 # Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
 function Ask([string]$Question, [bool]$Default) {
-    return (Choose $Question @((T 'Yes' 'Sim'), (T 'No' 'Não')) $(if ($Default) { 0 } else { 1 })) -eq 0
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
 
 function Format-Size([double]$Bytes) {
@@ -119,7 +114,7 @@ function Select-Items([string]$Title, [object[]]$Items) {
             $mark = if ($Items[$i].Checked) { '[x]' } else { '[ ]' }
             Write-Host "    $($i + 1)) $mark $($Items[$i].Label)  $($Items[$i].Note)"
         }
-        $answer = "$(Read-Host (T '  Numbers separated by commas (Enter keeps the checked ones)' '  Números separados por vírgula (Enter mantém os marcados)'))".Trim()
+        $answer = "$(Read-Host '  Numbers separated by commas (Enter keeps the checked ones)')".Trim()
         if ($answer) {
             $picked = @($answer -split '[,\s]+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ - 1 })
             for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = $picked -contains $i }
@@ -137,8 +132,8 @@ function Select-Items([string]$Title, [object[]]$Items) {
     $itemRows = @(for ($r = 0; $r -lt $rows.Count; $r++) { if (-not $rows[$r].IsHeader) { $r } })
     $labelWidth = [Math]::Min(52, ($Items | ForEach-Object { $_.Label.Length } | Measure-Object -Maximum).Maximum)
     $grouped = [bool]($Items | Where-Object Group)       # "A" (check the whole group) only exists in lists with groups
-    $help = if ($grouped) { T '  ↑ ↓ move   Space check   A check the whole group   / search   Enter continue   Esc quit' '  ↑ ↓ navegar   Espaço marcar   A marcar o grupo inteiro   / buscar   Enter continuar   Esc sair' }
-            else          { T '  ↑ ↓ move   Space check   / search   Enter continue   Esc quit' '  ↑ ↓ navegar   Espaço marcar   / buscar   Enter continuar   Esc sair' }
+    $help = if ($grouped) { '  ↑ ↓ move   Space check   A check the whole group   / search   Enter continue   Esc quit' }
+            else          { '  ↑ ↓ move   Space check   / search   Enter continue   Esc quit' }
     $cursor = 0; $scroll = 0; $lastSize = ''
     $searchMode = $false; $searchText = ''; $searchFound = $false; $searchOrigin = 0
 
@@ -176,12 +171,12 @@ function Select-Items([string]$Title, [object[]]$Items) {
 
             & $line '' 'Gray'
             if ($searchMode) {
-                $hint = if ($searchText -and -not $searchFound) { (T '   (nothing found)' '   (nada encontrado)') } else { (T '   (Enter confirms, Esc cancels)' '   (Enter confirma, Esc cancela)') }
-                & $line (T "  Search: $($searchText)_$hint" "  Buscar: $($searchText)_$hint") 'Cyan'
+                $hint = if ($searchText -and -not $searchFound) { '   (nothing found)' } else { '   (Enter confirms, Esc cancels)' }
+                & $line "  Search: $($searchText)_$hint" 'Cyan'
             } else {
                 $checked = @($Items | Where-Object Checked)
                 $size = Format-Size ($checked | Measure-Object Size -Sum).Sum
-                & $line (T "  $($checked.Count) checked$(if ($size) { " · $size" })   ·   $($cursor + 1) of $($itemRows.Count)" "  $($checked.Count) marcado(s)$(if ($size) { " · $size" })   ·   $($cursor + 1) de $($itemRows.Count)") 'DarkGray'
+                & $line "  $($checked.Count) checked$(if ($size) { " · $size" })   ·   $($cursor + 1) of $($itemRows.Count)" 'DarkGray'
             }
 
             $keyInfo = [Console]::ReadKey($true)
@@ -229,12 +224,9 @@ function Select-Items([string]$Title, [object[]]$Items) {
     }
 }
 
-# Language: asked once at the start (default English), unless -Lang was given.
-if (-not $Lang) { $Lang = @('en', 'pt')[(Choose 'Language / Idioma:' @('English', 'Português (Brasil)') 0)] }
-$script:Lang = $Lang
 
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
-    Write-Warning (T 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).' 'Rode no Windows PowerShell 5.1 (powershell.exe), não no PowerShell 7 (pwsh).')
+    Write-Warning 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).'
     return
 }
 
@@ -319,10 +311,10 @@ function Split-UninstallCommand($Program) {
 function Invoke-Uninstall($Program) {
     $c = Split-UninstallCommand $Program
     if (-not (Test-FullPath $c.File) -or -not (Test-Path -LiteralPath $c.File)) {
-        Write-Result 'WARN' (T "the uninstaller is missing ($($c.File)): the program is already partly removed" "o desinstalador não existe ($($c.File)): o programa já está parcialmente removido")
+        Write-Result 'WARN' "the uninstaller is missing ($($c.File)): the program is already partly removed"
         return 'Orphan'
     }
-    Write-Host (T "  opening the uninstaller of $($Program.Name)..." "  abrindo o desinstalador do $($Program.Name)...") -ForegroundColor DarkGray
+    Write-Host "  opening the uninstaller of $($Program.Name)..." -ForegroundColor DarkGray
     $start = @{ FilePath = $c.File; Wait = $true; PassThru = $true; ErrorAction = 'Stop' }
     if ($c.Args.Trim()) { $start.ArgumentList = $c.Args.Trim() }      # Start-Process rejects an empty argument list
     try {
@@ -333,10 +325,10 @@ function Invoke-Uninstall($Program) {
     }
     if (Test-Path -LiteralPath $Program.Key) {
         if ([Console]::IsInputRedirected -or $Host.Name -ne 'ConsoleHost') {
-            [void](Read-Host (T '  When the uninstaller is finished (or if you cancelled it), press Enter' '  Quando o desinstalador terminar (ou se você cancelou), aperte Enter'))
+            [void](Read-Host '  When the uninstaller is finished (or if you cancelled it), press Enter')
         } else {
             while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }    # keys typed before don't count
-            Write-Host (T '  waiting for the uninstaller to finish... (press any key if you closed or cancelled it)' '  esperando o desinstalador terminar... (aperte qualquer tecla se você fechou ou cancelou)') -ForegroundColor DarkGray
+            Write-Host '  waiting for the uninstaller to finish... (press any key if you closed or cancelled it)' -ForegroundColor DarkGray
             while ((Test-Path -LiteralPath $Program.Key) -and -not ([Console]::KeyAvailable)) { Start-Sleep -Milliseconds 700 }
             while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
         }
@@ -352,20 +344,20 @@ function New-RestorePoint {
     try {
         Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction SilentlyContinue
         $before = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue) | Select-Object -Last 1
-        Checkpoint-Computer -Description (T 'Before Uninstall-Apps' 'Antes do Uninstall-Apps') -RestorePointType APPLICATION_UNINSTALL -ErrorAction Stop -WarningAction SilentlyContinue
+        Checkpoint-Computer -Description 'Before Uninstall-Apps' -RestorePointType APPLICATION_UNINSTALL -ErrorAction Stop -WarningAction SilentlyContinue
         $after = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue) | Select-Object -Last 1
         if ($after -and (-not $before -or $after.SequenceNumber -ne $before.SequenceNumber)) {
-            Write-Result 'OK' (T 'restore point created' 'ponto de restauração criado')
+            Write-Result 'OK' 'restore point created'
         } elseif ($after) {
             $when = $after.ConvertToDateTime($after.CreationTime).ToString('g')
-            Write-Result 'OK' (T "using the restore point from $when (Windows creates at most one a day)" "usando o ponto de restauração de $when (o Windows cria no máximo um por dia)")
+            Write-Result 'OK' "using the restore point from $when (Windows creates at most one a day)"
         } else {
-            throw (T 'System Restore did not create it' 'a Restauração do Sistema não o criou')
+            throw 'System Restore did not create it'
         }
         return $true
     } catch {
-        Write-Result 'WARN' (T "could not create the restore point ($($_.Exception.Message.Trim()))" "não foi possível criar o ponto de restauração ($($_.Exception.Message.Trim()))")
-        return (Ask (T 'Continue anyway? (only the programs'' own uninstallers are used)' 'Continuar mesmo assim? (só são usados os desinstaladores dos próprios programas)') $false)
+        Write-Result 'WARN' "could not create the restore point ($($_.Exception.Message.Trim()))"
+        return (Ask 'Continue anyway? (only the programs'' own uninstallers are used)' $false)
     }
 }
 
@@ -474,7 +466,7 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
         $recyclable = $true
         if ($Kind -in 'Folder', 'Shortcut' -and -not (Test-Recyclable $Path $Size)) {
             $recyclable = $false; $Checked = $false
-            $Reason += (T ' · too big for the Recycle Bin: would be deleted for good' ' · grande demais para a Lixeira: seria apagado de vez')
+            $Reason += ' · too big for the Recycle Bin: would be deleted for good'
         }
         $found.Add([pscustomobject]@{ Kind = $Kind; Path = $Path; Reason = $Reason; Checked = ($Checked -and $Trusted); Size = [int64]$Size; Recyclable = $recyclable })
     }
@@ -500,10 +492,10 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
     if ($location -and (Test-Path -LiteralPath $location) -and -not (Test-ProtectedPath $location $KeepLocations)) {
         $size = Get-FolderSize $location
         $leafKey = Get-NameKey (Split-Path $location -Leaf)
-        if ($fromIcon) { & $add 'Folder' $location (T 'folder of the program''s icon' 'pasta do ícone do programa') $false $size }
-        elseif ($publisher -and $leafKey -eq $publisher) { & $add 'Folder' $location (T 'install folder named after the publisher: may hold its other programs' 'pasta de instalação com o nome do editor: pode ter outros programas dele') $false $size }
-        elseif ($size -gt 1GB) { & $add 'Folder' $location (T 'install folder that remained · large: look inside first' 'pasta de instalação que ficou · grande: confira o conteúdo antes') $false $size }
-        else { & $add 'Folder' $location (T 'install folder that remained' 'pasta de instalação que ficou') $true $size }
+        if ($fromIcon) { & $add 'Folder' $location 'folder of the program''s icon' $false $size }
+        elseif ($publisher -and $leafKey -eq $publisher) { & $add 'Folder' $location 'install folder named after the publisher: may hold its other programs' $false $size }
+        elseif ($size -gt 1GB) { & $add 'Folder' $location 'install folder that remained · large: look inside first' $false $size }
+        else { & $add 'Folder' $location 'install folder that remained' $true $size }
     }
 
     # 2. Folders with the program's name, and <publisher>\<name> (unchecked: likely theirs, not certain)
@@ -511,12 +503,12 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
         foreach ($dir in (Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue)) {
             $key = Get-NameKey $dir.Name
             if ($names -contains $key -and -not (Test-ProtectedPath $dir.FullName $KeepLocations)) {
-                & $add 'Folder' $dir.FullName (T 'folder with the program''s name' 'pasta com o nome do programa') $false (Get-FolderSize $dir.FullName)
+                & $add 'Folder' $dir.FullName 'folder with the program''s name' $false (Get-FolderSize $dir.FullName)
             }
             elseif ($publisher.Length -ge 3 -and $key -eq $publisher -and $ProtectedNames -notcontains $dir.Name.ToLowerInvariant()) {
                 foreach ($sub in (Get-ChildItem -LiteralPath $dir.FullName -Directory -Force -ErrorAction SilentlyContinue)) {
                     if ($names -contains (Get-NameKey $sub.Name) -and -not (Test-ProtectedPath $sub.FullName $KeepLocations)) {
-                        & $add 'Folder' $sub.FullName (T 'folder with the program''s name, inside the publisher''s' 'pasta com o nome do programa, dentro da do editor') $false (Get-FolderSize $sub.FullName)
+                        & $add 'Folder' $sub.FullName 'folder with the program''s name, inside the publisher''s' $false (Get-FolderSize $sub.FullName)
                     }
                 }
             }
@@ -530,11 +522,11 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
             if ($ProtectedNames -contains $leaf.ToLowerInvariant()) { continue }
             $key = Get-NameKey $leaf
             if ($names -contains $key) {
-                & $add 'Registry' $k.Name (T 'registry key with the program''s name' 'chave de registro com o nome do programa') $false 0
+                & $add 'Registry' $k.Name 'registry key with the program''s name' $false 0
             } elseif ($publisher.Length -ge 3 -and $key -eq $publisher) {
                 foreach ($sub in (Get-ChildItem $k.PSPath -ErrorAction SilentlyContinue)) {
                     if ($names -contains (Get-NameKey $sub.PSChildName)) {
-                        & $add 'Registry' $sub.Name (T 'registry key with the program''s name, inside the publisher''s' 'chave de registro com o nome do programa, dentro da do editor') $false 0
+                        & $add 'Registry' $sub.Name 'registry key with the program''s name, inside the publisher''s' $false 0
                     }
                 }
             }
@@ -551,14 +543,14 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
         $target = Get-ShortcutTarget $lnk.FullName
         if (-not $target -or (Test-Path -LiteralPath $target)) { continue }
         $ours = ($location -and $target -like "$location\*") -or ($names -contains (Get-NameKey $lnk.BaseName))
-        if ($ours) { & $add 'Shortcut' $lnk.FullName (T 'shortcut to a program that no longer exists' 'atalho para um programa que não existe mais') $true $lnk.Length }
+        if ($ours) { & $add 'Shortcut' $lnk.FullName 'shortcut to a program that no longer exists' $true $lnk.Length }
     }
     # Start menu folders that became empty (checked)
     foreach ($menu in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('CommonPrograms'))) {
         foreach ($dir in (Get-ChildItem -LiteralPath $menu -Directory -Force -ErrorAction SilentlyContinue)) {
             if ($names -notcontains (Get-NameKey $dir.Name) -and $publisher -ne (Get-NameKey $dir.Name)) { continue }
             $rest = @(Get-ChildItem -LiteralPath $dir.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'desktop.ini' -and -not ($found | Where-Object Path -ieq $_.FullName) })
-            if (-not $rest) { & $add 'Folder' $dir.FullName (T 'Start menu folder left empty' 'pasta do Menu Iniciar que ficou vazia') $true 0 }
+            if (-not $rest) { & $add 'Folder' $dir.FullName 'Start menu folder left empty' $true 0 }
         }
     }
 
@@ -568,7 +560,7 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
             $exe = [Environment]::ExpandEnvironmentVariables($action.Execute.Trim('"'))
             if (-not (Test-FullPath $exe) -or (Test-Path -LiteralPath $exe)) { continue }   # "powershell.exe": a Windows program
             $ours = ($location -and $exe -like "$location\*") -or ($names | Where-Object { (Get-NameKey $task.TaskName).Contains($_) })
-            if ($ours) { & $add 'Task' "$($task.TaskPath)$($task.TaskName)" (T 'scheduled task of a program that no longer exists' 'tarefa agendada de um programa que não existe mais') $true 0; break }
+            if ($ours) { & $add 'Task' "$($task.TaskPath)$($task.TaskName)" 'scheduled task of a program that no longer exists' $true 0; break }
         }
     }
     return $found
@@ -588,14 +580,14 @@ function Remove-Leftovers([object[]]$Items, [string]$BackupDir) {
         $exists = if ($it.Kind -eq 'Registry') { Test-Path -LiteralPath ('Registry::' + $it.Path) }
                   elseif ($it.Kind -eq 'Task') { [bool](Get-ScheduledTask -TaskPath ($it.Path -replace '[^\\]+$', '') -TaskName (Split-Path $it.Path -Leaf) -ErrorAction SilentlyContinue) }
                   else { Test-Path -LiteralPath $it.Path }
-        if (-not $exists) { Write-Result 'SKIP' (T "$($it.Path) (no longer there)" "$($it.Path) (já não existia)"); continue }
+        if (-not $exists) { Write-Result 'SKIP' "$($it.Path) (no longer there)"; continue }
         $bin = [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
-        $how = T 'Recycle Bin' 'Lixeira'
+        $how = 'Recycle Bin'
         if ($it.Kind -in 'Folder', 'Shortcut' -and -not $it.Recyclable) {
-            Write-Host (T "  $($it.Path) ($(Format-Size $it.Size)) doesn't fit in the Recycle Bin." "  $($it.Path) ($(Format-Size $it.Size)) não cabe na Lixeira.") -ForegroundColor Yellow
-            if (-not (Ask (T 'Delete it for good, with no way back?' 'Apagar de vez, sem volta?') $false)) { Write-Result 'SKIP' (T "$($it.Path) (kept)" "$($it.Path) (mantido)"); continue }
+            Write-Host "  $($it.Path) ($(Format-Size $it.Size)) doesn't fit in the Recycle Bin." -ForegroundColor Yellow
+            if (-not (Ask 'Delete it for good, with no way back?' $false)) { Write-Result 'SKIP' "$($it.Path) (kept)"; continue }
             $bin = [Microsoft.VisualBasic.FileIO.RecycleOption]::DeletePermanently
-            $how = T 'deleted for good' 'apagado de vez'
+            $how = 'deleted for good'
         }
         try {
             switch ($it.Kind) {
@@ -604,16 +596,16 @@ function Remove-Leftovers([object[]]$Items, [string]$BackupDir) {
                 'Registry' {
                     $reg = Join-Path $BackupDir ('{0:D2} {1}.reg' -f $n, ((Split-Path $it.Path -Leaf) -replace '[\\/:*?"<>|]', '_'))
                     & reg.exe export $it.Path $reg /y *> $null
-                    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $reg)) { throw (T 'could not back it up, so it was not deleted' 'não foi possível fazer o backup, então não foi apagada') }
+                    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $reg)) { throw 'could not back it up, so it was not deleted' }
                     Remove-Item -LiteralPath ('Registry::' + $it.Path) -Recurse -Force -ErrorAction Stop
-                    $how = T "backup: $(Split-Path $reg -Leaf)" "backup: $(Split-Path $reg -Leaf)"
+                    $how = "backup: $(Split-Path $reg -Leaf)"
                 }
                 'Task' {
                     $taskPath = ($it.Path -replace '[^\\]+$', ''); $taskName = Split-Path $it.Path -Leaf
                     $xml = Join-Path $BackupDir ('{0:D2} {1}.xml' -f $n, ($taskName -replace '[\\/:*?"<>|]', '_'))
                     Export-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction Stop | Set-Content $xml -Encoding Unicode
                     Unregister-ScheduledTask -TaskPath $taskPath -TaskName $taskName -Confirm:$false -ErrorAction Stop
-                    $how = T "backup: $(Split-Path $xml -Leaf)" "backup: $(Split-Path $xml -Leaf)"
+                    $how = "backup: $(Split-Path $xml -Leaf)"
                 }
             }
             Write-Result 'OK' "$($it.Path)  ($how)"
@@ -630,36 +622,36 @@ function Remove-Leftovers([object[]]$Items, [string]$BackupDir) {
 #region ==================== 4. EXECUTION ====================
 
 Write-Host "`nUninstall-Apps" -ForegroundColor Green
-Write-Host (T '  Uninstalls programs with their own uninstaller, then shows what they left behind before deleting it.' '  Desinstala programas com o desinstalador deles e depois mostra o que sobrou antes de apagar.') -ForegroundColor DarkGray
-Write-Host (T '  reading the installed programs...' '  lendo os programas instalados...') -ForegroundColor DarkGray
+Write-Host '  Uninstalls programs with their own uninstaller, then shows what they left behind before deleting it.' -ForegroundColor DarkGray
+Write-Host '  reading the installed programs...' -ForegroundColor DarkGray
 
 $programs = @(Get-InstalledPrograms)
-if (-not $programs) { Write-Host (T 'No programs found.' 'Nenhum programa encontrado.'); return }
+if (-not $programs) { Write-Host 'No programs found.'; return }
 
 # --- Choose
 $items = @($programs | ForEach-Object {
     $note = (@($_.Publisher, $_.Version, (Format-Size $_.Size), $_.Date) | Where-Object { $_ }) -join ' · '
     [pscustomobject]@{ Group = ''; Label = $_.Name; Note = $note; Checked = $false; Size = $_.Size; Program = $_ }
 })
-$chosen = @(Select-Items (T "Uninstall-Apps — choose the programs to uninstall ($($programs.Count) installed)" "Uninstall-Apps — escolha os programas para desinstalar ($($programs.Count) instalados)") $items)
-if (-not $chosen) { Write-Host (T 'Nothing was uninstalled.' 'Nada foi desinstalado.'); return }
+$chosen = @(Select-Items "Uninstall-Apps — choose the programs to uninstall ($($programs.Count) installed)" $items)
+if (-not $chosen) { Write-Host 'Nothing was uninstalled.'; return }
 
-Write-Host (T "`n  $($chosen.Count) program(s) to uninstall:" "`n  $($chosen.Count) programa(s) para desinstalar:")
+Write-Host "`n  $($chosen.Count) program(s) to uninstall:"
 $chosen | ForEach-Object { Write-Host "    - $($_.Label)" }
-Write-Host (T '  Each one opens its own uninstaller: follow its window.' '  Cada um abre o próprio desinstalador: siga a janela dele.') -ForegroundColor DarkGray
+Write-Host '  Each one opens its own uninstaller: follow its window.' -ForegroundColor DarkGray
 
 # Programs still open block their uninstaller (or leave files behind): name them so they can be closed
 $chosenFolders = @($chosen | ForEach-Object { Get-ProgramFolders $_.Program })
 $running = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $proc = $_; $proc.Path -and ($chosenFolders | Where-Object { $proc.Path -like "$_\*" }) } |
              Select-Object -ExpandProperty ProcessName -Unique)
 if ($running) {
-    Write-Host (T "  Still open: $($running -join ', '). Close them before going on." "  Ainda abertos: $($running -join ', '). Feche antes de continuar.") -ForegroundColor Yellow
+    Write-Host "  Still open: $($running -join ', '). Close them before going on." -ForegroundColor Yellow
 }
-if (-not (Ask (T 'Uninstall now?' 'Desinstalar agora?') $true)) { Write-Host (T 'Nothing was uninstalled.' 'Nada foi desinstalado.'); return }
+if (-not (Ask 'Uninstall now?' $true)) { Write-Host 'Nothing was uninstalled.'; return }
 
 # --- Uninstall
-Write-Step (T 'Restore point' 'Ponto de restauração')
-if (-not (New-RestorePoint)) { Write-Host (T 'Nothing was uninstalled.' 'Nada foi desinstalado.'); return }
+Write-Step 'Restore point'
+if (-not (New-RestorePoint)) { Write-Host 'Nothing was uninstalled.'; return }
 
 $results = @()
 for ($i = 0; $i -lt $chosen.Count; $i++) {
@@ -667,10 +659,10 @@ for ($i = 0; $i -lt $chosen.Count; $i++) {
     Write-Step "[$($i + 1)/$($chosen.Count)] $($prog.Name)"
     $status = Invoke-Uninstall $prog
     switch ($status) {
-        'Removed' { Write-Result 'OK' (T 'uninstalled' 'desinstalado') }
-        'Restart' { Write-Result 'OK' (T 'uninstalled (restart to finish)' 'desinstalado (reinicie para concluir)') }
+        'Removed' { Write-Result 'OK' 'uninstalled' }
+        'Restart' { Write-Result 'OK' 'uninstalled (restart to finish)' }
         'Orphan'  { }
-        'Kept'    { Write-Result 'SKIP' (T 'still installed (cancelled or failed)' 'continua instalado (cancelado ou falhou)') }
+        'Kept'    { Write-Result 'SKIP' 'still installed (cancelled or failed)' }
     }
     $results += [pscustomobject]@{ Program = $prog; Status = $status }
 }
@@ -680,18 +672,18 @@ $removed = @($results | Where-Object { $_.Status -in 'Removed', 'Restart', 'Orph
 if ($removed) {
     # Some uninstallers keep deleting files after they leave the list: wait for them first
     Write-Host ''
-    [void](Read-Host (T '  Close any uninstaller window still open, then press Enter to look for leftovers' '  Feche as janelas de desinstalação que ainda estiverem abertas e aperte Enter para procurar resquícios'))
-    Write-Step (T 'Looking for leftovers' 'Procurando resquícios')
+    [void](Read-Host '  Close any uninstaller window still open, then press Enter to look for leftovers')
+    Write-Step 'Looking for leftovers'
     $remaining  = @(Get-InstalledPrograms)
     $keepLocs   = @($remaining | ForEach-Object { Get-ProgramFolders $_ } | Select-Object -Unique)
     $keepNames  = @(@($remaining | ForEach-Object { Get-NameKey $_.Name }) + @($keepLocs | ForEach-Object { Get-NameKey (Split-Path $_ -Leaf) }) | Select-Object -Unique)
-    $kindNames  = @{ Folder = (T 'folder' 'pasta'); Registry = (T 'registry' 'registro'); Shortcut = (T 'shortcut' 'atalho'); Task = (T 'task' 'tarefa') }
+    $kindNames  = @{ Folder = 'folder'; Registry = 'registry'; Shortcut = 'shortcut'; Task = 'task' }
     $leftItems = @()
     foreach ($r in $removed) {
         $found = @(Find-Leftovers $r.Program $keepLocs $keepNames ($r.Status -ne 'Orphan'))
         # An entry whose uninstaller is gone stays in Settings' list: offer its uninstall key (checked)
         if ($r.Status -eq 'Orphan' -and (Test-Path -LiteralPath $r.Program.Key)) {
-            $found += [pscustomobject]@{ Kind = 'Registry'; Path = (Get-Item -LiteralPath $r.Program.Key).Name; Reason = (T 'entry left in the installed apps list' 'entrada que ficou na lista de apps instalados'); Checked = $true; Size = 0; Recyclable = $true }
+            $found += [pscustomobject]@{ Kind = 'Registry'; Path = (Get-Item -LiteralPath $r.Program.Key).Name; Reason = 'entry left in the installed apps list'; Checked = $true; Size = 0; Recyclable = $true }
         }
         foreach ($f in $found) {
             $leftItems += [pscustomobject]@{ Group = $r.Program.Name; Label = $f.Path; Checked = $f.Checked; Size = $f.Size; Leftover = $f
@@ -700,45 +692,45 @@ if ($removed) {
     }
 
     if (-not $leftItems) {
-        Write-Result 'OK' (T 'nothing left behind' 'nada ficou para trás')
+        Write-Result 'OK' 'nothing left behind'
     } else {
-        Write-Host (T "  $($leftItems.Count) item(s) found. Checked: certainly the program's. Unchecked: have its name; look before checking." "  $($leftItems.Count) item(s) encontrado(s). Marcados: com certeza do programa. Desmarcados: têm o nome dele; confira antes de marcar.")
-        [void](Read-Host (T '  Press Enter to see the list' '  Aperte Enter para ver a lista'))
-        $toDelete = @(Select-Items (T 'Uninstall-Apps — leftovers to delete (folders go to the Recycle Bin)' 'Uninstall-Apps — resquícios para apagar (pastas vão para a Lixeira)') $leftItems)
+        Write-Host "  $($leftItems.Count) item(s) found. Checked: certainly the program's. Unchecked: have its name; look before checking."
+        [void](Read-Host '  Press Enter to see the list')
+        $toDelete = @(Select-Items 'Uninstall-Apps — leftovers to delete (folders go to the Recycle Bin)' $leftItems)
         if (-not $toDelete) {
-            Write-Host (T '  Nothing was deleted.' '  Nada foi apagado.')
+            Write-Host '  Nothing was deleted.'
         } else {
             $backup = Join-Path $env:ProgramData ("TidyWin\uninstall-backup\{0}" -f (Get-Date -Format 'yyyy-MM-dd HHmm'))
-            Write-Host (T "`n  $($toDelete.Count) item(s) to delete:" "`n  $($toDelete.Count) item(s) para apagar:")
+            Write-Host "`n  $($toDelete.Count) item(s) to delete:"
             $toDelete | ForEach-Object { Write-Host "    - $($_.Label)" -ForegroundColor DarkGray }
-            Write-Host (T "  Folders and shortcuts go to the Recycle Bin. Registry keys and tasks are backed up first to:`n    $backup" "  Pastas e atalhos vão para a Lixeira. Chaves de registro e tarefas têm backup antes, em:`n    $backup") -ForegroundColor DarkGray
+            Write-Host "  Folders and shortcuts go to the Recycle Bin. Registry keys and tasks are backed up first to:`n    $backup" -ForegroundColor DarkGray
             if ($toDelete | Where-Object { -not $_.Leftover.Recyclable }) {
-                Write-Host (T '  Items that don''t fit in the Recycle Bin will each ask again before being deleted for good.' '  Itens que não cabem na Lixeira vão perguntar de novo, um a um, antes de serem apagados de vez.') -ForegroundColor Yellow
+                Write-Host '  Items that don''t fit in the Recycle Bin will each ask again before being deleted for good.' -ForegroundColor Yellow
             }
-            if (Ask (T 'Delete them?' 'Apagar?') $false) {
-                Write-Step (T 'Deleting leftovers' 'Apagando resquícios')
+            if (Ask 'Delete them?' $false) {
+                Write-Step 'Deleting leftovers'
                 Remove-Leftovers @($toDelete | ForEach-Object { $_.Leftover }) $backup
-                Write-Host (T "  List of what was deleted, and the backups: $backup" "  Lista do que foi apagado, e os backups: $backup") -ForegroundColor DarkGray
-                Write-Host (T '  To put a registry key back, double-click its .reg file. Folders: restore them from the Recycle Bin.' '  Para devolver uma chave de registro, clique duas vezes no .reg dela. Pastas: restaure pela Lixeira.') -ForegroundColor DarkGray
+                Write-Host "  List of what was deleted, and the backups: $backup" -ForegroundColor DarkGray
+                Write-Host '  To put a registry key back, double-click its .reg file. Folders: restore them from the Recycle Bin.' -ForegroundColor DarkGray
             } else {
-                Write-Host (T '  Nothing was deleted.' '  Nada foi apagado.')
+                Write-Host '  Nothing was deleted.'
             }
         }
     }
 }
 
 # --- Summary
-Write-Step (T 'Summary' 'Resumo')
+Write-Step 'Summary'
 foreach ($r in $results) {
     $text = switch ($r.Status) {
-        'Removed' { T 'uninstalled' 'desinstalado' }
-        'Restart' { T 'uninstalled, restart to finish' 'desinstalado, reinicie para concluir' }
-        'Orphan'  { T 'uninstaller was missing' 'desinstalador não existia' }
-        'Kept'    { T 'still installed' 'continua instalado' }
+        'Removed' { 'uninstalled' }
+        'Restart' { 'uninstalled, restart to finish' }
+        'Orphan'  { 'uninstaller was missing' }
+        'Kept'    { 'still installed' }
     }
     Write-Host "  $($r.Program.Name): $text"
 }
-if ($results.Status -contains 'Restart') { Write-Host (T "`nRestart the PC to finish." "`nReinicie o PC para concluir.") -ForegroundColor Yellow }
-else { Write-Host (T "`nDone." "`nPronto.") -ForegroundColor Green }
+if ($results.Status -contains 'Restart') { Write-Host "`nRestart the PC to finish." -ForegroundColor Yellow }
+else { Write-Host "`nDone." -ForegroundColor Green }
 
 #endregion
