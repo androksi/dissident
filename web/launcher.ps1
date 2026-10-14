@@ -25,9 +25,10 @@
             [Security.Principal.WindowsBuiltInRole]::Administrator)
         $os = try {
             $cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
-            $name = "$($cv.ProductName)"
-            if ([int]$cv.CurrentBuild -ge 22000) { $name = $name -replace 'Windows 10', 'Windows 11' }   # 11 still says 10 there
-            "$name $($cv.DisplayVersion) (build $($cv.CurrentBuild).$($cv.UBR))"
+            # $product, not $name: PowerShell ignores case, and $Name is the shortcut this terminal starts
+            $product = "$($cv.ProductName)"
+            if ([int]$cv.CurrentBuild -ge 22000) { $product = $product -replace 'Windows 10', 'Windows 11' }   # 11 still says 10 there
+            "$product $($cv.DisplayVersion) (build $($cv.CurrentBuild).$($cv.UBR))"
         } catch { 'Windows' }
         Clear-Host
         Write-Host ''
