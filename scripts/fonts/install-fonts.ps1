@@ -1,11 +1,11 @@
 ﻿#Requires -RunAsAdministrator
 <#
-    Install-Fonts.ps1 — pick fonts from a list and install them for every user of this PC
+    install-fonts.ps1 — pick fonts from a list and install them for every user of this PC
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
-        powershell -ExecutionPolicy Bypass -File .\Install-Fonts.ps1
+        powershell -ExecutionPolicy Bypass -File .\install-fonts.ps1
     Undo (removes only the fonts this script installed):
-        powershell -ExecutionPolicy Bypass -File .\Install-Fonts.ps1 -Revert
+        powershell -ExecutionPolicy Bypass -File .\install-fonts.ps1 -Revert
 
     Each font comes from its official source: the project's latest GitHub release, or the
     Google Fonts repository. Installed in C:\Windows\Fonts and usable right away, no restart.
@@ -20,7 +20,9 @@
         5. Execution
 #>
 param(
-    [switch]$Revert
+    [switch]$Revert,
+    [string]$Describe,      # the panel: write the font list to this file and stop
+    [string]$Answers        # the panel: install the fonts in this file, without asking
 )
 
 $ErrorActionPreference = 'Continue'
@@ -28,16 +30,110 @@ $ProgressPreference    = 'SilentlyContinue'    # the progress bar makes download
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 
+#region ==================== PANEL ====================
+
+# Run from the TidyWin panel ($env:TIDYWIN_PANEL = 1): the questions show up in the panel window. Each one
+# goes out as a line "##TIDYWIN {json}" and the answer comes back as one JSON line on the standard input.
+# Write-Host lines carry their color ([char]1 + color + [char]2 + text) so the panel can show it.
+$script:Panel = $env:TIDYWIN_PANEL -eq '1'
+$script:PanelLine = ''
+
+function Write-PanelHost {
+    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+          [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+    $text  = (@($Object) | ForEach-Object { "$_" }) -join "$Separator"
+    $color = if ($PSBoundParameters.ContainsKey('ForegroundColor')) { "$ForegroundColor" } else { '' }
+    $parts = @($text -split "`r?`n")
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $script:PanelLine += [string][char]1 + $color + [char]2 + $parts[$i]
+        if ($i -lt $parts.Count - 1 -or -not $NoNewline) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    }
+}
+
+# Sends a question to the panel and returns the answer ($null when it was cancelled).
+function Request-Panel([hashtable]$Request) {
+    if ($script:PanelLine) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json $Request -Compress -Depth 6))
+    $line = [Console]::In.ReadLine()
+    if ($null -eq $line) { exit 1 }                       # the panel was closed
+    return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
+}
+
+if ($script:Panel) {
+    function Write-Host {
+        param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+              [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+        Write-PanelHost @PSBoundParameters
+    }
+    # Typed answers: a "press Enter" pause, a folder, a file or text
+    function Read-Host([Parameter(Position = 0)][object]$Prompt) {
+        $q = "$Prompt".Trim()
+        $type = if ($q -match '(?i)press Enter') { 'wait' } elseif ($q -match '(?i)^folder') { 'folder' } elseif ($q -match '(?i)\.json file') { 'file' } else { 'text' }
+        return "$(Request-Panel @{ type = $type; question = $q })"
+    }
+}
+
+# --- Options of a page in the panel (the same in every script). A field: tab, id, kind (toggle, choice,
+# select, checklist, text, header), label, desc, default and more (options, items, warn, when...).
+# -Describe writes the fields for the panel's page; Read-Options brings back what was chosen: the panel's
+# answers file, or asked here when the script runs on its own. Nothing comes selected.
+function Opt($Value, [string]$Label) { [ordered]@{ value = $Value; label = $Label } }
+
+function New-Field([string]$Tab, [string]$Id, [string]$Kind, [string]$Label, [string]$Desc, $Default, [hashtable]$More) {
+    $f = [ordered]@{ tab = $Tab; id = $Id; kind = $Kind; label = $Label; desc = $Desc; default = $Default }
+    if ($More) { foreach ($k in $More.Keys) { $f[$k] = $More[$k] } }
+    return $f
+}
+
+function Write-OptionsPage([string]$Path, [object[]]$Fields, [string[]]$Notes) {
+    $page = [ordered]@{ tabs = @($Fields | ForEach-Object { $_.tab } | Select-Object -Unique); notes = @($Notes | Where-Object { $_ }); fields = @($Fields | Where-Object { $_ }) }
+    [IO.File]::WriteAllText($Path, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
+}
+
+function Read-Options([object[]]$Fields, [string]$AnswersFile) {
+    $values = @{}
+    foreach ($f in $Fields) { if ($f.kind -ne 'header') { $values[$f.id] = $f.default } }
+    if ($AnswersFile) {
+        $json = [IO.File]::ReadAllText($AnswersFile) | ConvertFrom-Json
+        foreach ($prop in $json.PSObject.Properties) { $values[$prop.Name] = $prop.Value }
+        return $values
+    }
+    foreach ($f in $Fields) {
+        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        switch ($f.kind) {
+            'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
+            'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
+            'info'      { Write-Host "  $($f.label): $($f.desc)" -ForegroundColor DarkGray }
+            { $_ -in 'text', 'path' } { $values[$f.id] = "$(Read-Host "  $($f.label)")".Trim().Trim('"') }
+            'checklist' { $values[$f.id] = @($f.items | Where-Object { Ask "$($f.label): $($_.label)?" $false } | ForEach-Object { $_.value }) }
+            default {
+                # choice and select; "Skip" leaves it as it is
+                $options = @(Opt '' 'Skip') + @($f.options)
+                $values[$f.id] = $options[(Choose "$($f.label):" @($options | ForEach-Object { $_.label }) 0)].value
+            }
+        }
+    }
+    return $values
+}
+
+# Yes / No (scripts that ask more define their own, the same)
+function Ask([string]$Question, [bool]$Default) {
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
+}
+
+#endregion
+
 #region ==================== 1. HELPERS ====================
 
 
-function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
+function Write-Step([string]$Text) { Write-Host "`n▸ $Text" -ForegroundColor Cyan }
 function Write-Ok([string]$Text)   { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host $Text }
 function Write-Skip([string]$Text) { Write-Host "  [--] $Text" -ForegroundColor DarkGray }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
 # The "use the arrows" hint is shown only on the first menu.
 function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
+    if ($script:Panel) { return [int](Request-Panel @{ type = 'choose'; question = $Question; options = @($Options); default = $Default }) }
     Write-Host "  $Question"
     $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
@@ -87,6 +183,12 @@ function Ask([string]$Question, [bool]$Default) {
 # Checklist: ↑ ↓ move, Space checks, Enter confirms. $Items: objects with Label, Checked, Note.
 # Returns the checked items. Without a real console: numbers separated by commas.
 function Select-Many([string]$Question, [object[]]$Items) {
+    if ($script:Panel) {
+        $answer = Request-Panel @{ type = 'checklist'; title = $Question; cancel = $false
+            items = @($Items | ForEach-Object { @{ label = "$($_.Label)"; note = "$($_.Note)"; group = "$($_.Group)"; checked = [bool]$_.Checked } }) }
+        if ($null -ne $answer) { for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = @($answer.checked) -contains $i } }
+        return @($Items | Where-Object Checked)
+    }
     Write-Host "  $Question"
     $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
@@ -260,7 +362,7 @@ function Get-FontFiles($Font) {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 
     if ($Font.Source -eq 'google') {
-        Write-Host "  downloading $(@($Font.Files).Count) file(s) from Google Fonts..."
+        Write-Host "  Downloading $(@($Font.Files).Count) file(s) from Google Fonts..."
         foreach ($name in $Font.Files) {
             Save-Url "https://raw.githubusercontent.com/google/fonts/main/$($Font.Repo)/$([uri]::EscapeDataString($name))" (Join-Path $dir $name)
         }
@@ -273,7 +375,7 @@ function Get-FontFiles($Font) {
         }
         if (-not $script:Zips.ContainsKey($url)) {
             $zip = Join-Path $Work (Split-Path $url -Leaf)
-            Write-Host "  downloading $(Split-Path $url -Leaf)..."
+            Write-Host "  Downloading $(Split-Path $url -Leaf)..."
             Save-Url $url $zip
             $script:Zips[$url] = $zip
         }
@@ -359,18 +461,34 @@ function Save-State([object[]]$State) {
 
 #region ==================== 4. REVERT ====================
 
+# The fonts TidyWin installed, nothing selected; only the ones picked are removed.
 function Invoke-Revert {
-    Write-Host "`nInstall-Fonts -Revert" -ForegroundColor Green
     $state = @(Get-State)
-    if (-not $state) { Write-Host '  No fonts installed by TidyWin on this PC.'; return }
+    if ($Describe) {
+        $field = if ($state) {
+            [ordered]@{ tab = 'Fonts'; id = 'fonts'; kind = 'checklist'; label = ''; desc = ''; default = @()
+                        items = @($state | ForEach-Object { [ordered]@{ value = $_.Name; label = $_.Name; note = ''; group = ''; status = '' } }) }
+        } else {
+            New-Field 'Fonts' 'Nothing' 'header' 'Nothing to undo' 'No fonts installed by TidyWin on this PC.' $null
+        }
+        Write-OptionsPage $Describe @($field) @('Close the apps that use these fonts, like editors, Word and the terminal, so the files can be deleted.')
+        return
+    }
+    if (-not $script:Panel) { Write-Host "`nInstall-Fonts -Revert" -ForegroundColor Green }   # in the panel the page already has the title
+    if (-not $state) { Write-Host 'No fonts installed by TidyWin on this PC, so there is nothing to undo.'; return }
 
     $items = @($state | ForEach-Object {
-        [pscustomobject]@{ Label = $_.Name; Note = "$(@($_.Files).Count) file(s)"; Checked = $true; Entry = $_ }
+        [pscustomobject]@{ Label = $_.Name; Note = "$(@($_.Files).Count) file(s)"; Checked = $false; Entry = $_ }
     })
-    Write-Host ''
-    $chosen = @(Select-Many 'Which fonts to remove?' $items)
-    if (-not $chosen) { Write-Host 'Nothing selected.'; return }
-    Write-Host '  Close the apps that use these fonts (editors, Word, the terminal...) so the files can be deleted.' -ForegroundColor DarkYellow
+    if ($Answers) {
+        $picked = @(([IO.File]::ReadAllText($Answers) | ConvertFrom-Json).fonts)
+        $chosen = @($items | Where-Object { $picked -contains $_.Entry.Name })
+    } else {
+        Write-Host ''
+        $chosen = @(Select-Many 'Which fonts to remove?' $items)
+        Write-Host '  Close the apps that use these fonts, like editors, Word and the terminal, so the files can be deleted.' -ForegroundColor DarkYellow
+    }
+    if (-not $chosen) { Write-Host 'Nothing was selected, so nothing was changed.'; return }
 
     $locked = $false
     foreach ($c in $chosen) {
@@ -389,7 +507,7 @@ function Invoke-Revert {
             $locked = $true
             Write-Host "  [--] $($left.Count) file(s) in use, not deleted" -ForegroundColor Yellow
         } else {
-            Write-Ok 'removed'
+            Write-Ok 'Removed'
         }
         $c.Entry.Files = $left
     }
@@ -411,8 +529,23 @@ function Invoke-Revert {
 Initialize-FontApi
 if ($Revert) { Invoke-Revert; return }
 
-Write-Host "`nInstall-Fonts" -ForegroundColor Green
+if (-not $script:Panel) { Write-Host "`nInstall-Fonts" -ForegroundColor Green }   # in the panel the page already has the title
 Write-Host '  Installed for every user of this PC, from each font''s official source.' -ForegroundColor DarkGray
+
+# --- For the panel: every font, nothing selected, the installed ones marked; then stop
+if ($Describe) {
+    $groupNames = @{ Code = 'Code'; Icons = 'Code with terminal icons (Nerd Fonts)'; Text = 'Text' }
+    $field = [ordered]@{
+        tab = 'Fonts'; id = 'fonts'; kind = 'checklist'; label = ''; desc = ''; default = @()
+        items = @($Fonts | ForEach-Object {
+            [ordered]@{ value = $_.Name; label = $_.Name; note = ''; group = $groupNames[$_.Group]
+                        status = $(if (Test-FontInstalled $_.Family) { 'Installed' } else { '' }) }
+        })
+    }
+    $page = [ordered]@{ tabs = @('Fonts'); notes = @(); fields = @($field) }
+    [IO.File]::WriteAllText($Describe, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
+    return
+}
 
 $groups = @{ Code = 'code'; Icons = 'icons'; Text = 'text' }
 $width  = ($Fonts | ForEach-Object { $_.Name.Length } | Measure-Object -Maximum).Maximum
@@ -421,8 +554,14 @@ $items = @($Fonts | ForEach-Object {
     $note = $groups[$_.Group].PadRight(8) + $_.Note + $(if ($installed) { '  (installed)' } else { '' })
     [pscustomobject]@{ Label = $_.Name.PadRight($width); Note = $note; Checked = $false; Font = $_ }
 })
-Write-Host ''
-$chosen = @(Select-Many 'Which fonts to install?' $items)
+if ($Answers) {
+    # --- From the panel: the fonts picked there
+    $picked = @(([IO.File]::ReadAllText($Answers) | ConvertFrom-Json).fonts)
+    $chosen = @($items | Where-Object { $picked -contains $_.Font.Name })
+} else {
+    Write-Host ''
+    $chosen = @(Select-Many 'Which fonts to install?' $items)
+}
 if (-not $chosen) { Write-Host 'Nothing selected.'; return }
 
 $state    = [Collections.ArrayList]@(Get-State)
@@ -447,7 +586,7 @@ try {
                 $extra = if ($skipped) { " ($skipped already existed)" } else { '' }
                 Write-Ok "$($done.Count) style(s) installed$extra"
             } else {
-                Write-Skip 'already installed'
+                Write-Skip 'Already installed'
             }
         } catch {
             $failures += $font.Name
@@ -464,6 +603,6 @@ if ($failures) {
     Write-Host "`nNot installed: $($failures -join ', '). Run again to retry." -ForegroundColor Yellow
 }
 Write-Host "`nDone. The fonts can be used now; apps that were already open may need to be reopened to see them." -ForegroundColor Green
-Write-Host '  To remove them: TidyWin menu → Undo → Fonts' -ForegroundColor DarkGray
+Write-Host '  To remove them: TidyWin → Undo → Fonts' -ForegroundColor DarkGray
 
 #endregion

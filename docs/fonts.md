@@ -2,7 +2,7 @@
 
 # Fonts
 
-In the [TidyWin menu](../README.md#quick-start): **Set up → Install fonts**.
+In the [TidyWin panel](../README.md#quick-start): **Set up → Fonts**.
 
 Check the fonts you want and they are installed for every user of the PC, ready to use without restarting (apps that were already open may need to be reopened). Each font is downloaded from its official source. Fonts already installed are marked in the list, and files that already exist are never replaced.
 
@@ -28,8 +28,6 @@ Code fonts with thousands of extra icons, needed by terminal prompts such as Oh 
 | FiraCode Nerd Font | Fira Code | ~30 MB |
 | MesloLGS Nerd Font | Menlo; the one Oh My Posh and Powerlevel10k recommend | ~110 MB |
 
-The Development option can also install CaskaydiaCove or JetBrainsMono Nerd Font and set it in Windows Terminal.
-
 ## Text
 
 | Font | Source | Notes |
@@ -54,13 +52,13 @@ Every font on the list is free to use and share (SIL Open Font License; Hack und
 
 ## Revert
 
-In the [TidyWin menu](../README.md#quick-start): **Undo → Fonts**.
+In the [TidyWin panel](../README.md#quick-start): **Undo → Fonts**.
 
-Lists the fonts installed by Install fonts, all checked; uncheck the ones to keep. Fonts installed some other way are never touched. A font file in use can't be deleted: restart the PC and run it again.
+Lists the fonts installed by Set up → Fonts, none checked; check the ones to remove. Fonts installed some other way are never touched. A font file in use can't be deleted: restart the PC and run it again.
 
 ## Adding a font
 
-One `New-Font` line in [`Install-Fonts.ps1`](../scripts/fonts/Install-Fonts.ps1) (section 2), then this page and the `fonts` entry in [`web/index.html`](../web/index.html):
+One `New-Font` line in [`install-fonts.ps1`](../scripts/fonts/install-fonts.ps1) (section 2), then this page:
 
 - `release`: the GitHub repository, the release `.zip` name (`{v}` stands for the version, e.g. `JetBrainsMono-{v}.zip`) and a pattern for the files inside it. Prefer the `.ttf` files and only one set: static **or** variable, never both.
 - `google`: the folder in [google/fonts](https://github.com/google/fonts) (`ofl/<name>`) and the file names in it. For one file per style, `Get-StaticNames` builds the list.

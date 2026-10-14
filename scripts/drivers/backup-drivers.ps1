@@ -1,10 +1,10 @@
 ﻿#Requires -RunAsAdministrator
 <#
-    Backup-Drivers.ps1 — saves the PC's drivers before formatting and installs them back afterwards
+    backup-drivers.ps1 — saves the PC's drivers before formatting and installs them back afterwards
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
-        powershell -ExecutionPolicy Bypass -File .\Backup-Drivers.ps1 -Export     (before formatting)
-        powershell -ExecutionPolicy Bypass -File .\Backup-Drivers.ps1 -Import     (after formatting)
+        powershell -ExecutionPolicy Bypass -File .\backup-drivers.ps1 -Export     (before formatting)
+        powershell -ExecutionPolicy Bypass -File .\backup-drivers.ps1 -Import     (after formatting)
 
     Export: lists the third-party drivers (the ones Windows didn't bring itself) by type, with the
     devices using each one. The ones in use come checked. Saves them with pnputil to a
@@ -23,20 +23,116 @@
 #>
 param(
     [switch]$Export,
-    [switch]$Import
+    [switch]$Import,
+    [string]$Describe,      # the panel: writes the options of the page (with -Export or -Import) and stops
+    [string]$Answers        # the panel: what was chosen there (nothing is asked)
 )
 
 $ErrorActionPreference = 'Continue'
 
 
+#region ==================== PANEL ====================
+
+# Run from the TidyWin panel ($env:TIDYWIN_PANEL = 1): the questions show up in the panel window. Each one
+# goes out as a line "##TIDYWIN {json}" and the answer comes back as one JSON line on the standard input.
+# Write-Host lines carry their color ([char]1 + color + [char]2 + text) so the panel can show it.
+$script:Panel = $env:TIDYWIN_PANEL -eq '1'
+$script:PanelLine = ''
+
+function Write-PanelHost {
+    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+          [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+    $text  = (@($Object) | ForEach-Object { "$_" }) -join "$Separator"
+    $color = if ($PSBoundParameters.ContainsKey('ForegroundColor')) { "$ForegroundColor" } else { '' }
+    $parts = @($text -split "`r?`n")
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $script:PanelLine += [string][char]1 + $color + [char]2 + $parts[$i]
+        if ($i -lt $parts.Count - 1 -or -not $NoNewline) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    }
+}
+
+# Sends a question to the panel and returns the answer ($null when it was cancelled).
+function Request-Panel([hashtable]$Request) {
+    if ($script:PanelLine) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json $Request -Compress -Depth 6))
+    $line = [Console]::In.ReadLine()
+    if ($null -eq $line) { exit 1 }                       # the panel was closed
+    return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
+}
+
+if ($script:Panel) {
+    function Write-Host {
+        param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+              [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+        Write-PanelHost @PSBoundParameters
+    }
+    # Typed answers: a "press Enter" pause, a folder, a file or text
+    function Read-Host([Parameter(Position = 0)][object]$Prompt) {
+        $q = "$Prompt".Trim()
+        $type = if ($q -match '(?i)press Enter') { 'wait' } elseif ($q -match '(?i)^folder') { 'folder' } elseif ($q -match '(?i)\.json file') { 'file' } else { 'text' }
+        return "$(Request-Panel @{ type = $type; question = $q })"
+    }
+}
+
+# --- Options of a page in the panel (the same in every script). A field: tab, id, kind (toggle, choice,
+# select, checklist, text, header), label, desc, default and more (options, items, warn, when...).
+# -Describe writes the fields for the panel's page; Read-Options brings back what was chosen: the panel's
+# answers file, or asked here when the script runs on its own. Nothing comes selected.
+function Opt($Value, [string]$Label) { [ordered]@{ value = $Value; label = $Label } }
+
+function New-Field([string]$Tab, [string]$Id, [string]$Kind, [string]$Label, [string]$Desc, $Default, [hashtable]$More) {
+    $f = [ordered]@{ tab = $Tab; id = $Id; kind = $Kind; label = $Label; desc = $Desc; default = $Default }
+    if ($More) { foreach ($k in $More.Keys) { $f[$k] = $More[$k] } }
+    return $f
+}
+
+function Write-OptionsPage([string]$Path, [object[]]$Fields, [string[]]$Notes) {
+    $page = [ordered]@{ tabs = @($Fields | ForEach-Object { $_.tab } | Select-Object -Unique); notes = @($Notes | Where-Object { $_ }); fields = @($Fields | Where-Object { $_ }) }
+    [IO.File]::WriteAllText($Path, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
+}
+
+function Read-Options([object[]]$Fields, [string]$AnswersFile) {
+    $values = @{}
+    foreach ($f in $Fields) { if ($f.kind -ne 'header') { $values[$f.id] = $f.default } }
+    if ($AnswersFile) {
+        $json = [IO.File]::ReadAllText($AnswersFile) | ConvertFrom-Json
+        foreach ($prop in $json.PSObject.Properties) { $values[$prop.Name] = $prop.Value }
+        return $values
+    }
+    foreach ($f in $Fields) {
+        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        switch ($f.kind) {
+            'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
+            'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
+            'info'      { Write-Host "  $($f.label): $($f.desc)" -ForegroundColor DarkGray }
+            { $_ -in 'text', 'path' } { $values[$f.id] = "$(Read-Host "  $($f.label)")".Trim().Trim('"') }
+            'checklist' { $values[$f.id] = @($f.items | Where-Object { Ask "$($f.label): $($_.label)?" $false } | ForEach-Object { $_.value }) }
+            default {
+                # choice and select; "Skip" leaves it as it is
+                $options = @(Opt '' 'Skip') + @($f.options)
+                $values[$f.id] = $options[(Choose "$($f.label):" @($options | ForEach-Object { $_.label }) 0)].value
+            }
+        }
+    }
+    return $values
+}
+
+# Yes / No (scripts that ask more define their own, the same)
+function Ask([string]$Question, [bool]$Default) {
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
+}
+
+#endregion
+
 #region ==================== 1. HELPERS ====================
 
 
-function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
+function Write-Step([string]$Text) { Write-Host "`n▸ $Text" -ForegroundColor Cyan }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
 # The "use the arrows" hint is shown only on the first menu.
 function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
+    if ($script:Panel) { return [int](Request-Panel @{ type = 'choose'; question = $Question; options = @($Options); default = $Default }) }
     Write-Host "  $Question"
     $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
@@ -93,7 +189,14 @@ function Format-Size([double]$Bytes) {
 # ↑ ↓ PgUp PgDn move, Space checks, A checks/unchecks the whole group, Enter confirms, Esc cancels.
 # $Items: objects with Group, Label, Note, Checked, Size. Returns the checked items (none on Esc).
 function Select-Drivers([string]$Title, [object[]]$Items) {
-    $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
+    if ($script:Panel) {
+        $answer = Request-Panel @{ type = 'checklist'; title = $Title
+            items = @($Items | ForEach-Object { @{ label = "$($_.Label)"; note = "$($_.Note)"; group = "$($_.Group)"; checked = [bool]$_.Checked } }) }
+        if ($null -eq $answer) { return @() }
+        for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = @($answer.checked) -contains $i }
+        return @($Items | Where-Object Checked)
+    }
+    $arrows =($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
         # No real console: numbered list, numbers separated by commas
         for ($i = 0; $i -lt $Items.Count; $i++) {
@@ -198,6 +301,16 @@ function Get-BackupPlaces {
     return $list
 }
 
+# For the panel's page: where to save. Backup-Apps has the same two fields; the page shows them once.
+function Get-PlaceFields {
+    $places = Get-BackupPlaces
+    @(
+        New-Field 'Backup' 'Place' 'select' 'Save to' 'Somewhere that survives formatting: a USB drive or another disk is best.' '' @{ options = @(@($places.Keys | ForEach-Object { Opt $places[$_] $_ }) + (Opt 'other' 'Another folder')) }
+        New-Field 'Backup' 'Folder' 'path' 'Folder' 'Where to save.' '' @{ when = @{ field = 'Place'; is = 'other' }; required = $true }
+    )
+}
+function Get-AnswerFolder($Answer) { if ($Answer.Place -eq 'other') { "$($Answer.Folder)".Trim() } else { "$($Answer.Place)" } }
+
 
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
     Write-Warning 'Run it in Windows PowerShell 5.1 (powershell.exe), not in PowerShell 7 (pwsh).'
@@ -247,9 +360,15 @@ function New-DriverItem($Driver, [bool]$Checked, [string]$Extra) {
 
 function Invoke-Export {
     Write-Host "`nBackup-Drivers -Export" -ForegroundColor Green
-    Write-Host '  reading the drivers on this PC...' -ForegroundColor DarkGray
+    Write-Host '  Reading the drivers on this PC...' -ForegroundColor DarkGray
     try { $drivers = @(Get-DriverList) } catch { Write-Host "  Could not list the drivers: $($_.Exception.Message)" -ForegroundColor Red; return }
-    if (-not $drivers) { Write-Host '  This PC has no third-party drivers: Windows brought all of them.'; return }
+    if (-not $drivers) {
+        if ($Describe) {
+            Write-OptionsPage $Describe (@(Get-PlaceFields) + @(New-Field 'Drivers' 'NoDrivers' 'header' 'No drivers to save' 'This PC has no third-party drivers: Windows brought all of them.' $null))
+            return
+        }
+        Write-Host '  This PC has no third-party drivers: Windows brought all of them.'; return
+    }
 
     # In use first; drivers no device uses now (old versions, unplugged devices) come unchecked.
     # Extension drivers add to another driver (audio effects, OEM settings) and are never listed as
@@ -260,19 +379,38 @@ function Invoke-Export {
         $isExtension = $_.ClassName -eq 'Extension'
         New-DriverItem $_ ($_.Devices.Count -or $isExtension) $(if ($_.Devices.Count) { '' } elseif ($isExtension) { $extension } else { $notInUse })
     })
-    $chosen = @(Select-Drivers 'Backup-Drivers — choose the drivers to save' $items)
+    if ($Describe) {
+        # Nothing checked; each type has its "Select all"
+        $list = New-Field 'Drivers' 'drivers' 'checklist' '' '' @() @{
+            items = @($items | ForEach-Object { [ordered]@{ value = $_.Driver.Published; label = $_.Label; note = $_.Note; group = $_.Group; status = '' } }) }
+        Write-OptionsPage $Describe (@(Get-PlaceFields) + @($list))
+        return
+    }
+    if ($Answers) {
+        $answer = [IO.File]::ReadAllText($Answers) | ConvertFrom-Json
+        $picked = @($answer.drivers)
+        $chosen = @($items | Where-Object { $picked -contains $_.Driver.Published })
+        if (-not $chosen) { Write-Host 'No drivers were selected, so none were saved.'; return }
+    } else {
+        $chosen = @(Select-Drivers 'Backup-Drivers — choose the drivers to save' $items)
+    }
     if (-not $chosen) { Write-Host 'Nothing was saved.'; return }
     $total = ($chosen | Measure-Object Size -Sum).Sum
     Write-Host "`n  $($chosen.Count) driver(s), $(Format-Size $total)."
 
     # Where: USB drives and other disks first (OneDrive is not a good place for gigabytes of drivers)
-    $places = Get-BackupPlaces
-    $names = @($places.Keys) + 'Another folder (type the path)'
-    $choice = Choose 'Where to save? (pick a place that survives formatting: a USB drive or another disk)' $names 0
-    $dir = if ($choice -eq $names.Count - 1) { "$(Read-Host '  Folder')".Trim().Trim('"') } else { $places[$names[$choice]] }
+    if ($Answers) {
+        $dir = Get-AnswerFolder $answer
+    } else {
+        $places = Get-BackupPlaces
+        $names = @($places.Keys) + 'Another folder (type the path)'
+        $choice = Choose 'Where to save? (pick a place that survives formatting: a USB drive or another disk)' $names 0
+        $dir = if ($choice -eq $names.Count - 1) { "$(Read-Host '  Folder')".Trim().Trim('"') } else { $places[$names[$choice]] }
+    }
+    if (-not $dir) { Write-Host '  Choose where to save.' -ForegroundColor Red; return }
     if (-not (Test-Path $dir -PathType Container)) { Write-Host "  Folder not found: $dir" -ForegroundColor Red; return }
     $free = try { (Get-PSDrive -Name (Split-Path $dir -Qualifier -ErrorAction Stop).TrimEnd(':') -ErrorAction Stop).Free } catch { $null }   # $null: network path
-    if ($free -and $free -lt $total * 1.1) { Write-Host "  Not enough space there ($(Format-Size $free) free)." -ForegroundColor Red; return }
+    if ($free -and $free -lt $total * 1.1) { Write-Host "  Not enough space there: $(Format-Size $free) free." -ForegroundColor Red; return }
 
     $root = Join-Path $dir ("tidywin-drivers-{0}-{1}" -f $env:COMPUTERNAME, (Get-Date -Format 'yyyy-MM-dd'))
     New-Item -ItemType Directory -Path $root -Force | Out-Null
@@ -316,7 +454,7 @@ pick this folder (with "Include subfolders" checked). Or right-click a .inf file
     Write-Host "`nDone: $($saved.Count) driver(s), $(Format-Size $size), saved to" -ForegroundColor Green
     Write-Host "  $root"
     if ($failed) { Write-Host "  Not saved: $($failed -join ', ')" -ForegroundColor Yellow }
-    Write-Host 'After formatting, choose "Restore apps and drivers" in the TidyWin menu.' -ForegroundColor DarkGray
+    Write-Host 'After formatting, choose "Restore apps and drivers" in TidyWin.' -ForegroundColor DarkGray
 }
 
 #endregion
@@ -330,43 +468,90 @@ function Test-NewerVersion([string]$A, [string]$B) {
     return [version]::TryParse($A, [ref]$va) -and [version]::TryParse($B, [ref]$vb) -and $va -gt $vb
 }
 
-function Invoke-Import {
-    Write-Host "`nBackup-Drivers -Import" -ForegroundColor Green
-
-    # Saved folders: in the root of USB drives and other disks, and in the user's folders; newest first
-    $found = @((Get-BackupPlaces).Values | ForEach-Object {
+# Saved folders: in the root of USB drives and other disks, and in the user's folders; newest first
+function Get-SavedDriverFolders {
+    @((Get-BackupPlaces).Values | ForEach-Object {
         Get-ChildItem -LiteralPath $_ -Directory -Filter 'tidywin-drivers-*' -ErrorAction SilentlyContinue
     } | Where-Object { Test-Path (Join-Path $_.FullName 'drivers.json') } | Sort-Object FullName -Unique | Sort-Object Name -Descending)
+}
 
-    $labels = @($found | ForEach-Object { $_.FullName }) + 'Another folder (type the path)'
-    if ($found) {
-        $choice = Choose 'Which saved drivers to install?' $labels 0
-    } else {
-        Write-Host '  No tidywin-drivers folder found on USB drives, other disks, Desktop, Documents, Downloads or OneDrive.' -ForegroundColor DarkYellow
-        $choice = $labels.Count - 1
+# The drivers in a saved folder, each marked when Windows already has it: the same package (same store
+# folder) or a newer version of it. $null when the folder is not one saved by Backup-Drivers.
+function Get-ImportItems([string]$Root) {
+    $manifestFile = Join-Path $Root 'drivers.json'
+    if (-not (Test-Path -LiteralPath $manifestFile)) { return $null }
+    try { $manifest = Get-Content -LiteralPath $manifestFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return $null }
+    if (-not $script:InstalledDrivers) {
+        $script:InstalledDrivers = @(Get-WindowsDriver -Online -ErrorAction SilentlyContinue | ForEach-Object {
+            [pscustomobject]@{ Folder = Split-Path (Split-Path $_.OriginalFileName -Parent) -Leaf; Inf = Split-Path $_.OriginalFileName -Leaf; Provider = $_.ProviderName; Version = "$($_.Version)" }
+        })
     }
-    $root = if ($choice -eq $labels.Count - 1) { "$(Read-Host '  Folder')".Trim().Trim('"') } else { $found[$choice].FullName }
-    $manifestFile = Join-Path $root 'drivers.json'
-    if (-not (Test-Path -LiteralPath $manifestFile)) { Write-Host "  This is not a folder saved by drivers-export: $root" -ForegroundColor Red; return }
-    try { $manifest = Get-Content -LiteralPath $manifestFile -Raw -Encoding UTF8 | ConvertFrom-Json }
-    catch { Write-Host '  Could not read drivers.json.' -ForegroundColor Red; return }
-    Write-Host "  Saved from $($manifest.Computer) on $($manifest.Date) · $($manifest.Windows)" -ForegroundColor DarkGray
-
-    # What Windows already has: the same package (same store folder), or a newer version of it
-    Write-Host '  checking what Windows already installed...' -ForegroundColor DarkGray
-    $installed = @(Get-WindowsDriver -Online -ErrorAction SilentlyContinue | ForEach-Object {
-        [pscustomobject]@{ Folder = Split-Path (Split-Path $_.OriginalFileName -Parent) -Leaf; Inf = Split-Path $_.OriginalFileName -Leaf; Provider = $_.ProviderName; Version = "$($_.Version)" }
-    })
-    $items = @(@($manifest.Drivers) | Where-Object { Test-Path -LiteralPath (Join-Path $root $_.Folder) } | Sort-Object Class | ForEach-Object {
+    $items = @(@($manifest.Drivers) | Where-Object { Test-Path -LiteralPath (Join-Path $Root $_.Folder) } | Sort-Object Class | ForEach-Object {
         $d = $_
-        $same  = @($installed | Where-Object Folder -eq $d.Folder)
-        $newer = @($installed | Where-Object { $_.Inf -eq $d.Inf -and $_.Provider -eq $d.Provider -and (Test-NewerVersion $_.Version $d.Version) })
+        $same  = @($script:InstalledDrivers | Where-Object Folder -eq $d.Folder)
+        $newer = @($script:InstalledDrivers | Where-Object { $_.Inf -eq $d.Inf -and $_.Provider -eq $d.Provider -and (Test-NewerVersion $_.Version $d.Version) })
         $extra = if ($same) { ' · already installed' } elseif ($newer) { " · newer installed ($($newer[0].Version))" } else { '' }
-        New-DriverItem $d (-not $same -and -not $newer) $extra
+        $item = New-DriverItem $d (-not $same -and -not $newer) $extra
+        $item | Add-Member Installed ([bool]($same -or $newer))
+        $item
     })
+    return @{ Manifest = $manifest; Items = $items }
+}
+
+function Invoke-Import {
+    Write-Host "`nBackup-Drivers -Import" -ForegroundColor Green
+    $found = @(Get-SavedDriverFolders)
+
+    # --- The panel's page: which saved folder and its drivers, nothing checked. No restart from here: in the
+    # panel the apps are installed right after.
+    if ($Describe) {
+        $T = 'Drivers'
+        $fields = @(
+            New-Field $T 'DriversFolder' 'select' 'Saved drivers' 'The folder saved by Back up apps and drivers.' '' @{ options = @(@($found | ForEach-Object { Opt $_.FullName $_.FullName }) + (Opt 'other' 'Another folder')) }
+            New-Field $T 'DriversOther' 'path' 'Folder' 'A tidywin-drivers folder. The drivers Windows doesn''t have yet are installed.' '' @{ when = @{ field = 'DriversFolder'; is = 'other' }; required = $true }
+        )
+        for ($i = 0; $i -lt $found.Count; $i++) {
+            $data = Get-ImportItems $found[$i].FullName
+            if (-not $data -or -not $data.Items) { continue }
+            $fields += New-Field $T "drivers$i" 'checklist' 'Drivers to install' "Saved from $($data.Manifest.Computer) on $($data.Manifest.Date). The ones marked Installed are already on this PC." @() @{
+                when = @{ field = 'DriversFolder'; is = $found[$i].FullName }
+                items = @($data.Items | ForEach-Object { [ordered]@{ value = $_.Driver.Folder; label = $_.Label; note = ($_.Note -replace ' · (already installed|newer installed \(.*\))$', ''); group = $_.Group
+                                                                    status = $(if ($_.Installed) { 'Installed' } else { '' }) } }) }
+        }
+        $notes = @(if (-not $found) { 'No saved drivers found on USB drives, other disks, Desktop, Documents, Downloads or OneDrive. Plug in the drive, or choose the folder.' })
+        Write-OptionsPage $Describe $fields $notes
+        return
+    }
+
+    if ($Answers) {
+        $answer = [IO.File]::ReadAllText($Answers) | ConvertFrom-Json
+        $root = if ($answer.DriversFolder -eq 'other') { "$($answer.DriversOther)".Trim() } else { "$($answer.DriversFolder)" }
+        if (-not $root) { Write-Host 'No saved drivers were chosen, so none were installed.'; return }
+    } else {
+        $labels = @($found | ForEach-Object { $_.FullName }) + 'Another folder (type the path)'
+        if ($found) {
+            $choice = Choose 'Which saved drivers to install?' $labels 0
+        } else {
+            Write-Host '  No tidywin-drivers folder found on USB drives, other disks, Desktop, Documents, Downloads or OneDrive.' -ForegroundColor DarkYellow
+            $choice = $labels.Count - 1
+        }
+        $root = if ($choice -eq $labels.Count - 1) { "$(Read-Host '  Folder')".Trim().Trim('"') } else { $found[$choice].FullName }
+    }
+    Write-Host '  Checking what Windows already installed...' -ForegroundColor DarkGray
+    $data = Get-ImportItems $root
+    if (-not $data) { Write-Host "  This is not a folder saved by Back up apps and drivers: $root" -ForegroundColor Red; return }
+    Write-Host "  Saved from $($data.Manifest.Computer) on $($data.Manifest.Date) · $($data.Manifest.Windows)" -ForegroundColor DarkGray
+    $items = @($data.Items)
     if (-not $items) { Write-Host '  The folder has no drivers.'; return }
 
-    $chosen = @(Select-Drivers 'Backup-Drivers — choose the drivers to install' $items)
+    if ($Answers) {
+        # A folder from the list: the drivers checked there. Another folder: the ones Windows doesn't have.
+        $index = [array]::IndexOf(@($found | ForEach-Object { $_.FullName }), $root)
+        $chosen = if ($index -ge 0) { $picked = @($answer."drivers$index"); @($items | Where-Object { $picked -contains $_.Driver.Folder }) }
+                  else { @($items | Where-Object { -not $_.Installed }) }
+    } else {
+        $chosen = @(Select-Drivers 'Backup-Drivers — choose the drivers to install' $items)
+    }
     if (-not $chosen) { Write-Host 'Nothing was installed.'; return }
 
     Write-Step "Installing $($chosen.Count) driver(s)"
@@ -375,7 +560,7 @@ function Invoke-Import {
         $out = & pnputil /add-driver (Join-Path (Join-Path $root $c.Driver.Folder) '*.inf') /subdirs /install 2>&1
         switch ($LASTEXITCODE) {
             0       { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "$($c.Group) · $($c.Label)" }
-            3010    { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "$($c.Group) · $($c.Label) (after restarting)"; $restart = $true }
+            3010    { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "$($c.Group) · $($c.Label) · after restarting"; $restart = $true }
             259     { Write-Host '  [--] ' -ForegroundColor DarkGray -NoNewline; Write-Host "$($c.Label): added; no device on this PC needs it now" -ForegroundColor DarkGray }
             default { Write-Host "  [ERROR] $($c.Label): $(($out | Select-Object -Last 1))" -ForegroundColor Red; $failed += $c.Label }
         }
@@ -383,7 +568,9 @@ function Invoke-Import {
 
     if ($failed) { Write-Host "`nNot installed: $($failed -join ', ')" -ForegroundColor Yellow }
     Write-Host "`nDone." -ForegroundColor Green
-    if ($restart -and (Ask 'Some drivers need a restart. Restart now?' $false)) { Restart-Computer -Force }
+    if (-not $restart) { return }
+    if (-not $Answers -and (Ask 'Some drivers need a restart. Restart now?' $false)) { Restart-Computer -Force }
+    Write-Host '  Restart the PC when it''s done: some drivers only start working after it.' -ForegroundColor Yellow
 }
 
 #endregion

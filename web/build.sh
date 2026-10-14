@@ -2,10 +2,9 @@
 # Builds the GitHub Pages site into _site/:
 #   _site/run         the launcher (from web/launcher.ps1): irm .../run | iex opens the TidyWin menu
 #   _site/scripts/    copy of the scripts (the menu downloads the chosen one from here)
-#   _site/index.html  page with the command and what each menu option does
+#   _site/index.html  landing page with the command (the documentation stays on GitHub)
 #
 # Usage: web/build.sh https://androksi.github.io/tidywin
-# To add an option: one line in scripts/TidyWin.ps1 ($Menu) and one entry in web/index.html.
 set -euo pipefail
 
 base="${1:?usage: web/build.sh <site-url>}"
@@ -17,11 +16,6 @@ rm -rf "$out"
 mkdir -p "$out"
 cp -r scripts "$out/scripts"
 sed "s|__SHORT__|$short|g" web/index.html > "$out/index.html"
-
-# Wallpapers: the images plus a list the wallpapers script reads (previews stay in the repo only)
-mkdir -p "$out/assets/wallpapers" wallpapers   # where Get-Wallpapers.ps1 downloads them from
-find wallpapers -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -exec cp {} "$out/assets/wallpapers/" \;
-python3 web/wallpapers-index.py wallpapers > "$out/assets/wallpapers/index.json"
 
 # shortcut <name> <script> [argument]
 shortcut() {

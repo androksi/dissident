@@ -2,20 +2,19 @@
 
 # Windows
 
-In the [TidyWin menu](../README.md#quick-start): **Set up → Windows**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Set up → Windows**. From a local copy:
 
 ```powershell
-.\scripts\windows\Configure-Windows.ps1
+.\scripts\windows\configure-windows.ps1
 ```
 
-All questions come first; then a summary and a confirmation.
-To use only the defaults, with no questions: `-NoPrompt`.
+Every option shows on one page, in tabs. **Nothing comes selected**: only what you turn on or pick is applied, the rest stays as it is. **Review** lists what will change; nothing changes before **Apply**.
 
 ## Automatic
 | Feature | What it does |
 |---|---|
 | Restore point | Creates a restore point before any change. |
-| Summary | Shows everything that was chosen and asks "Apply now?". |
+| Review | Lists everything that will change, by tab, before you apply. |
 | Fault tolerant | If a step fails, it warns and moves on to the next one. |
 | Detailed log | One line per setting: `[OK]` changed now, `[--]` it already was like that. At the end, a summary with how many changed, were already set or failed. |
 | Log file | Everything shown while applying, plus your answers, is saved to `TidyWin log <date>.txt` on the Desktop. No user or PC name in it, so it can be sent when asking for help. |
@@ -33,19 +32,19 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | Windows Security | Turns on blocking of potentially unwanted apps and downloads, and hides unimportant notifications. |
 | C: folders | Hides `inetpub` and deletes `PerfLogs`. |
 | Device apps | Doesn't download manufacturer apps and icons when devices are connected (drivers still come). |
-| WPBT | Stops Windows from running programs the motherboard firmware provides at boot (how Armoury Crate, Vantage and similar come back after formatting). Default no: some PCs use it for a network driver or anti-theft. |
+| WPBT | Stops Windows from running programs the motherboard firmware provides at boot (how Armoury Crate, Vantage and similar install themselves). A Windows registry setting only: the BIOS is not changed, and a fresh install allows it again. To stop it for good, turn off the matching BIOS option (e.g. ASUS "Armoury Crate", Lenovo "Vantage"). Some anti-theft software (Computrace) uses WPBT too. |
 | Hide areas | Hides "Account protection" and "Device security" in Windows Security (Microsoft account nags). |
 
 ## Personalization
 | Feature | What it does |
 |---|---|
-| Theme | Default, light or dark. Turns off Windows Spotlight and applies the theme's wallpaper. |
-| Screen | For each monitor: resolution, refresh rate and scale, from the ones the monitor supports, with the recommended and current ones marked. **Default** changes nothing. After a resolution or refresh change, Enter keeps it; otherwise it goes back by itself in 15 seconds. |
-| Taskbar | Default, icons centered or on the left. |
-| Search | Default, hidden, icon only or search box. |
-| Task View | Default, show or hide the button. |
+| Theme | Light or dark. Turns off Windows Spotlight and applies the theme's wallpaper. |
+| Screen | For each monitor: resolution, refresh rate and scale, from the ones the monitor supports, with the recommended and current ones marked. Nothing picked: nothing changes. After a resolution or refresh change, Enter keeps it; otherwise it goes back by itself in 15 seconds. |
+| Taskbar | Icons centered or on the left. |
+| Search | Hidden, icon only or search box. |
+| Task View | Show or hide the button. |
 | No pins | Removes every pinned icon from the taskbar. |
-| No Start ads | Unpins only the ad shortcuts from Start (LinkedIn, Spotify, TikTok, Solitaire, Candy Crush...); everything else pinned stays. Default yes. |
+| No Start ads | Unpins only the ad shortcuts from Start (LinkedIn, Spotify, TikTok, Solitaire, Candy Crush...); everything else pinned stays. |
 | Battery % | Shows the battery percentage on the taskbar (laptops only). |
 | Extensions | Shows file extensions. |
 | No frequent folders | Hides frequent folders in Quick access. |
@@ -55,7 +54,7 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | No folder discovery | Large folders open faster. Resets custom folder views. |
 | No Home/Gallery | Removes Home and Gallery from File Explorer, which then opens in "This PC". |
 | Classic menu | Windows 11: the full right-click menu, without "Show more options". |
-| No Snap | Turns off "Snap windows": no snapping to the screen edges and no Snap layouts. Default no. |
+| No Snap | Turns off "Snap windows": no snapping to the screen edges and no Snap layouts. |
 | Thin border | Shrinks the invisible window resize area. |
 
 ## Everyday use
@@ -68,14 +67,14 @@ To use only the defaults, with no questions: `-NoPrompt`.
 | No acceleration | Turns off mouse acceleration. |
 | No Sticky Keys | Turns off the Sticky Keys shortcut (Shift 5 times). |
 | Num Lock | Num Lock on when Windows starts, sign-in screen included. |
-| No Fast Startup | "Shut down" really shuts down instead of hibernating part of Windows. Startup is a few seconds slower. Default no. |
+| No Fast Startup | "Shut down" really shuts down instead of hibernating part of Windows. Startup is a few seconds slower. |
 | Volume 100% | Sets the current audio device volume to 100%. |
 | Verbose blue screen | Shows the technical error details on the blue screen. |
 
 ## Power
 | Feature | What it does |
 |---|---|
-| Screen, sleep and hibernation | "Default" leaves them as they are. Or choose when to turn off the screen, sleep and hibernate, plugged in and (laptops) on battery, from 1 minute to never. Each menu starts at the current value. Hibernation is only asked if it is turned on. Applies to the active power plan, like Settings → System → Power. |
+| Screen, sleep and hibernation | Choose when to turn off the screen, sleep and hibernate, plugged in and (laptops) on battery, from 1 minute to never. Each one shows the current value; the ones you leave empty stay as they are. Hibernation is only asked if it is turned on. Applies to the active power plan, like Settings → System → Power. |
 
 ## Network
 | Feature | What it does |
@@ -84,23 +83,23 @@ To use only the defaults, with no questions: `-NoPrompt`.
 
 ## Check
 
-In the [TidyWin menu](../README.md#quick-start): **Maintenance → Check after a Windows update**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Check after an update**. From a local copy:
 
 ```powershell
-.\scripts\windows\Configure-Windows.ps1 -Check
+.\scripts\windows\configure-windows.ps1 -Check
 ```
 
-Compares the PC with the answers saved the last time you ran `Configure-Windows` (in `%ProgramData%\TidyWin`), shows what came back after a Windows update and asks whether to reapply only that. Personalization is not checked.
+Compares the PC with the answers saved the last time you ran `Configure-Windows` (in `%ProgramData%\TidyWin`), and lists what came back after a Windows update, nothing checked: only what you check is reapplied. Personalization is not checked.
 
 ## Cleanup
 
-In the [TidyWin menu](../README.md#quick-start): **Maintenance → Free up disk space**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Free up disk space**. From a local copy:
 
 ```powershell
-.\scripts\windows\Clean-Windows.ps1
+.\scripts\windows\clean-windows.ps1
 ```
 
-Measures each item, asks before deleting each one and shows how much space was freed.
+Measures each item and shows a switch for each one with its size, all off. Only what you turn on is deleted; at the end it shows how much space was freed.
 
 | Item | Default | What it deletes |
 |---|---|---|
@@ -116,54 +115,36 @@ Measures each item, asks before deleting each one and shows how much space was f
 
 ## Repair
 
-In the [TidyWin menu](../README.md#quick-start): **Maintenance → Repair Windows**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Repair Windows**. From a local copy:
 
 ```powershell
-.\scripts\windows\Repair-Windows.ps1
+.\scripts\windows\repair-windows.ps1
 ```
 
-For when Windows acts strange. Creates a restore point, checks the Windows image with DISM and repairs it from Windows Update only if it is damaged, runs `sfc /scannow`, and checks the disk online (asks before scheduling a fix at the next restart). Only Windows' own tools; your files, apps and settings are not touched. Takes 10 to 30 minutes.
-
-## Report
-
-In the [TidyWin menu](../README.md#quick-start): **Maintenance → PC report**.
-
-**Only reads**: nothing on the PC is changed. Saves an HTML report to the Desktop and opens it in the browser (`-OutFile <path>` saves elsewhere). At the top, a summary of what needs attention and what to do; then every item marked **OK**, **Attention**, **Problem** or **Info**. A **Copy as text** button copies it for a forum, Discord or a message.
-
-| Section | What it shows |
-|---|---|
-| Windows | Edition, version and build, install date, activation, computer model, motherboard and BIOS, boot mode (UEFI/Legacy), time since the last restart, power plan. |
-| Security and anti-cheat | TPM 2.0, Secure Boot, Memory integrity, test signing/debug mode (what VALORANT and FACEIT check), antivirus, firewall and UAC. |
-| Hardware | CPU; RAM size, type and speed, dual channel and whether XMP/EXPO is off; each graphics card with its driver version and age (or a warning when there is no driver), resolution and refresh rate. |
-| Disks | Health, wear, temperature and hours of each disk, and free space on each drive. |
-| Battery | Laptops: health compared with the original capacity, and charge cycles (from `powercfg /batteryreport`). |
-| Updates and stability | Restart pending, last update, devices with a problem (missing driver...), blue screens and unexpected shutdowns in the last 30 days, programs at startup. |
-| Network | Connected adapters and speed (warns about a cable stuck at 100 Mbps), DNS, and whether the internet works. |
-
-No personal data: no user or PC name, serial numbers, Windows key, IP or MAC addresses, or Wi-Fi names, so it can be sent when asking for help.
+For when Windows acts strange. Creates a restore point, checks the Windows image with DISM and repairs it from Windows Update only if it is damaged, runs `sfc /scannow`, and checks the disk online. Each step is a switch, all off, plus one to schedule the disk fix at the next restart and one to go on if Windows can't create the restore point. Only Windows' own tools; your files, apps and settings are not touched. Takes 10 to 30 minutes.
 
 ## Network reset
 
-In the [TidyWin menu](../README.md#quick-start): **Maintenance → Reset the network**.
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Network**.
 
-For "connected, no internet", sites that don't open or a connection that keeps dropping. Shows the network adapters (automatic or manual IP, and the DNS that will be kept), then asks how far to go:
+For "connected, no internet", sites that don't open or a connection that keeps dropping. The page shows the network adapters (automatic or manual IP, and the DNS that will be kept) and how far to go, nothing picked:
 
 | Option | What it does |
 |---|---|
-| Quick (default) | Clears the DNS and ARP caches and gets a new IP from the router. No restart. |
-| Full | Also resets Winsock and TCP/IP (IPv4 and IPv6). Needs a restart. On a PC with a manual IP, the TCP/IP reset is skipped so the IP is not erased. |
+| Quick | Clears the DNS and ARP caches and gets a new IP from the router. No restart. |
+| Full | Also resets Winsock and TCP/IP (IPv4 and IPv6). Needs a restart, which a switch can do at the end. On a PC with a manual IP, the TCP/IP reset is skipped so the IP is not erased. |
 
 Full: DNS servers set by hand and DNS over HTTPS are saved to `%ProgramData%\TidyWin\network-reset` first and put back right after the reset. Not used: Settings' *Network reset* (it removes the adapters and VPNs) and proxy resets. The connection drops for a few seconds; the internet is tested at the end.
 
 ## Revert
 
-In the [TidyWin menu](../README.md#quick-start): **Undo → Windows**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Undo → Windows**. From a local copy:
 
 ```powershell
-.\scripts\windows\Revert-Configure-Windows.ps1
+.\scripts\windows\revert-configure-windows.ps1
 ```
 
 | Feature | What it does |
 |---|---|
-| Revert | Undoes telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen and `inetpub`. |
+| Revert | A page with one switch per subject, all off: only what you turn on is undone. Covers telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen, `inetpub`, update sharing and the saved choices. |
 | Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, screen resolution, refresh rate and scale, screen and sleep times, theme, taskbar, extensions, volume, hidden files and battery (undo through Settings). |

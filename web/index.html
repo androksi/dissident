@@ -4,587 +4,85 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TidyWin</title>
-<meta name="description" content="Set up and look after your Windows PC from one menu: clean up telemetry and bloat, install apps and fonts, diagnose and fix problems, and back up your apps and drivers before formatting.">
+<meta name="description" content="Set up and look after your Windows PC from one window. One command in PowerShell.">
 <link rel="icon" href="https://raw.githubusercontent.com/androksi/tidywin/main/assets/logo.svg">
 <style>
-  body { margin: 0; background: #111; color: #ddd; font: 15px/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; }
-  main { max-width: 680px; margin: 0 auto; padding: 56px 16px; }
-  header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 4px; }
-  h1 { margin: 0; font-size: 22px; color: #fff; }
-  .intro { margin: 0 0 20px; color: #888; }
-  .run { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; color: #fff; font-size: 17px;
-         padding: 16px 18px; border: 1px solid #444; border-radius: 6px; overflow-wrap: anywhere; }
-  .run:hover, .run:focus-visible { border-color: #888; }
-  .run.copied { color: #7c7; border-color: #7c7; }
-  .run-hint { margin: 8px 0 48px; color: #888; }
-  .menu-intro { margin: 0 0 24px; color: #888; }
-  .name { color: #fff; }
-  h2 { margin: 0 0 16px; font-size: 15px; color: #888; font-weight: 400; }
-  ul { list-style: none; margin: 0 0 40px; padding: 0; }
-  li { margin-bottom: 18px; }
-  .cmd { all: unset; cursor: pointer; color: #fff; overflow-wrap: anywhere; }
-  .cmd:hover, .cmd:focus-visible { text-decoration: underline; }
-  .copied { color: #7c7; }
-  .desc { margin: 2px 0 0; color: #999; }
-  details { margin-top: 6px; }
-  summary { cursor: pointer; color: #888; width: fit-content; }
-  summary:hover, summary:focus-visible { color: #fff; }
-  details h3 { margin: 14px 0 4px; font-size: 15px; font-weight: 400; color: #fff; }
-  dl { margin: 8px 0 0; padding-left: 16px; border-left: 1px solid #333; }
-  dt { color: #ddd; }
-  .tag { color: #7a9; }
-  dd { margin: 0 0 8px; color: #999; }
-  a { color: #888; }
-  a:hover { color: #fff; }
+  :root { --bg: #08090c; --fg: #f2f4f8; --fg2: #9aa3b2; --line: rgba(255, 255, 255, .14); --glass: rgba(255, 255, 255, .06); --ok: #7ee2a8; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); overflow: hidden;
+         font: 15px/1.5 "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif; }
+
+  /* Colored light behind everything, blurred */
+  .glow { position: fixed; inset: 0; z-index: 0; filter: blur(90px); opacity: .55; pointer-events: none; }
+  .glow span { position: absolute; border-radius: 50%; animation: drift 22s ease-in-out infinite alternate; }
+  .glow span:nth-child(1) { width: 46vmax; height: 46vmax; left: -10vmax; top: -14vmax; background: #2f6bff; }
+  .glow span:nth-child(2) { width: 38vmax; height: 38vmax; right: -12vmax; top: 10vmax; background: #8a3cff; animation-duration: 28s; }
+  .glow span:nth-child(3) { width: 34vmax; height: 34vmax; left: 20vmax; bottom: -18vmax; background: #00b8a9; animation-duration: 25s; }
+  @keyframes drift { to { transform: translate(6vmax, 4vmax) scale(1.12); } }
+  .grain { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .5;
+           background: radial-gradient(ellipse at center, transparent 0, var(--bg) 85%); }
+
+  main { position: relative; z-index: 2; min-height: 100%; display: flex; flex-direction: column;
+         align-items: center; justify-content: center; text-align: center; padding: 32px 16px; gap: 0; }
+  .logo { width: 64px; height: 64px; margin-bottom: 20px; filter: drop-shadow(0 8px 30px rgba(47, 107, 255, .45)); }
+  h1 { margin: 0; font-size: clamp(40px, 9vw, 72px); font-weight: 700; letter-spacing: -.03em; line-height: 1.05;
+       background: linear-gradient(180deg, #fff 30%, #b9c3d6); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tagline { margin: 14px 0 40px; color: var(--fg2); font-size: clamp(15px, 2.4vw, 18px); max-width: 30em; }
+
+  .run { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 14px;
+         max-width: 100%; padding: 18px 24px; border: 1px solid var(--line); border-radius: 14px;
+         background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+         box-shadow: 0 10px 40px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .08);
+         font: 500 clamp(14px, 2.6vw, 18px)/1.4 "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+         transition: border-color .2s, transform .2s, background .2s; }
+  .run:hover, .run:focus-visible { border-color: rgba(255, 255, 255, .32); background: rgba(255, 255, 255, .09); transform: translateY(-1px); }
+  .run .prompt { color: var(--fg2); user-select: none; }
+  .run code { font: inherit; overflow-wrap: anywhere; text-align: left; }
+  .run svg { flex: none; width: 18px; height: 18px; color: var(--fg2); }
+  .run.copied { border-color: var(--ok); }
+  .run.copied code, .run.copied svg { color: var(--ok); }
+  .hint { margin: 14px 0 0; color: var(--fg2); font-size: 13px; min-height: 1.5em; }
+
+  footer { position: fixed; z-index: 2; left: 0; right: 0; bottom: 20px; text-align: center; font-size: 13px; }
+  footer a { color: var(--fg2); text-decoration: none; }
+  footer a:hover, footer a:focus-visible { color: var(--fg); }
+
+  @media (prefers-reduced-motion: reduce) { .glow span { animation: none; } .run { transition: none; } }
+  @media (max-height: 520px) { body { overflow: auto; } footer { position: static; padding-bottom: 20px; } }
 </style>
 </head>
 <body>
+<div class="glow" aria-hidden="true"><span></span><span></span><span></span></div>
+<div class="grain" aria-hidden="true"></div>
 <main>
-  <header>
-    <h1>TidyWin</h1>
-  </header>
-  <p class="intro" data-t="intro"></p>
-  <button class="run" id="run" type="button"></button>
-  <p class="run-hint" data-t="runHint"></p>
-
-  <p class="menu-intro" data-t="menu"></p>
-  <h2 data-t="setup"></h2>
-  <ul id="setup"></ul>
-
-  <h2 data-t="care"></h2>
-  <ul id="care"></ul>
-
-  <h2 data-t="format"></h2>
-  <ul id="format"></ul>
-
-  <h2 data-t="undo"></h2>
-  <ul id="undo"></ul>
-
-  <a href="https://github.com/androksi/tidywin">github.com/androksi/tidywin</a>
+  <img class="logo" src="https://raw.githubusercontent.com/androksi/tidywin/main/assets/logo.svg" alt="">
+  <h1>TidyWin</h1>
+  <p class="tagline">Set up and look after your Windows PC from one window.</p>
+  <button class="run" id="run" type="button" aria-label="Copy the command">
+    <span class="prompt">PS&gt;</span>
+    <code id="cmd"></code>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>
+    </svg>
+  </button>
+  <p class="hint" id="hint">Click to copy, then paste it in PowerShell. Windows 10 and 11.</p>
 </main>
+<footer><a href="https://github.com/androksi/tidywin">Documentation on GitHub</a></footer>
 <script>
-  const base = "__SHORT__";
-
-  const text = {
-    intro: "Set up and look after your Windows PC from one menu. Clean up telemetry and bloat, install your apps and fonts, diagnose and fix problems, and back up your apps and drivers before formatting. Every step asks first. Open PowerShell (right-click Start → Terminal) and run:",
-    runHint: "Click to copy. It asks for administrator rights, then opens the menu below. Every option asks before changing anything.",
-    menu: "What's in the menu:",
-    setup: "Set up",
-    care: "Maintenance",
-    format: "Formatting the PC",
-    undo: "Undo",
-    dev: "For programmers, after everything else: editors and IDEs, Git, SSH key sent to GitHub, signed commits, Windows Terminal with a Nerd Font, Developer Mode, languages and WSL. Never overwrites an existing key or Git identity.",
-    "dev-revert": "Undoes the Windows settings changed by Development: Developer Mode, default terminal and Windows Terminal settings (from the backup). Apps, Git and SSH keys stay.",
-    report: "Only reads: creates a report on the Desktop and opens it in the browser. Windows and activation, TPM and Secure Boot (what VALORANT checks), disks, battery, RAM, graphics driver, devices without a driver and recent crashes. No personal data, so it can be sent when asking for help.",
-    uninstall: "Pick installed programs and uninstall them with their own official uninstaller. Then shows what they left behind (folders, registry, shortcuts, tasks) and deletes only what you confirm, with a backup.",
-    repair: "Checks and repairs Windows system files and the disk with Windows' own tools (DISM, sfc and disk check). Use it when Windows acts strange. Creates a restore point first.",
-    "network-reset": "For “connected, no internet” or sites that don't open. Quick (no restart) or full (resets Winsock and TCP/IP), with Windows' own commands. Your DNS is kept.",
-    backup: "Before formatting: saves the list of your installed apps, then the drivers you pick (video, audio, network...). Each step can be skipped. Keep them on a USB drive.",
-    restore: "After formatting and Windows Update: installs the saved drivers Windows didn't bring back, then your saved apps. Each step can be skipped.",
-    cleanup: "Frees disk space: temporary files, Windows Update downloads, error reports and more. Shows how much each item takes and asks before deleting each one.",
-    wallpapers: "Lists the TidyWin wallpapers, lets you check the ones you want and downloads them to Pictures\\Wallpapers. Can also set one as the desktop background.",
-    "windows-check": "Checks whether a Windows update brought back anything the Windows option changed (telemetry, removed apps, OneDrive, policies) and offers to reapply only that.",
-    copied: "copied",
-    options: "What each option does",
-    asks: "asks", yes: "default yes", no: "default no", def: "default", local: "default yes with a local account, no with a Microsoft account",
-    windows: "Turns off telemetry, ads and suggestions, removes preinstalled apps (Clipchamp, Teams, Copilot and others) and OneDrive, and adjusts the taskbar, File Explorer and DNS. Asks before each change and creates a restore point first.",
-    apps: "Shows a list of 104 apps (browsers, games, development, utilities and more). Check the ones you want and they are installed with WinGet.",
-    fonts: "Shows a list of 19 free fonts: for code (JetBrains Mono, Fira Code and others), with terminal icons (Nerd Fonts) and for text (Inter, Roboto and others). Check the ones you want and they are installed for every user, ready to use.",
-    "fonts-revert": "Removes the fonts installed by Install fonts. Fonts you installed some other way stay.",
-    chrome: "Turns off telemetry, Gemini and other AI features, third-party cookies, sync and background mode. Signing in to Google keeps working.",
-    brave: "Turns off Wallet, VPN, Rewards, Leo (AI), News and usage reports. Ad blocking stays on.",
-    firefox: "Turns off telemetry, sponsored content and AI features, and installs uBlock Origin and Bitwarden.",
-    "windows-revert": "Undoes most of what the Windows option changed: telemetry, policies, suggestions and DNS. Removed apps need to be reinstalled from the Microsoft Store.",
-    "chrome-revert": "Removes every Chrome setting applied by TidyWin.",
-    "brave-revert": "Removes every Brave setting applied by TidyWin.",
-    "firefox-revert": "Removes every Firefox setting applied by TidyWin.",
-  };
-
-  // Every option of every script. k: "ask" (yes/no question, d = default), "choice" (menu, d = default label),
-  // "auto" (always applied). Keep in sync with the scripts.
-  const G = (g, items) => ({ g, items });
-  const I = (n, k, d, t) => ({ n, k, d, t });
-  const options = {
-    windows: [
-      G("Before and after", [
-        I("Summary", "auto", null,
-          "After all the questions, shows your answers and asks “Apply now?”. Answering no changes nothing."),
-        I("Restore point", "auto", null,
-          "Creates a Windows restore point before changing anything. If that fails, asks whether to continue."),
-        I("Restart File Explorer", "auto", null,
-          "At the end, restarts File Explorer so visual changes show up without signing out."),
-        I("Detailed log and log file", "auto", null,
-          "One line per setting while it applies: [OK] changed now, [--] it already was like that. At the end, a summary of what changed, was already set or failed. Everything, plus your answers, is saved to “TidyWin log <date>.txt” on the Desktop, with no user or PC name, to read later or send when asking for help."),
-      ]),
-      G("Privacy and cleanup", [
-        I("Telemetry", "ask", true,
-          "Stops the telemetry services, disables 9 data collection tasks and applies policies: minimum diagnostic data, no error reports, no advertising ID, no activity history, no Bing or web results in Start search, no Cortana, and updates downloaded only from Microsoft (not shared with other PCs). Also turns off Widgets (Windows 11) or News and interests (Windows 10)."),
-        I("Suggestions and ads", "ask", true,
-          "Turns off tips, suggestions in Start and Settings, the welcome screen after updates, “Let's finish setting up”, OneDrive ads in File Explorer, Start recommendations (Windows 11) and silent installs of apps like Candy Crush."),
-        I("Apps to remove", "auto", null,
-          "A checklist with only the apps on this PC. Checked: rarely used ones: Clipchamp, Copilot, Bing News, Weather and Search, Get Help, Tips, Microsoft 365, Solitaire, LinkedIn, the new Outlook, Teams, People, Power Automate, To Do, Dev Home, Feedback Hub, Maps, Mixed Reality, Movies & TV, Cortana, Family, and on Windows 10 also 3D Viewer, Paint 3D, Print 3D, Skype, Wallet, Messaging and Mobile Plans. Unchecked: Phone Link, Sticky Notes, Sound Recorder, Clock, Quick Assist, Media Player, OneNote, the Snipping Tool, and the Xbox apps: Xbox, Game Bar, Xbox sign-in and Gaming Services. Without the Xbox apps, Game Pass games and games with Xbox sign-in stop working; Steam, Epic and Riot keep working. Removing the Snipping Tool frees the Print Screen key for ShareX. Apps are removed for every user and don't come back in new accounts; they can be reinstalled from the Microsoft Store."),
-        I("Remove OneDrive", "ask", true,
-          "Closes and uninstalls OneDrive, removes it from startup and blocks it by policy so it doesn't come back. If your Desktop, Documents or Pictures are inside OneDrive, the default becomes no and it warns you to turn off folder backup first."),
-        I("Edge policies", "ask", true,
-          "Edge stops preloading at startup and running in the background after you close it. Removes the sidebar and the Copilot icon, and turns off diagnostic data, the shopping assistant, recommendations, first-run screens and the news on the new tab page."),
-        I("Recall", "ask", true,
-          "Windows 11 only. Recall takes snapshots of the screen so you can search what you saw. It only exists on Copilot+ PCs and is off until you turn it on. If yes, official policies remove it and stop it from being turned on (after a restart). On other PCs nothing changes."),
-        I("Edge desktop shortcut", "ask", true,
-          "Deletes the Edge shortcut from the desktop and, through the official Edge Update policy, stops Edge installs and updates from putting it back."),
-        I("Windows Security", "ask", true,
-          "Turns on blocking of potentially unwanted apps and downloads (adware, installers that bundle extras). Hides informational notifications; important alerts, like a threat found, keep showing. If OneDrive isn't installed, hides the “set up OneDrive for ransomware recovery” card."),
-        I("C: drive folders", "ask", true,
-          "Hides the inetpub folder (created by a security update, so it is not deleted) and deletes the empty PerfLogs folder (Windows recreates it if it needs it)."),
-        I("Device manufacturer apps", "ask", false,
-          "Stops Windows from downloading manufacturer apps and icons when you plug in a device (Razer, Logitech and others). Drivers keep coming from Windows Update."),
-        I("Firmware programs (WPBT)", "ask", false,
-          "The motherboard firmware can hand Windows a program to run at every boot. Manufacturers use it to reinstall their apps (Armoury Crate, Lenovo Vantage and others) even after formatting. If yes, Windows stops running it (after a restart); the firmware is not touched. Some PCs use it to install a network driver or utility after formatting, and work laptops for anti-theft."),
-        I("Hide account areas", "ask", "local",
-          "Hides “Account protection” and “Device security” in Windows Security, which only ask you to sign in with a Microsoft account. Nothing is turned off: TPM, Secure Boot, memory integrity and Windows Hello keep working."),
-      ]),
-      G("Personalization (your user only)", [
-        I("Theme", "choice", "Light",
-          "Default, Windows light or Windows dark. Applies the official theme, turns off Windows Spotlight and sets the theme's wallpaper. The accent color is not changed."),
-        I("Screen", "choice", "Default",
-          "For each monitor: resolution, refresh rate and scale, only from the ones the monitor supports, with the recommended and current ones marked. Default changes nothing. After a resolution or refresh change, press Enter to keep it; otherwise it goes back by itself in 15 seconds, like Windows Settings."),
-        I("Taskbar icons", "choice", "Default",
-          "Windows 11 only. Default, centered or on the left."),
-        I("Taskbar search", "choice", "Default",
-          "Default, hidden, icon only or search box."),
-        I("Task View button", "choice", "Default",
-          "Default, show or hide the button. Win+Tab works either way."),
-        I("Unpin taskbar icons", "ask", false,
-          "Unpins every app from the taskbar (Edge, Store, File Explorer and the ones you pinned). Nothing is uninstalled."),
-        I("Unpin Start ads", "ask", true,
-          "Unpins only the ad shortcuts from Start: LinkedIn, Spotify, Instagram, Facebook, Messenger, TikTok, WhatsApp, Netflix, Prime Video, Disney+, Solitaire, Candy Crush, Picsart, Adobe Express, Luminar Neo and the new Outlook. Everything else you have pinned stays. Undo pins them back when the app is installed."),
-        I("Battery percentage", "ask", false,
-          "Windows 11 laptops only. Shows the battery percentage next to the taskbar icon, on Windows versions that have this option."),
-        I("File extensions", "ask", true,
-          "Shows extensions like .txt and .exe in file names."),
-        I("Frequent folders", "ask", true,
-          "Hides frequent folders in Quick access. Folders you pinned stay."),
-        I("Music in Quick access", "ask", false,
-          "Unpins the Music folder from Quick access in File Explorer. The folder and its files stay where they are."),
-        I("Recent files", "ask", false,
-          "Hides recent files in File Explorer (and recommendations, on Windows 11)."),
-        I("Hidden files", "ask", false,
-          "Shows hidden files and folders like .git and AppData. Protected system files stay hidden."),
-        I("Folder type discovery", "ask", true,
-          "Stops File Explorer from guessing each folder's type (Music, Pictures and so on), so folders with thousands of files open faster. Resets the views you saved for each folder."),
-        I("Home and Gallery", "ask", false,
-          "Windows 11 only. Removes Home and Gallery from the File Explorer sidebar, and File Explorer opens in This PC."),
-        I("Classic right-click menu", "ask", false,
-          "Windows 11 only. The right-click menu opens complete right away, like on Windows 10, without having to click \u201cShow more options\u201d."),
-        I("Snap windows", "ask", false,
-          "If yes, turns off Snap windows: dragging a window to the screen edge no longer resizes it, and the Snap layouts menu goes away. Win+arrow keys stop snapping too."),
-        I("Thin window border", "ask", false,
-          "Shrinks the invisible area around windows used for resizing, from about 5 to 1 pixel, so you don't resize by accident. Applies after signing out."),
-      ]),
-      G("Everyday use", [
-        I("Long paths", "ask", true,
-          "Allows file paths longer than 260 characters, which avoids errors with node_modules and deep folders."),
-        I("End task", "ask", true,
-          "Windows 11 23H2 or newer. Adds “End task” when you right-click an app on the taskbar, to close a frozen app."),
-        I("Sudo", "ask", false,
-          "Only asked if your Windows has sudo (Windows 11 24H2 or newer). Turns it on so you can run a command as administrator in the same terminal window."),
-        I("Clipboard history", "ask", true,
-          "Turns on Win+V, which keeps a list of the last things you copied. Stays on this PC only, without syncing."),
-        I("Mouse acceleration", "ask", false,
-          "Turns off “Enhance pointer precision”, so the pointer moves the same distance no matter how fast you move the mouse. Applies after signing out."),
-        I("Sticky Keys shortcut", "ask", true,
-          "Stops the Sticky Keys prompt that appears when you press Shift 5 times. The feature stays available in Settings."),
-        I("Num Lock at startup", "ask", true,
-          "Num Lock starts on, on the sign-in screen and after you sign in, so the number pad works right away for PINs and passwords."),
-        I("Fast Startup", "ask", false,
-          "If yes, turns it off. With it on, \u201cShut down\u201d is a partial hibernation: drivers and some updates only refresh on \u201cRestart\u201d, uptime never resets and dual boot can have problems. Off, every shutdown is a real one and startup takes a few seconds longer."),
-        I("Volume at 100%", "ask", true,
-          "Sets the speakers or headphones in use right now to 100% volume."),
-        I("Detailed blue screen", "ask", true,
-          "If the PC crashes, the blue screen also shows the technical error codes, which help find the cause."),
-      ]),
-      G("Power", [
-        I("Screen, sleep and hibernation", "choice", "Default",
-          "If you choose the times: when to turn off the screen, sleep and hibernate, plugged in and, on laptops, on battery, from 1 minute to never. Each menu starts at the current value. Hibernation is only asked if it is turned on on the PC. Applies to the active power plan, the same as Settings → System → Power."),
-      ]),
-      G("Network", [
-        I("DNS", "ask", false,
-          "If yes, asks for a primary and secondary DNS server (IPv4, and IPv6 if you want) and sets them on every Wi-Fi and Ethernet adapter. On Windows 11 it also turns on encrypted DNS (DNS over HTTPS) for servers Windows knows, like Cloudflare, Google and Quad9, and warns if a server can't be encrypted. Windows 10 has no encrypted DNS."),
-      ]),
-    ],
-
-    "windows-revert": [
-      G("Undone", [
-        I("Telemetry", "auto", null,
-          "Turns the telemetry services and data collection tasks back on."),
-        I("Policies", "auto", null,
-          "Removes the telemetry, search, Widgets, OneDrive, Edge and Windows Security policies."),
-        I("Suggestions", "auto", null,
-          "Turns Windows tips, suggestions and recommendations back on."),
-        I("DNS", "auto", null,
-          "Goes back to the router's DNS on every adapter, without encryption."),
-        I("File Explorer and others", "auto", null,
-          "Brings back Home and Gallery, Music in Quick access, the new right-click menu, folder type discovery, the default window border, Snap windows, the Start ad shortcuts (when the app is installed), the Print Screen key opening the Snipping Tool, manufacturer apps for devices, firmware programs (WPBT), Fast Startup, Num Lock off at startup, the simple blue screen and the visible inetpub folder."),
-      ]),
-      G("Not undone", [
-        I("Removed apps and OneDrive", "auto", null,
-          "Reinstall apps from the Microsoft Store, and OneDrive with: winget install Microsoft.OneDrive"),
-        I("Personal settings", "auto", null,
-          "Theme, screen resolution and scale, taskbar, pinned icons, file extensions, hidden files, battery percentage and volume. Change them back in Settings."),
-        I("Unwanted app blocking", "auto", null,
-          "Stays on, since it is only protection."),
-      ]),
-    ],
-
-    apps: [
-      G("", [
-        I("WinGet", "auto", null,
-          "If WinGet is missing (usually on Windows 10), offers to install it first."),
-        I("App list", "auto", null,
-          "Shows 104 apps in categories: communication, design, games, media, browsers, productivity, development, security and utilities. Apps already on the PC are marked “instalado”. Nothing is installed until you confirm."),
-        I("Keys", "auto", null,
-          "Arrows move, Space checks an app, A checks the whole category, / searches by name, I opens the app's own installer so you choose its options, Enter continues and Esc quits."),
-        I("Confirmation and summary", "auto", null,
-          "Shows the chosen apps before installing, then lists what was installed, what was already there and what failed."),
-      ]),
-    ],
-
-    chrome: [
-      G("Questions", [
-        I("Search suggestions", "ask", false,
-          "If yes, Chrome stops sending what you type in the address bar to Google in real time. You lose the suggestions while typing."),
-        I("Page preloading", "ask", true,
-          "If yes, Chrome stops loading pages it guesses you will open. Sites no longer learn about links you didn't click; pages may open a little slower."),
-      ]),
-      G("Always applied", [
-        I("Telemetry", "auto", null,
-          "Turns off usage and crash reports, sending visited URLs, cloud spell check (local spell check stays), suggestions on error pages, surveys and feedback to Google."),
-        I("AI", "auto", null,
-          "Turns off Gemini, Gemini acting on pages, AI Mode and third-party AI in the address bar, Help me write, tab comparison, AI history search, AI themes, AI autofill and the download of the local AI model (several GB)."),
-        I("Third-party cookies", "auto", null,
-          "Blocks cookies that track you across sites, except Google's, so “Sign in with Google” and embedded Drive keep working."),
-        I("Sync", "auto", null,
-          "Blocks syncing your browser data to the Google account. You can still sign in to Google sites."),
-        I("Extras", "auto", null,
-          "Safe Browsing in Standard mode, no running in the background after closing, no shopping list and no “not your default browser” prompt."),
-      ]),
-    ],
-
-    brave: [
-      G("Questions", [
-        I("Cast to TV", "choice", "Keep",
-          "Keep: creates a Windows Firewall rule so Brave can find TVs on the network without a firewall prompt. Turn off: disables casting and removes the rule."),
-      ]),
-      G("Always applied", [
-        I("Brave features", "auto", null,
-          "Turns off Wallet (crypto), VPN, Rewards (BAT and Brave ads), Leo (AI assistant), News on the new tab, Talk (video calls), Playlist, the Internet Archive prompt on missing pages, private windows with Tor and Speedreader."),
-        I("Telemetry", "auto", null,
-          "Turns off product usage analytics (P3A), the daily usage ping and the Web Discovery Project."),
-        I("Chromium extras", "auto", null,
-          "Turns off usage reports, URL collection, surveys, promotional tabs, running in the background after closing, the shopping list and the “not your default browser” prompt."),
-        I("Apps, passwords and cards", "auto", null,
-          "Blocks installing sites as apps, Brave's password manager (use Bitwarden) and saving payment cards. Ad blocking (Shields) is not touched."),
-      ]),
-    ],
-
-    firefox: [
-      G("Questions", [
-        I("Search suggestions", "ask", false,
-          "If yes, Firefox stops sending what you type to the search engine in real time. You lose the suggestions while typing."),
-        I("Page preloading", "ask", true,
-          "If yes, Firefox stops loading pages it guesses you will open, so sites don't learn about links you didn't click."),
-        I("HTTPS-Only mode", "ask", true,
-          "If yes, Firefox warns you before opening a site without a secure connection."),
-        I("Page translation", "ask", true,
-          "Yes keeps translation, which runs on your PC; its icon keeps showing in the address bar on pages in other languages. No turns translation off and the icon goes away. Firefox has no way to hide only the icon."),
-        I("Reader View icon", "ask", false,
-          "If yes, removes the \u201cbook\u201d icon that shows up in the address bar on articles. Done with two small files in the Firefox folder (AutoConfig), since policies can't do it; they survive updates and firefox-revert removes them. Skipped if another AutoConfig already exists."),
-      ]),
-      G("Always applied", [
-        I("Telemetry", "auto", null,
-          "Turns off telemetry, studies and remote experiments, the default browser agent task and the “not your default browser” prompt."),
-        I("Sponsored content and nags", "auto", null,
-          "Removes sponsored shortcuts and stories and recommended stories from the new tab, sponsored and Mozilla suggestions from the address bar, sending what you type to Mozilla, extension and feature recommendations, “More from Mozilla”, welcome screens, address bar tips, Firefox Labs invitations and the default bookmarks in new profiles."),
-        I("AI", "auto", null,
-          "Blocks the AI features. Page translation follows your answer above."),
-        I("Address bar buttons", "auto", null,
-          "Removes the \u201cAdd to taskbar\u201d button and the Picture-in-Picture button that show up when a site allows them. Picture-in-Picture keeps working from the button on the video and from the right-click menu."),
-        I("Extensions", "auto", null,
-          "Installs uBlock Origin (ad blocker) and Bitwarden (password manager) from Mozilla's store and keeps them updated. They also work in private windows; you can disable them but not remove them."),
-        I("Bitwarden only", "auto", null,
-          "Turns off Firefox's own password manager, the offer to save passwords and address and card autofill. If Firefox has saved passwords, it warns you and explains how to move them to Bitwarden; they are hidden, not deleted."),
-      ]),
-    ],
-
-    "windows-check": [G("", [
-      I("What is checked", "auto", null,
-        "Only what you answered yes to the last time you ran the Windows option: telemetry, suggestions, removed apps, Xbox apps, Snipping Tool, OneDrive, Edge policies, Windows Security, Recall, Edge shortcut, C: drive folders, manufacturer apps, WPBT, account areas, Num Lock, Fast Startup, long paths, detailed blue screen and DNS. Personalization is not checked, since you may have changed it on purpose."),
-      I("Reapply", "ask", true,
-        "Shows each item as OK or as back, with what changed. Then asks whether to reapply only the items that came back. Answering no changes nothing."),
-      I("Saved answers", "auto", null,
-        "The windows command saves your answers in %ProgramData%\\TidyWin. windows-revert deletes them. If you ran an older version that didn't save them, run windows once more."),
-    ])],
-    cleanup: [G("", [
-      I("Your temporary files", "ask", true,
-        "Empties your %TEMP% folder. Apps recreate what they need."),
-      I("Windows temporary files", "ask", true,
-        "Empties C:\\Windows\\Temp."),
-      I("Windows Update downloads", "ask", true,
-        "Deletes updates that were already installed. Skipped automatically while an update is installing or waiting for a restart."),
-      I("Delivery Optimization cache", "ask", true,
-        "Deletes copies of updates kept to share with other PCs."),
-      I("Error reports and memory dumps", "ask", true,
-        "Deletes crash reports from apps and from blue screens. They only help investigate a problem that already happened."),
-      I("Thumbnail and icon cache", "ask", false,
-        "Windows rebuilds it; folders with many images open slower the first time. File Explorer restarts for a moment."),
-      I("Recycle Bin", "ask", false,
-        "Permanently deletes what is in the Recycle Bin, on every drive."),
-      I("Old Windows components", "ask", false,
-        "Removes old versions of system files left by updates (DISM). Safe, but can take several minutes, and older updates may no longer be uninstallable. Skipped while an update is pending."),
-      I("Windows.old", "ask", false,
-        "Only shown if the folder exists. Deletes the previous Windows installation: after that you can't go back to the previous version, and any of your files left there are gone too."),
-      I("Before and after", "auto", null,
-        "Measures each item first and skips the ones under 1 MB. Files in use are skipped. At the end, shows how much space was freed on C:."),
-    ])],
-    repair: [G("", [
-      I("Start", "ask", true,
-        "Explains what will be done and asks before starting. If an update is waiting for a restart, recommends restarting first (default no to continue)."),
-      I("Restore point", "auto", null,
-        "Created before anything. If it fails, asks whether to continue (default no)."),
-      I("Windows image (DISM)", "auto", null,
-        "Checks the store Windows uses to repair itself. Only if it is damaged, repairs it with clean copies downloaded from Windows Update."),
-      I("System files (sfc)", "auto", null,
-        "Runs sfc /scannow, which replaces damaged system files with the good copies. Your files, apps and settings are not touched."),
-      I("Disk", "ask", true,
-        "Checks C: while Windows runs, without changing anything. Only if it finds errors, asks whether to schedule the fix for the next restart."),
-      I("Summary", "auto", null,
-        "Shows the result of each step and whether you need to restart. Takes 10 to 30 minutes in total."),
-    ])],
-    report: [G("", [
-      I("Where", "auto", null,
-        "Saves an HTML file to the Desktop and opens it in the browser. Changes nothing on the PC."),
-      I("Summary", "auto", null,
-        "At the top: everything that needs attention, with what to do. Then each item marked OK, Attention, Problem or Info."),
-      I("What it checks", "auto", null,
-        "Windows version and activation; TPM, Secure Boot, Memory integrity and test signing; antivirus, firewall and UAC; CPU, RAM (dual channel, XMP), graphics driver and refresh rate; disk health and free space; battery wear; restart pending, last update, devices without a driver, blue screens and unexpected shutdowns; network speed and internet."),
-      I("Sharing", "auto", null,
-        "A Copy as text button. No user or PC name, serial numbers, Windows key, IP/MAC addresses or Wi-Fi names."),
-    ])],
-    uninstall: [G("", [
-      I("Programs", "auto", null,
-        "The same list as Settings → Apps → Installed apps, without system components and updates, with publisher, version, size and install date. None comes checked; / searches by name. Microsoft Store apps are not listed."),
-      I("Uninstall", "ask", true,
-        "Warns about programs still open and asks to confirm, creates a restore point, then runs each program's official uninstaller with its own window, one at a time. Nothing is forced: cancelling keeps the program."),
-      I("Leftovers", "auto", null,
-        "After you close the uninstaller windows. Checked: the install folder that remained (under 1 GB), broken shortcuts, empty Start menu folders and scheduled tasks of the program. Unchecked: folders and registry keys with the program's name, big install folders (usually your data), folders named after the publisher and anything too big for the Recycle Bin. Never touches Windows, Common Files, Microsoft folders, your personal folders or anything an installed program still uses."),
-      I("Delete", "ask", false,
-        "Shows what will be deleted and asks. Folders and shortcuts go to the Recycle Bin; what doesn't fit asks again, one by one, before being deleted for good. Registry keys and scheduled tasks are exported first to %ProgramData%\\TidyWin\\uninstall-backup, with a deleted.txt listing everything (double-click a .reg file to put a key back)."),
-    ])],
-    "network-reset": [G("", [
-      I("Adapters", "auto", null,
-        "Shows each network adapter: connected or not, automatic or manual IP, and the DNS that will be kept."),
-      I("What to do", "choice", "Quick",
-        "Quick: clears the DNS and ARP caches and gets a new IP from the router, no restart. Full: also resets Winsock and TCP/IP, and needs a restart. With a manual IP, the TCP/IP reset is skipped so it is not erased."),
-      I("Your DNS", "auto", null,
-        "Full: DNS servers set by hand and DNS over HTTPS are saved to %ProgramData%\\TidyWin\\network-reset before the reset and put back right after. The quick steps don't touch them."),
-      I("Confirm", "ask", true,
-        "Asks before changing anything; the connection drops for a few seconds. Over Remote Desktop, warns that the session will drop (default no). Not used: Settings' Network reset, which removes adapters and VPNs, and proxy resets."),
-      I("Result", "auto", null,
-        "Tests the internet at the end. Full: offers to restart (default no)."),
-    ])],
-    wallpapers: [G("", [
-      I("Preview", "ask", false,
-        "Opens the gallery on GitHub in the browser so you can see the wallpapers before choosing."),
-      I("Which ones", "auto", null,
-        "Checklist with name, resolution and size. Nothing is downloaded until you confirm."),
-      I("Where to save", "choice", "Pictures\\Wallpapers",
-        "Pictures\\Wallpapers, Pictures, Downloads or a folder you type. Files that already exist are skipped."),
-      I("Set as background", "choice", "don't change",
-        "Pick one of the downloaded wallpapers to set as the desktop background (Fill), or leave it as is. Nothing else changes."),
-    ])],
-    fonts: [G("", [
-      I("Which ones", "auto", null,
-        "Checklist of 19 fonts. Code: JetBrains Mono, Fira Code, Geist Mono, Source Code Pro, IBM Plex Mono, Hack. With icons (Nerd Fonts, for terminal prompts): JetBrainsMono, CaskaydiaCove, FiraCode, MesloLGS. Text: Inter, Geist, IBM Plex Sans, Roboto, Open Sans, Noto Sans, Lato, Montserrat, Poppins. Fonts already installed are marked."),
-      I("Where from", "auto", null,
-        "Each font's official source: the latest release of its project on GitHub, or the Google Fonts repository. Nerd Fonts are large downloads (30 to 130 MB each)."),
-      I("Install", "auto", null,
-        "In C:\\Windows\\Fonts, for every user, usable right away without restarting. Files that already exist are never replaced. What was installed is recorded so Undo → Fonts removes only that."),
-    ])],
-    "fonts-revert": [G("", [
-      I("Which ones", "auto", null,
-        "Lists the fonts installed by Install fonts, all checked. Uncheck the ones to keep."),
-      I("Remove", "auto", null,
-        "Unregisters them and deletes their files. A file in use is left for later: restart the PC and run fonts-revert again."),
-    ])],
-    "apps-export": [G("", [
-      I("Where to save", "choice", "OneDrive, if you have it",
-        "Desktop, Documents, Downloads, OneDrive or a folder you type. The file is tidywin-apps-<PC>-<date>.json."),
-      I("What is saved", "auto", null,
-        "Every app WinGet knows, Microsoft Store apps included. Only the apps: not their settings, logins or files. Apps WinGet doesn't know are left out with a warning."),
-    ])],
-    "apps-import": [G("", [
-      I("Which list", "choice", "the newest one",
-        "Looks for tidywin-apps-*.json in Desktop, Documents, Downloads and OneDrive, or asks for the path."),
-      I("Install", "ask", true,
-        "Shows every app in the list and asks before installing. Apps already installed or no longer available are skipped."),
-    ])],
-    "drivers-export": [G("", [
-      I("Which drivers", "auto", null,
-        "List of the drivers that didn't come with Windows, by type (video, audio, network...), with the device that uses each one, version and size. The ones in use come checked; old versions and devices that are not connected come unchecked. Video drivers take 2 to 3 GB each."),
-      I("Where to save", "choice", "a USB drive or another disk",
-        "USB drives and other disks first, then Desktop, Documents, Downloads, OneDrive or a folder you type. Creates a tidywin-drivers-<PC>-<date> folder with the drivers, a drivers.json and a README.txt explaining how to install them by hand."),
-    ])],
-    "drivers-import": [G("", [
-      I("Which folder", "choice", "the newest one",
-        "Looks for tidywin-drivers-* on USB drives, other disks, Desktop, Documents, Downloads and OneDrive, or asks for the path."),
-      I("Which drivers", "auto", null,
-        "The same list, showing what Windows already installed by itself (same version or newer). Only the missing ones come checked."),
-      I("Install", "auto", null,
-        "Installs each one with pnputil, Windows' own tool, which only accepts signed drivers. At the end, offers to restart if a driver needs it."),
-    ])],
-    dev: [
-      G("Editors", [
-        I("Editors and IDEs", "auto", null,
-          "Checklist: VS Code (checked, with its own installer so you choose options like \u201cOpen with Code\u201d), Cursor, Zed, JetBrains Toolbox, Sublime Text and Neovim. Ones already installed are marked and skipped."),
-      ]),
-      G("Git and GitHub", [
-        I("Install Git", "ask", true, "Only asked if Git is missing."),
-        I("Name and e-mail", "auto", null,
-          "If they are already set, asks whether to keep them (default yes). Otherwise you type them; the e-mail is validated. Tip shown: GitHub's noreply e-mail keeps yours private."),
-        I("Always set", "auto", null,
-          "Branch main for new repositories, long paths, Windows line endings in files (LF in the repository), pruning deleted remote branches and the Windows credential manager (if none is set)."),
-        I("GitHub CLI", "ask", true,
-          "Installs gh, which can also send your SSH key to GitHub for you."),
-      ]),
-      G("SSH key", [
-        I("Create or reuse", "ask", true,
-          "Creates an ed25519 key in %USERPROFILE%\\.ssh. If one already exists, it is used and never replaced."),
-        I("Passphrase", "ask", true,
-          "Protects the key with a passphrase. The ssh-agent remembers it, so you type it once."),
-        I("ssh-agent", "auto", null,
-          "Turns on Windows' ssh-agent service (starts with Windows), adds the key and makes Git use Windows' SSH so the agent works."),
-        I("Send to GitHub", "choice", "through GitHub CLI",
-          "Through GitHub CLI (signs in on the browser), by pasting it on the site (the key is copied and the page opens), or not now. Then tests the connection."),
-        I("Remove old keys of this PC", "ask", true,
-          "Only with GitHub CLI. After formatting, deletes from GitHub the keys this script sent before from this same PC (same name, e.g. \u201cDESKTOP-ABC (TidyWin)\u201d) that are not the current key. Keys with any other name are never touched."),
-        I("Signed commits", "ask", true,
-          "Signs commits and tags with the SSH key, so GitHub shows \u201cVerified\u201d. No passphrase on every commit: the agent provides the key."),
-      ]),
-      G("Terminal", [
-        I("Windows Terminal", "ask", true, "Installs it if missing (Windows 10)."),
-        I("Default terminal", "ask", true,
-          "Windows 11 22H2 or newer. Command-line programs open in Windows Terminal."),
-        I("PowerShell 7", "ask", true,
-          "Installs it if missing, then asks whether Windows Terminal should open in it."),
-        I("Font", "choice", "CaskaydiaCove Nerd Font",
-          "CaskaydiaCove, JetBrains Mono or none, downloaded from the official Nerd Fonts release and installed for your user. Then asks whether to use it in Windows Terminal; its settings get a backup first."),
-      ]),
-      G("Windows and extras", [
-        I("Developer Mode", "ask", true,
-          "Lets you create symbolic links without administrator rights, which some tools need."),
-        I("Languages and tools", "auto", null,
-          "Checklist, nothing checked: Node.js LTS, Python 3.14, Go, Rust, Java 25, Bun and Docker Desktop."),
-        I("WSL", "choice", "No",
-          "No, with Ubuntu, with Debian or without a distribution. Downloads a few GB and needs a restart."),
-        I("Summary and log", "auto", null,
-          "Shows everything before applying and asks to confirm. Failed steps are listed at the end; running dev again skips what is done. A log is saved in %LOCALAPPDATA%\\TidyWin."),
-      ]),
-    ],
-    "dev-revert": [G("", [
-      I("Undone", "auto", null,
-        "Developer Mode off, default terminal back to \u201cLet Windows decide\u201d and, if you agree, Windows Terminal settings restored from the first backup."),
-      I("Not undone", "auto", null,
-        "Apps, fonts, Git settings, SSH keys and WSL. The script shows how to remove each one by hand."),
-    ])],
-    "chrome-revert": [G("", [I("Policies", "auto", null,
-      "Removes every Chrome policy set by TidyWin. Close and reopen Chrome.")])],
-    "brave-revert": [G("", [I("Policies", "auto", null,
-      "Removes every Brave policy set by TidyWin and the Cast to TV firewall rule. Close and reopen Brave.")])],
-    "firefox-revert": [G("", [I("Policies", "auto", null,
-      "Removes every Firefox policy set by TidyWin, and its AutoConfig files if the Reader View icon was removed. If uBlock Origin or Bitwarden are still there and you don't want them, remove them in about:addons.")])],
-  };
-
-  // Backup and Restore run two scripts each: their details are the two scripts' details, in the same order
-  options.backup  = [G("1. App list", options["apps-export"][0].items), G("2. Drivers", options["drivers-export"][0].items)];
-  options.restore = [G("1. Drivers", options["drivers-import"][0].items), G("2. App list", options["apps-import"][0].items)];
-
-  // Same groups, order and names as the menu in scripts/TidyWin.ps1. Keep in sync.
-  const lists = {
-    setup:  ["windows", "apps", "fonts", "chrome", "brave", "firefox", "dev", "wallpapers"],
-    care:   ["report", "windows-check", "uninstall", "cleanup", "repair", "network-reset"],
-    format: ["backup", "restore"],
-    undo:   ["windows-revert", "chrome-revert", "brave-revert", "firefox-revert", "dev-revert", "fonts-revert"],
-  };
-  const names = {
-    windows: "Windows", apps: "Install apps", fonts: "Install fonts", chrome: "Chrome", brave: "Brave", firefox: "Firefox",
-    dev: "Development", wallpapers: "Wallpapers",
-    report: "PC report", "windows-check": "Check after a Windows update", uninstall: "Uninstall programs",
-    cleanup: "Free up disk space", repair: "Repair Windows", "network-reset": "Reset the network",
-    backup: "Back up apps and drivers", restore: "Restore apps and drivers",
-    "windows-revert": "Windows", "chrome-revert": "Chrome", "brave-revert": "Brave", "firefox-revert": "Firefox",
-    "dev-revert": "Development", "fonts-revert": "Fonts",
-  };
-
-  function render() {
-    const t = text;
-    document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
-
-    for (const [id, ids] of Object.entries(lists)) {
-      const ul = document.getElementById(id);
-      ul.replaceChildren();
-      for (const name of ids) {
-        const li = document.createElement("li");
-        const strong = document.createElement("strong");
-        strong.className = "name";
-        strong.textContent = names[name];
-        const p = document.createElement("p");
-        p.className = "desc";
-        p.textContent = t[name];
-        li.append(strong, p);
-        const groupsFor = options[name];
-        if (groupsFor) {
-          const det = document.createElement("details");
-          const sum = document.createElement("summary");
-          sum.textContent = t.options;
-          det.appendChild(sum);
-          for (const g of groupsFor) {
-            if (g.g) { const h = document.createElement("h3"); h.textContent = g.g; det.appendChild(h); }
-            const dl = document.createElement("dl");
-            for (const it of g.items) {
-              const dt = document.createElement("dt");
-              dt.textContent = it.n;
-              if (it.k !== "auto") {
-                const tag = document.createElement("span");
-                tag.className = "tag";
-                const def = it.k === "choice" ? `${t.def}: ${it.d}`
-                          : it.d === "local" ? t.local : (it.d ? t.yes : t.no);
-                tag.textContent = ` (${t.asks}, ${def})`;
-                dt.appendChild(tag);
-              }
-              const dd = document.createElement("dd");
-              dd.textContent = it.t;
-              dl.append(dt, dd);
-            }
-            det.appendChild(dl);
-          }
-          li.appendChild(det);
-        }
-        ul.appendChild(li);
-      }
-    }
-  }
-
   // The one command: copy on click
+  const cmd = "irm __SHORT__/run | iex";
   const run = document.getElementById("run");
-  const cmd = `irm ${base}/run | iex`;
-  run.textContent = cmd;
+  const code = document.getElementById("cmd");
+  const hint = document.getElementById("hint");
+  const hintText = hint.textContent;
+  code.textContent = cmd;
   run.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(cmd); } catch { return; }
-    run.textContent = text.copied;
     run.classList.add("copied");
-    setTimeout(() => { run.textContent = cmd; run.classList.remove("copied"); }, 1200);
+    hint.textContent = "Copied. Paste it in PowerShell and press Enter.";
+    setTimeout(() => { run.classList.remove("copied"); hint.textContent = hintText; }, 2000);
   });
-
-  render();
 </script>
 </body>
 </html>

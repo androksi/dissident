@@ -1,9 +1,9 @@
 ﻿#Requires -RunAsAdministrator
 <#
-    Reset-Network.ps1 — fixes common internet problems with Windows' own network commands, keeping your DNS
+    reset-network.ps1 — fixes common internet problems with Windows' own network commands, keeping your DNS
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
-        powershell -ExecutionPolicy Bypass -File .\Reset-Network.ps1
+        powershell -ExecutionPolicy Bypass -File .\reset-network.ps1
 
     For "connected, no internet", sites that don't open or a connection that keeps dropping.
     Shows the network adapters and asks how far to go:
@@ -21,19 +21,115 @@
         3. Execution
 #>
 param(
+    [string]$Describe,   # for the panel: writes the options of the page to this file and stops
+    [string]$Answers     # for the panel: what was chosen there (nothing is asked)
 )
 
 $ErrorActionPreference = 'Continue'
 
 
+#region ==================== PANEL ====================
+
+# Run from the TidyWin panel ($env:TIDYWIN_PANEL = 1): the questions show up in the panel window. Each one
+# goes out as a line "##TIDYWIN {json}" and the answer comes back as one JSON line on the standard input.
+# Write-Host lines carry their color ([char]1 + color + [char]2 + text) so the panel can show it.
+$script:Panel = $env:TIDYWIN_PANEL -eq '1'
+$script:PanelLine = ''
+
+function Write-PanelHost {
+    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+          [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+    $text  = (@($Object) | ForEach-Object { "$_" }) -join "$Separator"
+    $color = if ($PSBoundParameters.ContainsKey('ForegroundColor')) { "$ForegroundColor" } else { '' }
+    $parts = @($text -split "`r?`n")
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $script:PanelLine += [string][char]1 + $color + [char]2 + $parts[$i]
+        if ($i -lt $parts.Count - 1 -or -not $NoNewline) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    }
+}
+
+# Sends a question to the panel and returns the answer ($null when it was cancelled).
+function Request-Panel([hashtable]$Request) {
+    if ($script:PanelLine) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json $Request -Compress -Depth 6))
+    $line = [Console]::In.ReadLine()
+    if ($null -eq $line) { exit 1 }                       # the panel was closed
+    return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
+}
+
+if ($script:Panel) {
+    function Write-Host {
+        param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+              [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+        Write-PanelHost @PSBoundParameters
+    }
+    # Typed answers: a "press Enter" pause, a folder, a file or text
+    function Read-Host([Parameter(Position = 0)][object]$Prompt) {
+        $q = "$Prompt".Trim()
+        $type = if ($q -match '(?i)press Enter') { 'wait' } elseif ($q -match '(?i)^folder') { 'folder' } elseif ($q -match '(?i)\.json file') { 'file' } else { 'text' }
+        return "$(Request-Panel @{ type = $type; question = $q })"
+    }
+}
+
+# --- Options of a page in the panel (the same in every script). A field: tab, id, kind (toggle, choice,
+# select, checklist, text, header), label, desc, default and more (options, items, warn, when...).
+# -Describe writes the fields for the panel's page; Read-Options brings back what was chosen: the panel's
+# answers file, or asked here when the script runs on its own. Nothing comes selected.
+function Opt($Value, [string]$Label) { [ordered]@{ value = $Value; label = $Label } }
+
+function New-Field([string]$Tab, [string]$Id, [string]$Kind, [string]$Label, [string]$Desc, $Default, [hashtable]$More) {
+    $f = [ordered]@{ tab = $Tab; id = $Id; kind = $Kind; label = $Label; desc = $Desc; default = $Default }
+    if ($More) { foreach ($k in $More.Keys) { $f[$k] = $More[$k] } }
+    return $f
+}
+
+function Write-OptionsPage([string]$Path, [object[]]$Fields, [string[]]$Notes) {
+    $page = [ordered]@{ tabs = @($Fields | ForEach-Object { $_.tab } | Select-Object -Unique); notes = @($Notes | Where-Object { $_ }); fields = @($Fields | Where-Object { $_ }) }
+    [IO.File]::WriteAllText($Path, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
+}
+
+function Read-Options([object[]]$Fields, [string]$AnswersFile) {
+    $values = @{}
+    foreach ($f in $Fields) { if ($f.kind -ne 'header') { $values[$f.id] = $f.default } }
+    if ($AnswersFile) {
+        $json = [IO.File]::ReadAllText($AnswersFile) | ConvertFrom-Json
+        foreach ($prop in $json.PSObject.Properties) { $values[$prop.Name] = $prop.Value }
+        return $values
+    }
+    foreach ($f in $Fields) {
+        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        switch ($f.kind) {
+            'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
+            'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
+            'info'      { Write-Host "  $($f.label): $($f.desc)" -ForegroundColor DarkGray }
+            { $_ -in 'text', 'path' } { $values[$f.id] = "$(Read-Host "  $($f.label)")".Trim().Trim('"') }
+            'checklist' { $values[$f.id] = @($f.items | Where-Object { Ask "$($f.label): $($_.label)?" $false } | ForEach-Object { $_.value }) }
+            default {
+                # choice and select; "Skip" leaves it as it is
+                $options = @(Opt '' 'Skip') + @($f.options)
+                $values[$f.id] = $options[(Choose "$($f.label):" @($options | ForEach-Object { $_.label }) 0)].value
+            }
+        }
+    }
+    return $values
+}
+
+# Yes / No (scripts that ask more define their own, the same)
+function Ask([string]$Question, [bool]$Default) {
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
+}
+
+#endregion
+
 #region ==================== 1. HELPERS ====================
 
 
-function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
+function Write-Step([string]$Text) { Write-Host "`n▸ $Text" -ForegroundColor Cyan }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
 # The "use the arrows" hint is shown only on the first menu.
 function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
+    if ($script:Panel) { return [int](Request-Panel @{ type = 'choose'; question = $Question; options = @($Options); default = $Default }) }
     Write-Host "  $Question"
     $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
@@ -176,7 +272,7 @@ function Reset-TcpIp {
     $v4 = $LASTEXITCODE
     & netsh int ipv6 reset $log *> $null
     if ($v4 -eq 0 -and $LASTEXITCODE -eq 0) { Write-Result 'OK' 'TCP/IP (IPv4 + IPv6)' }
-    else { Write-Result 'WARN' 'TCP/IP: done, with some items Windows did not let it change (normal)' }
+    else { Write-Result 'WARN' 'TCP/IP: done'; Write-Host '            Windows did not let it change some items. That is normal.' -ForegroundColor DarkGray }
     Remove-Item $log -Force -ErrorAction SilentlyContinue
 }
 
@@ -187,7 +283,7 @@ function Restore-NetworkBackup($Dns) {
     $now = @(Get-ManualDns)
     $missing = @($Dns | Where-Object { $s = $_; -not ($now | Where-Object { $_.Guid -eq $s.Guid -and $_.Family -eq $s.Family -and $_.Servers -eq $s.Servers }) })
     if ($missing) { Write-Result 'ERROR' "DNS not restored on $($missing.Count) interface(s); the backup is in $BackupDir" }
-    elseif ($Dns) { Write-Result 'OK' 'your DNS servers are back' }
+    elseif ($Dns) { Write-Result 'OK' 'Your DNS servers are back' }
 }
 
 function Clear-NetworkCaches {
@@ -198,10 +294,10 @@ function Clear-NetworkCaches {
 
 # New IP from the router, only on adapters with an automatic IP (ipconfig skips the others).
 function Update-IpAddress {
-    Write-Host '  getting a new IP from the router (the connection drops for a few seconds)...' -ForegroundColor DarkGray
+    Write-Host '  Getting a new IP from the router...'; Write-Host '  The connection drops for a few seconds.' -ForegroundColor DarkGray
     & ipconfig /release *> $null
     & ipconfig /renew *> $null
-    Write-Result 'OK' 'new IP requested'
+    Write-Result 'OK' 'New IP requested'
 }
 
 #endregion
@@ -209,39 +305,62 @@ function Update-IpAddress {
 
 #region ==================== 3. EXECUTION ====================
 
-Write-Host "`nReset-Network" -ForegroundColor Green
+if (-not $script:Panel) { Write-Host "`nReset-Network" -ForegroundColor Green }   # in the panel the page already has the title
 Write-Host '  Fixes common internet problems with Windows'' own commands. Your DNS is kept.' -ForegroundColor DarkGray
 
 # --- What is on this PC
 $dns = @(Get-ManualDns)
 $adapters = @(Get-AdapterInfo $dns)
-Write-Host "`n  Network adapters:"
-if (-not $adapters) { Write-Host '    (no physical adapter found)' -ForegroundColor DarkGray }
-foreach ($a in $adapters) {
-    $state = if ($a.Connected) { 'connected' } else { 'not connected' }
-    $ip    = if ($a.ManualIp) { 'manual IP' } else { 'automatic IP' }
-    $dnsTx = if ($a.Dns) { 'DNS ' + ($a.Dns -join ', ') + ' (kept)' } else { 'DNS from the router' }
-    Write-Host ("    {0,-22} {1,-14} {2,-14} {3}" -f $a.Name, $state, $ip, $dnsTx)
-}
 $hasManualIp = [bool]($adapters | Where-Object ManualIp)
+$adapterText = {
+    param($a)
+    $state = if ($a.Connected) { 'Connected' } else { 'Not connected' }
+    $ip    = if ($a.ManualIp) { 'manual IP' } else { 'automatic IP' }
+    $dnsTx = if ($a.Dns) { 'DNS ' + ($a.Dns -join ', ') + ', kept' } else { 'DNS from the router' }
+    "$state · $ip · $dnsTx"
+}
 
-# --- Questions
-Write-Host ''
-$levels = @(
-    'Quick: clear DNS/ARP caches and get a new IP (no restart)',
-    'Full: also reset Winsock and TCP/IP (needs a restart)'
+# --- Options: the panel's page, or asked here
+$T = 'Network'
+$fields = @(
+    New-Field $T 'Level' 'choice' 'How far to go' 'Quick clears the DNS and ARP caches and gets a new IP, with no restart. Full also resets Winsock and TCP/IP, and needs a restart.' '' @{ options = @((Opt 'Quick' 'Quick'), (Opt 'Full' 'Full')) }
+    New-Field $T 'Restart' 'toggle' 'Restart when it''s done' 'The full reset only finishes after a restart.' $false @{ when = @{ field = 'Level'; is = 'Full' } }
+    New-Field $T 'Adapters' 'header' 'Network adapters' $(if ($adapters) { '' } else { 'No physical adapter found.' }) $null
 )
-$full = (Choose 'What to do?' $levels 0) -eq 1
-if ($full -and $hasManualIp) {
-    Write-Host '  A network adapter has a manual IP: the TCP/IP reset will be skipped so it is not erased.' -ForegroundColor Yellow
-}
-if ($env:SESSIONNAME -like 'RDP*') {
-    Write-Host '  You are connected through Remote Desktop: the session will drop and may not come back by itself.' -ForegroundColor Yellow
-    if (-not (Ask 'Continue anyway?' $false)) { Write-Host 'Nothing was changed.'; return }
-}
-Write-Host '  Close downloads and calls first: the connection drops for a few seconds.' -ForegroundColor DarkGray
-if (-not (Ask 'Reset the network now?' $true)) { Write-Host 'Nothing was changed.'; return }
+$i = 0
+foreach ($a in $adapters) { $i++; $fields += New-Field $T "Adapter$i" 'info' $a.Name (& $adapterText $a) $null }
+$notes = @(
+    'The connection drops for a few seconds: close downloads and calls first.'
+    if ($hasManualIp) { 'An adapter has a manual IP: the full reset skips TCP/IP so it is not erased.' }
+    if ($env:SESSIONNAME -like 'RDP*') { 'You are connected through Remote Desktop: the session will drop and may not come back by itself.' }
+)
+if ($Describe) { Write-OptionsPage $Describe $fields $notes; return }
 
+if ($Answers) {
+    $v = Read-Options $fields $Answers
+    if (-not $v.Level) { Write-Host 'Nothing was selected, so nothing was changed.'; return }
+    $full = $v.Level -eq 'Full'
+    $notes | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+} else {
+    Write-Host "`n  Network adapters:"
+    if (-not $adapters) { Write-Host '    No physical adapter found' -ForegroundColor DarkGray }
+    foreach ($a in $adapters) { Write-Host ("    {0,-22} {1}" -f $a.Name, (& $adapterText $a)) }
+    Write-Host ''
+    $levels = @(
+        'Quick: clear DNS/ARP caches and get a new IP (no restart)',
+        'Full: also reset Winsock and TCP/IP (needs a restart)'
+    )
+    $full = (Choose 'What to do?' $levels 0) -eq 1
+    if ($full -and $hasManualIp) {
+        Write-Host '  A network adapter has a manual IP: the TCP/IP reset will be skipped so it is not erased.' -ForegroundColor Yellow
+    }
+    if ($env:SESSIONNAME -like 'RDP*') {
+        Write-Host '  You are connected through Remote Desktop: the session will drop and may not come back by itself.' -ForegroundColor Yellow
+        if (-not (Ask 'Continue anyway?' $false)) { Write-Host 'Nothing was changed.'; return }
+    }
+    Write-Host '  Close downloads and calls first: the connection drops for a few seconds.' -ForegroundColor DarkGray
+    if (-not (Ask 'Reset the network now?' $true)) { Write-Host 'Nothing was changed.'; return }
+}
 # --- Steps (the quick ones don't touch the DNS settings, so only the full reset saves and restores them)
 $total = if ($full) { 5 } else { 2 }; $n = 0
 if ($full) {
@@ -249,7 +368,7 @@ if ($full) {
     Save-NetworkBackup $dns
     $n++; Write-Step "$n/$total Winsock and TCP/IP"
     Reset-Winsock
-    if ($hasManualIp) { Write-Host '  [--] TCP/IP skipped (manual IP)' -ForegroundColor DarkGray } else { Reset-TcpIp }
+    if ($hasManualIp) { Write-Host '  [--] TCP/IP skipped: the IP is set by hand' -ForegroundColor DarkGray } else { Reset-TcpIp }
     $n++; Write-Step "$n/$total Putting your DNS back"
     Restore-NetworkBackup $dns
 }
@@ -261,12 +380,13 @@ Update-IpAddress
 # --- Result
 Write-Step 'Testing the internet'
 Start-Sleep -Seconds 3      # the renewed adapter takes a moment to be ready
-if (Test-Internet) { Write-Result 'OK' 'internet is working' }
-else { Write-Result 'WARN' 'no internet yet' }
+if (Test-Internet) { Write-Result 'OK' 'Internet is working' }
+else { Write-Result 'WARN' 'No internet yet' }
 
 if ($full) {
     Write-Host "`nDone. Restart the PC to finish the reset." -ForegroundColor Green
-    if (Ask 'Restart now?' $false) { Restart-Computer -Force }
+    $restart = if ($Answers) { [bool]$v.Restart } else { Ask 'Restart now?' $false }
+    if ($restart) { Write-Host '  Restarting in 10 seconds...' -ForegroundColor DarkGray; Start-Sleep -Seconds 10; Restart-Computer -Force }
 } else {
     Write-Host "`nDone." -ForegroundColor Green
     Write-Host '  Still not working? Run it again and choose Full, or restart the router.' -ForegroundColor DarkGray

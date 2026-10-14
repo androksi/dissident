@@ -1,9 +1,9 @@
 ﻿#Requires -RunAsAdministrator
 <#
-    Uninstall-Apps.ps1 — uninstalls programs with their own official uninstaller, then cleans up what they left behind
+    uninstall-apps.ps1 — uninstalls programs with their own official uninstaller, then cleans up what they left behind
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator):
-        powershell -ExecutionPolicy Bypass -File .\Uninstall-Apps.ps1
+        powershell -ExecutionPolicy Bypass -File .\uninstall-apps.ps1
 
     1. Lists the installed programs (the same list as Settings → Apps → Installed apps, without system
        components and updates). Check the ones to remove.
@@ -30,15 +30,110 @@
         4. Execution
 #>
 param(
+    [string]$Describe,   # for the panel: writes the programs and options of the page to this file and stops
+    [string]$Answers     # for the panel: what was chosen there (nothing is asked)
 )
 
 $ErrorActionPreference = 'Continue'
 
 
+#region ==================== PANEL ====================
+
+# Run from the TidyWin panel ($env:TIDYWIN_PANEL = 1): the questions show up in the panel window. Each one
+# goes out as a line "##TIDYWIN {json}" and the answer comes back as one JSON line on the standard input.
+# Write-Host lines carry their color ([char]1 + color + [char]2 + text) so the panel can show it.
+$script:Panel = $env:TIDYWIN_PANEL -eq '1'
+$script:PanelLine = ''
+
+function Write-PanelHost {
+    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+          [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+    $text  = (@($Object) | ForEach-Object { "$_" }) -join "$Separator"
+    $color = if ($PSBoundParameters.ContainsKey('ForegroundColor')) { "$ForegroundColor" } else { '' }
+    $parts = @($text -split "`r?`n")
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $script:PanelLine += [string][char]1 + $color + [char]2 + $parts[$i]
+        if ($i -lt $parts.Count - 1 -or -not $NoNewline) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    }
+}
+
+# Sends a question to the panel and returns the answer ($null when it was cancelled).
+function Request-Panel([hashtable]$Request) {
+    if ($script:PanelLine) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json $Request -Compress -Depth 6))
+    $line = [Console]::In.ReadLine()
+    if ($null -eq $line) { exit 1 }                       # the panel was closed
+    return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
+}
+
+if ($script:Panel) {
+    function Write-Host {
+        param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+              [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+        Write-PanelHost @PSBoundParameters
+    }
+    # Typed answers: a "press Enter" pause, a folder, a file or text
+    function Read-Host([Parameter(Position = 0)][object]$Prompt) {
+        $q = "$Prompt".Trim()
+        $type = if ($q -match '(?i)press Enter') { 'wait' } elseif ($q -match '(?i)^folder') { 'folder' } elseif ($q -match '(?i)\.json file') { 'file' } else { 'text' }
+        return "$(Request-Panel @{ type = $type; question = $q })"
+    }
+}
+
+# --- Options of a page in the panel (the same in every script). A field: tab, id, kind (toggle, choice,
+# select, checklist, text, header), label, desc, default and more (options, items, warn, when...).
+# -Describe writes the fields for the panel's page; Read-Options brings back what was chosen: the panel's
+# answers file, or asked here when the script runs on its own. Nothing comes selected.
+function Opt($Value, [string]$Label) { [ordered]@{ value = $Value; label = $Label } }
+
+function New-Field([string]$Tab, [string]$Id, [string]$Kind, [string]$Label, [string]$Desc, $Default, [hashtable]$More) {
+    $f = [ordered]@{ tab = $Tab; id = $Id; kind = $Kind; label = $Label; desc = $Desc; default = $Default }
+    if ($More) { foreach ($k in $More.Keys) { $f[$k] = $More[$k] } }
+    return $f
+}
+
+function Write-OptionsPage([string]$Path, [object[]]$Fields, [string[]]$Notes) {
+    $page = [ordered]@{ tabs = @($Fields | ForEach-Object { $_.tab } | Select-Object -Unique); notes = @($Notes | Where-Object { $_ }); fields = @($Fields | Where-Object { $_ }) }
+    [IO.File]::WriteAllText($Path, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
+}
+
+function Read-Options([object[]]$Fields, [string]$AnswersFile) {
+    $values = @{}
+    foreach ($f in $Fields) { if ($f.kind -ne 'header') { $values[$f.id] = $f.default } }
+    if ($AnswersFile) {
+        $json = [IO.File]::ReadAllText($AnswersFile) | ConvertFrom-Json
+        foreach ($prop in $json.PSObject.Properties) { $values[$prop.Name] = $prop.Value }
+        return $values
+    }
+    foreach ($f in $Fields) {
+        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        switch ($f.kind) {
+            'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
+            'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
+            'info'      { Write-Host "  $($f.label): $($f.desc)" -ForegroundColor DarkGray }
+            { $_ -in 'text', 'path' } { $values[$f.id] = "$(Read-Host "  $($f.label)")".Trim().Trim('"') }
+            'checklist' { $values[$f.id] = @($f.items | Where-Object { Ask "$($f.label): $($_.label)?" $false } | ForEach-Object { $_.value }) }
+            default {
+                # choice and select; "Skip" leaves it as it is
+                $options = @(Opt '' 'Skip') + @($f.options)
+                $values[$f.id] = $options[(Choose "$($f.label):" @($options | ForEach-Object { $_.label }) 0)].value
+            }
+        }
+    }
+    return $values
+}
+
+# Yes / No (scripts that ask more define their own, the same)
+function Ask([string]$Question, [bool]$Default) {
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
+}
+
+#endregion
+
 #region ==================== 1. HELPERS ====================
 
 
-function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
+function Write-Step([string]$Text) { Write-Host "`n▸ $Text" -ForegroundColor Cyan }
 
 function Write-Result([ValidateSet('OK', 'SKIP', 'WARN', 'ERROR')][string]$Status, [string]$Text) {
     $color = @{ OK = 'Green'; SKIP = 'DarkGray'; WARN = 'Yellow'; ERROR = 'Red' }[$Status]
@@ -50,6 +145,7 @@ function Write-Result([ValidateSet('OK', 'SKIP', 'WARN', 'ERROR')][string]$Statu
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
 # The "use the arrows" hint is shown only on the first menu.
 function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
+    if ($script:Panel) { return [int](Request-Panel @{ type = 'choose'; question = $Question; options = @($Options); default = $Default }) }
     Write-Host "  $Question"
     $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
@@ -106,8 +202,16 @@ function Format-Size([double]$Bytes) {
 # Full-screen checklist with scrolling, optional group headers and search (same keys as the apps list):
 # ↑ ↓ PgUp PgDn move, Space checks, A checks/unchecks the whole group, / searches, Enter confirms, Esc quits.
 # $Items: objects with Group ('' = no header), Label, Note, Checked, Size. Returns the checked items (none on Esc).
-function Select-Items([string]$Title, [object[]]$Items) {
-    $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
+function Select-Items([string]$Title, [object[]]$Items, [switch]$Short) {
+    if ($script:Panel) {
+        # -Short: a short list (the leftovers to review), with no title or search in the panel; $Title goes to the log
+        $answer = Request-Panel @{ type = 'checklist'; title = $(if ($Short) { '' } else { $Title }); question = $Title; search = -not $Short
+            items = @($Items | ForEach-Object { @{ label = "$($_.Label)"; note = "$($_.Note)"; group = "$($_.Group)"; checked = [bool]$_.Checked } }) }
+        if ($null -eq $answer) { return @() }
+        for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = @($answer.checked) -contains $i }
+        return @($Items | Where-Object Checked)
+    }
+    $arrows =($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
         # No real console: numbered list, numbers separated by commas
         for ($i = 0; $i -lt $Items.Count; $i++) {
@@ -311,10 +415,10 @@ function Split-UninstallCommand($Program) {
 function Invoke-Uninstall($Program) {
     $c = Split-UninstallCommand $Program
     if (-not (Test-FullPath $c.File) -or -not (Test-Path -LiteralPath $c.File)) {
-        Write-Result 'WARN' "the uninstaller is missing ($($c.File)): the program is already partly removed"
+        Write-Result 'WARN' "The uninstaller is missing ($($c.File)): the program is already partly removed"
         return 'Orphan'
     }
-    Write-Host "  opening the uninstaller of $($Program.Name)..." -ForegroundColor DarkGray
+    Write-Host "  Opening the uninstaller of $($Program.Name)..." -ForegroundColor DarkGray
     $start = @{ FilePath = $c.File; Wait = $true; PassThru = $true; ErrorAction = 'Stop' }
     if ($c.Args.Trim()) { $start.ArgumentList = $c.Args.Trim() }      # Start-Process rejects an empty argument list
     try {
@@ -324,11 +428,14 @@ function Invoke-Uninstall($Program) {
         return 'Kept'
     }
     if (Test-Path -LiteralPath $Program.Key) {
-        if ([Console]::IsInputRedirected -or $Host.Name -ne 'ConsoleHost') {
+        if ($script:Panel) {
+            # The panel goes on by itself when the program leaves the list
+            [void](Request-Panel @{ type = 'wait'; question = "Finish the uninstaller of $($Program.Name)"; button = 'I closed or cancelled it'; untilGone = $Program.Key })
+        } elseif ([Console]::IsInputRedirected -or $Host.Name -ne 'ConsoleHost') {
             [void](Read-Host '  When the uninstaller is finished (or if you cancelled it), press Enter')
         } else {
             while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }    # keys typed before don't count
-            Write-Host '  waiting for the uninstaller to finish... (press any key if you closed or cancelled it)' -ForegroundColor DarkGray
+            Write-Host '  Waiting for the uninstaller to finish... (press any key if you closed or cancelled it)' -ForegroundColor DarkGray
             while ((Test-Path -LiteralPath $Program.Key) -and -not ([Console]::KeyAvailable)) { Start-Sleep -Milliseconds 700 }
             while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
         }
@@ -336,6 +443,24 @@ function Invoke-Uninstall($Program) {
     if (Test-Path -LiteralPath $Program.Key) { return 'Kept' }
     if ($proc.ExitCode -in 1641, 3010) { return 'Restart' }
     return 'Removed'
+}
+
+# Some uninstallers keep deleting files after the program leaves the list (a copy of themselves in %TEMP%).
+# Waits until no uninstaller and nothing from the programs' folders is running, for up to a minute.
+function Wait-Uninstallers([string[]]$Folders) {
+    Write-Host '  Waiting for the uninstallers to finish...' -ForegroundColor DarkGray
+    Start-Sleep -Seconds 2
+    $until = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $until) {
+        $busy = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+            $proc = $_
+            $proc.ProcessName -match '^(un_?a|au_|unins\d*|uninst.*|uninstall.*)$' -or
+            ($proc.Path -and ($Folders | Where-Object { $proc.Path -like "$_\*" }))
+        })
+        if (-not $busy) { return }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host '  Still running after a minute; looking for leftovers anyway. Files in use are skipped.' -ForegroundColor DarkGray
 }
 
 # Windows creates at most one restore point a day: when one exists from the last 24 hours, it only warns.
@@ -347,16 +472,18 @@ function New-RestorePoint {
         Checkpoint-Computer -Description 'Before Uninstall-Apps' -RestorePointType APPLICATION_UNINSTALL -ErrorAction Stop -WarningAction SilentlyContinue
         $after = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue) | Select-Object -Last 1
         if ($after -and (-not $before -or $after.SequenceNumber -ne $before.SequenceNumber)) {
-            Write-Result 'OK' 'restore point created'
+            Write-Result 'OK' 'Restore point created'
         } elseif ($after) {
             $when = $after.ConvertToDateTime($after.CreationTime).ToString('g')
-            Write-Result 'OK' "using the restore point from $when (Windows creates at most one a day)"
+            Write-Result 'OK' "Using the restore point from $when."
+            Write-Host '  Windows creates at most one restore point a day.' -ForegroundColor Yellow
         } else {
             throw 'System Restore did not create it'
         }
         return $true
     } catch {
-        Write-Result 'WARN' "could not create the restore point ($($_.Exception.Message.Trim()))"
+        Write-Result 'WARN' "Could not create the restore point ($($_.Exception.Message.Trim()))"
+        if ($script:Answer) { Write-Host '  Going on without it: only the programs'' own uninstallers are used.' -ForegroundColor DarkGray; return $true }
         return (Ask 'Continue anyway? (only the programs'' own uninstallers are used)' $false)
     }
 }
@@ -463,12 +590,13 @@ function Find-Leftovers($Program, [string[]]$KeepLocations, [string[]]$KeepNames
     $add = {
         param($Kind, $Path, $Reason, $Checked, $Size)
         if ($found | Where-Object { $_.Path -ieq $Path }) { return }
+        $sure = $Checked -and $Trusted
         $recyclable = $true
         if ($Kind -in 'Folder', 'Shortcut' -and -not (Test-Recyclable $Path $Size)) {
             $recyclable = $false; $Checked = $false
             $Reason += ' · too big for the Recycle Bin: would be deleted for good'
         }
-        $found.Add([pscustomobject]@{ Kind = $Kind; Path = $Path; Reason = $Reason; Checked = ($Checked -and $Trusted); Size = [int64]$Size; Recyclable = $recyclable })
+        $found.Add([pscustomobject]@{ Kind = $Kind; Path = $Path; Reason = $Reason; Checked = ($Checked -and $Trusted); Sure = $sure; Size = [int64]$Size; Recyclable = $recyclable })
     }
 
     $names = @(Get-NameKey $Program.Name)
@@ -580,12 +708,13 @@ function Remove-Leftovers([object[]]$Items, [string]$BackupDir) {
         $exists = if ($it.Kind -eq 'Registry') { Test-Path -LiteralPath ('Registry::' + $it.Path) }
                   elseif ($it.Kind -eq 'Task') { [bool](Get-ScheduledTask -TaskPath ($it.Path -replace '[^\\]+$', '') -TaskName (Split-Path $it.Path -Leaf) -ErrorAction SilentlyContinue) }
                   else { Test-Path -LiteralPath $it.Path }
-        if (-not $exists) { Write-Result 'SKIP' "$($it.Path) (no longer there)"; continue }
+        if (-not $exists) { Write-Result 'SKIP' "$($it.Path): no longer there"; continue }
         $bin = [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
         $how = 'Recycle Bin'
         if ($it.Kind -in 'Folder', 'Shortcut' -and -not $it.Recyclable) {
             Write-Host "  $($it.Path) ($(Format-Size $it.Size)) doesn't fit in the Recycle Bin." -ForegroundColor Yellow
-            if (-not (Ask 'Delete it for good, with no way back?' $false)) { Write-Result 'SKIP' "$($it.Path) (kept)"; continue }
+            $forGood = if ($script:Answer) { $true } else { Ask 'Delete it for good, with no way back?' $false }
+            if (-not $forGood) { Write-Result 'SKIP' "$($it.Path): kept"; continue }
             $bin = [Microsoft.VisualBasic.FileIO.RecycleOption]::DeletePermanently
             $how = 'deleted for good'
         }
@@ -608,7 +737,7 @@ function Remove-Leftovers([object[]]$Items, [string]$BackupDir) {
                     $how = "backup: $(Split-Path $xml -Leaf)"
                 }
             }
-            Write-Result 'OK' "$($it.Path)  ($how)"
+            Write-Result 'OK' "$($it.Path)"; Write-Host "       $how" -ForegroundColor DarkGray
             Add-Content -LiteralPath $log -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm')  $($it.Kind)  $($it.Path)  ($how)" -Encoding UTF8
         } catch {
             Write-Result 'ERROR' "$($it.Path): $($_.Exception.Message.Trim())"
@@ -621,19 +750,43 @@ function Remove-Leftovers([object[]]$Items, [string]$BackupDir) {
 
 #region ==================== 4. EXECUTION ====================
 
-Write-Host "`nUninstall-Apps" -ForegroundColor Green
-Write-Host '  Uninstalls programs with their own uninstaller, then shows what they left behind before deleting it.' -ForegroundColor DarkGray
-Write-Host '  reading the installed programs...' -ForegroundColor DarkGray
+if (-not $script:Panel) { Write-Host "`nUninstall-Apps" -ForegroundColor Green }   # in the panel the page already has the title
+if (-not $Describe) {
+    Write-Host '  Uninstalls programs with their own uninstaller, then shows what they left behind before deleting it.' -ForegroundColor DarkGray
+    Write-Host '  Reading the installed programs...' -ForegroundColor DarkGray
+}
 
 $programs = @(Get-InstalledPrograms)
-if (-not $programs) { Write-Host 'No programs found.'; return }
-
-# --- Choose
 $items = @($programs | ForEach-Object {
     $note = (@($_.Publisher, $_.Version, (Format-Size $_.Size), $_.Date) | Where-Object { $_ }) -join ' · '
     [pscustomobject]@{ Group = ''; Label = $_.Name; Note = $note; Checked = $false; Size = $_.Size; Program = $_ }
 })
-$chosen = @(Select-Items "Uninstall-Apps — choose the programs to uninstall ($($programs.Count) installed)" $items)
+
+# --- The panel's page: the programs (with search), then what to do with what they leave behind. Nothing on.
+if ($Describe) {
+    $T = 'Programs'
+    $fields = @(
+        if ($items) {
+            New-Field $T 'programs' 'checklist' '' '' @() @{ search = $true
+                items = @($items | ForEach-Object { [ordered]@{ value = $_.Program.Key; label = $_.Label; note = $_.Note; group = ''; status = '' } }) }
+        } else {
+            New-Field $T 'Nothing' 'header' 'No programs found' 'Nothing on this PC can be uninstalled from here.' $null
+        }
+        New-Field $T 'Leftovers' 'toggle' 'Remove leftovers' 'What is certainly theirs goes right away: the install folder that remained, broken shortcuts, empty Start menu folders and their scheduled tasks. What only might be theirs, like folders with their name or your data, is listed at the end for you to pick, nothing checked. Folders go to the Recycle Bin; registry keys and tasks are backed up first.' $false @{ footer = $true }
+    )
+    Write-OptionsPage $Describe $fields @('Each program opens its own uninstaller: follow its window. Close the programs before you start.')
+    return
+}
+if (-not $programs) { Write-Host 'No programs found.'; return }
+
+# --- Choose
+if ($Answers) {
+    $script:Answer = [IO.File]::ReadAllText($Answers) | ConvertFrom-Json
+    $picked = @($script:Answer.programs)
+    $chosen = @($items | Where-Object { $picked -contains $_.Program.Key })
+} else {
+    $chosen = @(Select-Items "Uninstall-Apps — choose the programs to uninstall ($($programs.Count) installed)" $items)
+}
 if (-not $chosen) { Write-Host 'Nothing was uninstalled.'; return }
 
 Write-Host "`n  $($chosen.Count) program(s) to uninstall:"
@@ -647,7 +800,7 @@ $running = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $proc = 
 if ($running) {
     Write-Host "  Still open: $($running -join ', '). Close them before going on." -ForegroundColor Yellow
 }
-if (-not (Ask 'Uninstall now?' $true)) { Write-Host 'Nothing was uninstalled.'; return }
+if (-not $Answers -and -not (Ask 'Uninstall now?' $true)) { Write-Host 'Nothing was uninstalled.'; return }
 
 # --- Uninstall
 Write-Step 'Restore point'
@@ -659,31 +812,37 @@ for ($i = 0; $i -lt $chosen.Count; $i++) {
     Write-Step "[$($i + 1)/$($chosen.Count)] $($prog.Name)"
     $status = Invoke-Uninstall $prog
     switch ($status) {
-        'Removed' { Write-Result 'OK' 'uninstalled' }
-        'Restart' { Write-Result 'OK' 'uninstalled (restart to finish)' }
+        'Removed' { Write-Result 'OK' 'Uninstalled' }
+        'Restart' { Write-Result 'OK' 'Uninstalled'; Write-Host '       Restart the PC to finish.' -ForegroundColor DarkGray }
         'Orphan'  { }
-        'Kept'    { Write-Result 'SKIP' 'still installed (cancelled or failed)' }
+        'Kept'    { Write-Result 'SKIP' 'Still installed'; Write-Host '       The uninstaller was cancelled or failed.' -ForegroundColor DarkGray }
     }
     $results += [pscustomobject]@{ Program = $prog; Status = $status }
 }
 
 # --- Leftovers of what was removed (and of entries whose uninstaller was already gone)
 $removed = @($results | Where-Object { $_.Status -in 'Removed', 'Restart', 'Orphan' })
-if ($removed) {
+$lookForLeftovers = -not $Answers -or $script:Answer.Leftovers
+if ($removed -and $lookForLeftovers) {
     # Some uninstallers keep deleting files after they leave the list: wait for them first
     Write-Host ''
-    [void](Read-Host '  Close any uninstaller window still open, then press Enter to look for leftovers')
+    if ($Answers) {
+        Wait-Uninstallers $chosenFolders
+    } else {
+        [void](Read-Host '  Close any uninstaller window still open, then press Enter to look for leftovers')
+    }
     Write-Step 'Looking for leftovers'
     $remaining  = @(Get-InstalledPrograms)
     $keepLocs   = @($remaining | ForEach-Object { Get-ProgramFolders $_ } | Select-Object -Unique)
     $keepNames  = @(@($remaining | ForEach-Object { Get-NameKey $_.Name }) + @($keepLocs | ForEach-Object { Get-NameKey (Split-Path $_ -Leaf) }) | Select-Object -Unique)
     $kindNames  = @{ Folder = 'folder'; Registry = 'registry'; Shortcut = 'shortcut'; Task = 'task' }
+    $KindLabels = @{ Folder = 'Folder'; Registry = 'Registry key'; Shortcut = 'Shortcut'; Task = 'Scheduled task' }
     $leftItems = @()
     foreach ($r in $removed) {
         $found = @(Find-Leftovers $r.Program $keepLocs $keepNames ($r.Status -ne 'Orphan'))
         # An entry whose uninstaller is gone stays in Settings' list: offer its uninstall key (checked)
         if ($r.Status -eq 'Orphan' -and (Test-Path -LiteralPath $r.Program.Key)) {
-            $found += [pscustomobject]@{ Kind = 'Registry'; Path = (Get-Item -LiteralPath $r.Program.Key).Name; Reason = 'entry left in the installed apps list'; Checked = $true; Size = 0; Recyclable = $true }
+            $found += [pscustomobject]@{ Kind = 'Registry'; Path = (Get-Item -LiteralPath $r.Program.Key).Name; Reason = 'entry left in the installed apps list'; Checked = $true; Sure = $true; Size = 0; Recyclable = $true }
         }
         foreach ($f in $found) {
             $leftItems += [pscustomobject]@{ Group = $r.Program.Name; Label = $f.Path; Checked = $f.Checked; Size = $f.Size; Leftover = $f
@@ -692,28 +851,53 @@ if ($removed) {
     }
 
     if (-not $leftItems) {
-        Write-Result 'OK' 'nothing left behind'
+        Write-Result 'OK' 'Nothing left behind'
     } else {
-        Write-Host "  $($leftItems.Count) item(s) found. Checked: certainly the program's. Unchecked: have its name; look before checking."
-        [void](Read-Host '  Press Enter to see the list')
-        $toDelete = @(Select-Items 'Uninstall-Apps — leftovers to delete (folders go to the Recycle Bin)' $leftItems)
-        if (-not $toDelete) {
-            Write-Host '  Nothing was deleted.'
-        } else {
-            $backup = Join-Path $env:ProgramData ("TidyWin\uninstall-backup\{0}" -f (Get-Date -Format 'yyyy-MM-dd HHmm'))
-            Write-Host "`n  $($toDelete.Count) item(s) to delete:"
-            $toDelete | ForEach-Object { Write-Host "    - $($_.Label)" -ForegroundColor DarkGray }
-            Write-Host "  Folders and shortcuts go to the Recycle Bin. Registry keys and tasks are backed up first to:`n    $backup" -ForegroundColor DarkGray
-            if ($toDelete | Where-Object { -not $_.Leftover.Recyclable }) {
-                Write-Host '  Items that don''t fit in the Recycle Bin will each ask again before being deleted for good.' -ForegroundColor Yellow
+        $backup = Join-Path $env:ProgramData ("TidyWin\uninstall-backup\{0}" -f (Get-Date -Format 'yyyy-MM-dd HHmm'))
+        if ($Answers) {
+            # What is certainly theirs (and fits in the Recycle Bin) goes right away. The rest only might be
+            # theirs, or would be deleted for good: listed for you to pick, nothing checked.
+            $toDelete = @($leftItems | Where-Object { $_.Leftover.Sure -and $_.Leftover.Recyclable })
+            $unsure = @($leftItems | Where-Object { $toDelete -notcontains $_ })
+            if ($unsure) {
+                foreach ($u in $unsure) { $u.Checked = $false }
+                Write-Host "  $($unsure.Count) item(s) may be theirs: pick the ones to delete." -ForegroundColor DarkGray
+                foreach ($u in $unsure) { $u.Note = (@($KindLabels[$u.Leftover.Kind], (Format-Size $u.Size)) | Where-Object { $_ }) -join ' • ' }
+                $picked = @(Select-Items 'Leftovers to delete' $unsure -Short)
+                $toDelete += $picked
+                $kept = @($unsure | Where-Object { $picked -notcontains $_ })
+                if ($kept) {
+                    Write-Host '  Kept:' -ForegroundColor DarkGray
+                    $kept | ForEach-Object { Write-Host "    - $($_.Label)" -ForegroundColor DarkGray }
+                }
             }
-            if (Ask 'Delete them?' $false) {
+            if ($toDelete) {
                 Write-Step 'Deleting leftovers'
                 Remove-Leftovers @($toDelete | ForEach-Object { $_.Leftover }) $backup
                 Write-Host "  List of what was deleted, and the backups: $backup" -ForegroundColor DarkGray
                 Write-Host '  To put a registry key back, double-click its .reg file. Folders: restore them from the Recycle Bin.' -ForegroundColor DarkGray
-            } else {
+            }
+        } else {
+            Write-Host "  $($leftItems.Count) item(s) found. Checked: certainly the program's. Unchecked: have its name; look before checking."
+            [void](Read-Host '  Press Enter to see the list')
+            $toDelete = @(Select-Items 'Uninstall-Apps — leftovers to delete (folders go to the Recycle Bin)' $leftItems)
+            if (-not $toDelete) {
                 Write-Host '  Nothing was deleted.'
+            } else {
+                Write-Host "`n  $($toDelete.Count) item(s) to delete:"
+                $toDelete | ForEach-Object { Write-Host "    - $($_.Label)" -ForegroundColor DarkGray }
+                Write-Host "  Folders and shortcuts go to the Recycle Bin. Registry keys and tasks are backed up first to:`n    $backup" -ForegroundColor DarkGray
+                if ($toDelete | Where-Object { -not $_.Leftover.Recyclable }) {
+                    Write-Host '  Items that don''t fit in the Recycle Bin will each ask again before being deleted for good.' -ForegroundColor Yellow
+                }
+                if (Ask 'Delete them?' $false) {
+                    Write-Step 'Deleting leftovers'
+                    Remove-Leftovers @($toDelete | ForEach-Object { $_.Leftover }) $backup
+                    Write-Host "  List of what was deleted, and the backups: $backup" -ForegroundColor DarkGray
+                    Write-Host '  To put a registry key back, double-click its .reg file. Folders: restore them from the Recycle Bin.' -ForegroundColor DarkGray
+                } else {
+                    Write-Host '  Nothing was deleted.'
+                }
             }
         }
     }

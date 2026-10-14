@@ -2,26 +2,24 @@
 
 # Apps
 
-In the [TidyWin menu](../README.md#quick-start): **Set up → Install apps**. From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Set up → Applications**. From a local copy:
 
 ```powershell
-.\scripts\apps\Configure-Apps.ps1
+.\scripts\apps\configure-apps.ps1
 ```
 
 | Feature | What it does |
 |---|---|
-| Install WinGet | If WinGet is missing (usually on Windows 10), offers to install it first. |
-| App list | 104 apps in categories. ↑ ↓ moves, Space checks, Esc quits. |
-| Already installed | Shows "instalado" (installed) next to apps already on the PC. |
-| Check category | A key: checks every app in the category (again: unchecks). |
-| Search | / key: type the name and the cursor jumps to the app. Enter confirms, Esc cancels. |
-| Interactive install | I key: opens the app's own installer so you can choose its options (VS Code comes checked). |
-| Confirmation | Shows the chosen apps: "Retornar" (back, default) returns to the list, "Instalar apps" installs. |
+| App list | 105 apps, a tab per category. Nothing comes selected. |
+| Already installed | Marked **Installed** in green. Choosing one updates it if there is a newer version. |
+| Interactive | Next to each app (not the Microsoft Store ones): opens the app's own installer, so you choose its options, like VS Code's "Open with Code". |
+| Review | Lists the chosen apps before you install them. |
+| Install WinGet | If WinGet is missing (usually on Windows 10), it is installed first. |
 | Summary | Shows what was installed, what was already installed and what failed. |
 | Adding apps | One line in the script's `$Apps` list (find the ID with `winget search <name>`). |
 | Firefox and Thunderbird | Installed in the Windows display language (`Mozilla.Firefox.pt-BR`, `Mozilla.Firefox.de`...). English (US) when Mozilla has no version in that language. Already installed in any language counts as installed. |
 
-## Keys
+## Keys, when run directly
 
 | Key | Action |
 |---|---|
@@ -36,7 +34,7 @@ In the [TidyWin menu](../README.md#quick-start): **Set up → Install apps**. Fr
 ## Full list
 
 <details>
-<summary>See all 104 apps</summary>
+<summary>See all 105 apps</summary>
 
 ### Communication (8)
 
@@ -164,7 +162,7 @@ In the [TidyWin menu](../README.md#quick-start): **Set up → Install apps**. Fr
 | Cloudflare One | Cloudflare's WARP and 1.1.1.1 client; free VPN and Zero Trust access | `Cloudflare.Warp` |
 | Malwarebytes | anti-malware (second opinion to Defender) | `Malwarebytes.Malwarebytes` |
 
-### Utilities (18)
+### Utilities (19)
 
 | App | What it is | ID |
 |---|---|---|
@@ -184,6 +182,7 @@ In the [TidyWin menu](../README.md#quick-start): **Set up → Install apps**. Fr
 | Bulk Crap Uninstaller | uninstalls and cleans up leftovers (open source) | `Klocman.BulkCrapUninstaller` |
 | CrystalDiskInfo | SSD/HDD health (open source) | `CrystalDewWorld.CrystalDiskInfo` |
 | Unified Remote | control the PC from your phone (server; the app goes on the phone) | `UnifiedIntents.UnifiedRemote` |
+| Lenovo Vantage | updates and settings for Lenovo PCs (Microsoft Store) | `9WZDNCRFJ4MV` |
 | Visual C++ 2015-2022 | runtime most programs and games need (x64 + x86; also arm64 on ARM PCs) | `Microsoft.VCRedist.2015+.x86`, `.x64`, `.arm64` |
 | Visual C++ 2005-2013 | older runtimes, for older games and programs (x64 + x86) | `Microsoft.VCRedist.<2005, 2008, 2010, 2012, 2013>.x86` and `.x64` |
 
@@ -191,25 +190,25 @@ In the [TidyWin menu](../README.md#quick-start): **Set up → Install apps**. Fr
 
 ## Moving apps to another PC
 
-In the [TidyWin menu](../README.md#quick-start): **Formatting the PC → Back up apps and drivers** and **Restore apps and drivers** (the apps step). From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Formatting the PC → Back up apps and drivers** and **Restore apps and drivers** (the apps step). From a local copy:
 
 ```powershell
-.\scripts\apps\Backup-Apps.ps1 -Export   # before formatting
-.\scripts\apps\Backup-Apps.ps1 -Import   # after formatting
+.\scripts\apps\backup-apps.ps1 -Export   # before formatting
+.\scripts\apps\backup-apps.ps1 -Import   # after formatting
 ```
 
-Export saves `tidywin-apps-<PC>-<date>.json` with every app WinGet knows (Desktop, Documents, Downloads, OneDrive or a folder you type). Import finds the newest file in those folders, lists the apps and installs the ones that are missing. Only apps are saved, not their settings.
+Export saves `tidywin-apps-<PC>-<date>.json` with every app WinGet knows, where you choose: a USB drive, another disk, Desktop, Documents, Downloads, OneDrive or another folder. Import lists the files it finds in those places, nothing picked, and installs the apps of the one you pick that are missing. Only apps are saved, not their settings.
 
 ## Uninstalling
 
-In the [TidyWin menu](../README.md#quick-start): **Maintenance → Uninstall programs**.
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Uninstall programs**.
 
 | Step | What it does |
 |---|---|
-| Programs | The same list as Settings → Apps → Installed apps, without system components and updates. ↑ ↓ moves, Space checks, / searches. |
+| Programs | The same list as Settings → Apps → Installed apps, without system components and updates, with a search box. Nothing checked. |
 | Uninstall | Warns about programs still open, creates a restore point, then runs each program's **official uninstaller**, one at a time, with its own window. Nothing is forced; cancelling keeps the program. |
-| Leftovers | After you close the uninstaller windows, looks for what the removed programs left behind. **Checked**: the install folder that remained (under 1 GB), broken shortcuts, empty Start menu folders and scheduled tasks of the program. **Unchecked**: folders and registry keys with the program's name, big install folders (usually your data), folders named after the publisher, anything of a program whose uninstaller was missing, and anything too big for the Recycle Bin. |
+| Leftovers | **Remove leftovers**, a checkbox at the bottom of the page, next to Review, off at first. On: once the uninstallers finish, what is **certainly theirs** goes right away (the install folder that remained, under 1 GB; broken shortcuts; empty Start menu folders; scheduled tasks of the program). What **only might be theirs** (folders and registry keys with the program's name, big install folders, usually your data, folders named after the publisher, anything of a program whose uninstaller was missing, and anything too big for the Recycle Bin) shows in a list at the end, nothing checked: only what you check is deleted. |
 | Never touched | Windows, Program Files/ProgramData/AppData themselves, Common Files, Microsoft folders, your Desktop/Documents/Downloads, links, and anything an installed program still uses. |
-| Delete | Only after confirming. Folders and shortcuts go to the **Recycle Bin**; what doesn't fit asks again, one by one, before being deleted for good. Registry keys and scheduled tasks are exported first to `%ProgramData%\TidyWin\uninstall-backup\<date>`, with a `deleted.txt` listing everything: double-click a `.reg` file to put a key back. |
+| Delete | Folders and shortcuts go to the **Recycle Bin**; what doesn't fit is only deleted for good when you check it in the list, which says so. Registry keys and scheduled tasks are exported first to `%ProgramData%\TidyWin\uninstall-backup\<date>`, with a `deleted.txt` listing everything: double-click a `.reg` file to put a key back. |
 
-Microsoft Store apps are not listed: remove them from Settings, or with the menu's Windows option.
+Microsoft Store apps are not listed: remove them from Settings, or with the panel's Windows option.

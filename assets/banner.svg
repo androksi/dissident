@@ -40,18 +40,15 @@
 
   <text x="28" y="190" class="group">  Set up</text>
   <text x="28" y="216" class="sel">  &gt; Windows</text>
-  <text x="28" y="242" class="item">    Install apps</text>
-  <text x="28" y="268" class="item">    Install fonts</text>
+  <text x="28" y="242" class="item">    Applications</text>
+  <text x="28" y="268" class="item">    Fonts</text>
   <text x="28" y="294" class="item">    Chrome</text>
   <text x="28" y="320" class="item">    Brave</text>
   <text x="28" y="346" class="item">    Firefox</text>
-  <text x="28" y="372" class="item">    Development</text>
-  <text x="28" y="398" class="item">    Wallpapers</text>
 
-  <text x="28" y="436" class="group">  Maintenance</text>
-  <text x="28" y="462" class="item">    PC report</text>
-  <text x="28" y="488" class="item">    Check after a Windows update</text>
-  <text x="28" y="514" class="item">    Uninstall programs</text>
+  <text x="28" y="384" class="group">  Maintenance</text>
+  <text x="28" y="410" class="item">    Check after a Windows update</text>
+  <text x="28" y="436" class="item">    Uninstall programs</text>
 
   <!-- description of the selected option, then the keys -->
   <text x="28" y="556" class="desc">  Turns off telemetry, ads and suggestions, removes preinstalled apps and OneDrive,</text>

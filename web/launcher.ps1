@@ -2,8 +2,9 @@
 #   irm __BASE__/__NAME__ | iex
 #
 # Template: web/launcher.ps1. The Pages workflow replaces the __...__ placeholders and publishes it
-# as "run". It asks for administrator rights, downloads the menu (scripts/TidyWin.ps1) and runs it;
-# the menu downloads the script you pick. ASCII and no BOM on purpose: a BOM breaks "irm | iex".
+# as "run". Your terminal shows the logo and waits; a hidden PowerShell as administrator downloads the
+# panel (scripts/TidyWin.ps1) and runs it. When the panel closes, the terminal says goodbye. ASCII and no BOM on purpose:
+# a BOM breaks "irm | iex".
 
 & {
     $Name   = '__NAME__'      # shortcut name (last part of the URL)
@@ -15,23 +16,53 @@
     $ProgressPreference    = 'SilentlyContinue'    # the progress bar makes downloads slow on PowerShell 5.1
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-    $elevated = [bool](Get-Variable -Name TidyWinElevated -ValueOnly -ErrorAction SilentlyContinue)
-    function Wait-Close { if ($elevated) { Read-Host "`nPress Enter to close" | Out-Null } }
+    $hidden = [bool](Get-Variable -Name TidyWinElevated -ValueOnly -ErrorAction SilentlyContinue)
 
-    # --- Administrator: if not, open an elevated window that runs this same shortcut
-    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-        [Security.Principal.WindowsBuiltInRole]::Administrator)
-    if (-not $isAdmin) {
-        Write-Host 'TidyWin: requesting administrator rights...' -ForegroundColor DarkYellow
+    # --- From your terminal: the logo, then the hidden administrator process that runs this same shortcut.
+    # This terminal waits for the panel and says goodbye when it closes.
+    if (-not $hidden) {
+        $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+            [Security.Principal.WindowsBuiltInRole]::Administrator)
+        $os = try {
+            $cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+            $name = "$($cv.ProductName)"
+            if ([int]$cv.CurrentBuild -ge 22000) { $name = $name -replace 'Windows 10', 'Windows 11' }   # 11 still says 10 there
+            "$name $($cv.DisplayVersion) (build $($cv.CurrentBuild).$($cv.UBR))"
+        } catch { 'Windows' }
+        Clear-Host
+        Write-Host ''
+        Write-Host @'
+  _____ _     _       __        ___
+ |_   _(_) __| |_   _ \ \      / (_)_ __
+   | | | |/ _` | | | | \ \ /\ / /| | '_ \
+   | | | | (_| | |_| |  \ V  V / | | | | |
+   |_| |_|\__,_|\__, |   \_/\_/  |_|_| |_|
+                |___/
+'@ -ForegroundColor Cyan
+        Write-Host "  $os" -ForegroundColor Gray
+        Write-Host "  $Base" -ForegroundColor DarkGray
+        Write-Host ''
+        if (-not $isAdmin) { Write-Host '  Allow the administrator prompt to open the panel.' -ForegroundColor DarkYellow }
+        Write-Host '  The panel opens in its own window. Close it to come back here.' -ForegroundColor DarkGray
         $cmd = "`$TidyWinElevated = `$true; irm '$Base/$Name' | iex"
         $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
-        try {
-            Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList @(
-                '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded)
-        } catch {
-            Write-Host 'TidyWin: permission denied. Nothing was changed.' -ForegroundColor Red
+        $start = @{
+            FilePath     = 'powershell.exe'
+            WindowStyle  = 'Hidden'
+            ArgumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-EncodedCommand', $encoded)
+            Wait         = $true
         }
+        if (-not $isAdmin) { $start.Verb = 'RunAs' }
+        try { Start-Process @start }
+        catch { Write-Host "`n  Permission denied. Nothing was changed." -ForegroundColor Red; return }
+        Write-Host "`n  Cya!`n" -ForegroundColor Cyan
         return
+    }
+
+    # --- Hidden, as administrator: errors show in a message box, since there is no console to read
+    function Show-Error([string]$Text) {
+        Add-Type -AssemblyName PresentationFramework
+        [void][System.Windows.MessageBox]::Show($Text, 'TidyWin', 'OK', 'Error')
     }
 
     # --- Download the script to a temp folder (bytes as-is: keeps the BOM that 5.1 needs)
@@ -39,22 +70,18 @@
     $file = Join-Path $temp (Split-Path $Script -Leaf)
     try {
         New-Item -ItemType Directory -Path $temp -Force | Out-Null
-        Write-Host "TidyWin: downloading $Script" -ForegroundColor DarkGray
         Invoke-WebRequest -Uri "$Base/$Script" -OutFile $file -UseBasicParsing
     } catch {
-        Write-Host "TidyWin: could not download $Base/$Script" -ForegroundColor Red
-        Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+        Show-Error "Could not download TidyWin from $Base/$Script`n`n$($_.Exception.Message)"
         Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
-        Wait-Close
         return
     }
 
     # --- Run it in Windows PowerShell 5.1 (the scripts target it), with Bypass only for this process
-    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $file)
+    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', $file)
     if ($Extra) { $argv += $Extra }
     & powershell.exe @argv
 
-    # --- Clean up: nothing stays on the PC besides what the script configured
+    # --- Clean up: nothing stays on the PC besides what the scripts configured
     Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
-    Wait-Close
 }

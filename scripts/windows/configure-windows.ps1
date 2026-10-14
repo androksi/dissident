@@ -1,22 +1,22 @@
 ﻿#Requires -RunAsAdministrator
 <#
-    Configure-Windows.ps1 — telemetry, junk apps and personalization for Windows 10 and 11
+    configure-windows.ps1 — telemetry, junk apps and personalization for Windows 10 and 11
 
     HOW TO RUN (Windows PowerShell 5.1 as Administrator, NOT PowerShell 7):
-        powershell -ExecutionPolicy Bypass -File .\Configure-Windows.ps1
+        powershell -ExecutionPolicy Bypass -File .\configure-windows.ps1
 
-    All questions are asked first (arrow-key menus; the default comes selected),
-    then everything is applied at once. To use the defaults without any questions:
-        powershell -ExecutionPolicy Bypass -File .\Configure-Windows.ps1 -NoPrompt
+    Nothing comes selected: only what you turn on or pick is applied, the rest stays as it is.
+    In the TidyWin panel every option shows on one page. Run directly, the options are asked one by one
+    (arrow-key menus; "Skip" leaves a setting as it is), then everything is applied at once.
 
     Check later (e.g. after a big Windows update) whether anything came back, and reapply it:
-        powershell -ExecutionPolicy Bypass -File .\Configure-Windows.ps1 -Check
+        powershell -ExecutionPolicy Bypass -File .\configure-windows.ps1 -Check
     The answers are saved in %ProgramData%\TidyWin\windows.json for that (Revert deletes it).
 
     Each change gets its own line: [OK] changed now, [--] it already was like that. Everything shown while
     applying is also saved to "TidyWin log <date>.txt" on the Desktop (with the answers; no user or PC name).
     If a step fails, the script reports it and moves on to the next one.
-    Undo: Revert-Configure-Windows.ps1 (removed apps come back through the Microsoft Store).
+    Undo: revert-configure-windows.ps1 (removed apps come back through the Microsoft Store).
     Safe to run more than once. Restart the PC at the end.
 
     FILE LAYOUT
@@ -27,16 +27,110 @@
         5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, volume, verbose BSoD, screen/sleep times
         6. Network ................... DNS with DNS over HTTPS
         7. Check ..................... -Check: compares the PC with the saved answers
-        8. Questions ................. what to apply
+        8. Options ................... every option (the panel's page) and what you chose
         9. Execution ................. applies the chosen options, in order
 #>
 param(
-    [switch]$NoPrompt,
-    [switch]$Check
+    [switch]$Check,
+    [string]$Describe,      # the panel: write every option to this file and stop
+    [string]$Answers        # the panel: apply the options in this file, without asking
 )
 
 $ErrorActionPreference = 'Continue'
 
+
+#region ==================== PANEL ====================
+
+# Run from the TidyWin panel ($env:TIDYWIN_PANEL = 1): the questions show up in the panel window. Each one
+# goes out as a line "##TIDYWIN {json}" and the answer comes back as one JSON line on the standard input.
+# Write-Host lines carry their color ([char]1 + color + [char]2 + text) so the panel can show it.
+$script:Panel = $env:TIDYWIN_PANEL -eq '1'
+$script:PanelLine = ''
+
+function Write-PanelHost {
+    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+          [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+    $text  = (@($Object) | ForEach-Object { "$_" }) -join "$Separator"
+    $color = if ($PSBoundParameters.ContainsKey('ForegroundColor')) { "$ForegroundColor" } else { '' }
+    $parts = @($text -split "`r?`n")
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $script:PanelLine += [string][char]1 + $color + [char]2 + $parts[$i]
+        if ($i -lt $parts.Count - 1 -or -not $NoNewline) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    }
+}
+
+# Sends a question to the panel and returns the answer ($null when it was cancelled).
+function Request-Panel([hashtable]$Request) {
+    if ($script:PanelLine) { [Console]::Out.WriteLine($script:PanelLine); $script:PanelLine = '' }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json $Request -Compress -Depth 6))
+    $line = [Console]::In.ReadLine()
+    if ($null -eq $line) { exit 1 }                       # the panel was closed
+    return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
+}
+
+if ($script:Panel) {
+    function Write-Host {
+        param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
+              [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
+        Write-PanelHost @PSBoundParameters
+    }
+    # Typed answers: a "press Enter" pause, a folder, a file or text
+    function Read-Host([Parameter(Position = 0)][object]$Prompt) {
+        $q = "$Prompt".Trim()
+        $type = if ($q -match '(?i)press Enter') { 'wait' } elseif ($q -match '(?i)^folder') { 'folder' } elseif ($q -match '(?i)\.json file') { 'file' } else { 'text' }
+        return "$(Request-Panel @{ type = $type; question = $q })"
+    }
+}
+
+# --- Options of a page in the panel (the same in every script). A field: tab, id, kind (toggle, choice,
+# select, checklist, text, header), label, desc, default and more (options, items, warn, when...).
+# -Describe writes the fields for the panel's page; Read-Options brings back what was chosen: the panel's
+# answers file, or asked here when the script runs on its own. Nothing comes selected.
+function Opt($Value, [string]$Label) { [ordered]@{ value = $Value; label = $Label } }
+
+function New-Field([string]$Tab, [string]$Id, [string]$Kind, [string]$Label, [string]$Desc, $Default, [hashtable]$More) {
+    $f = [ordered]@{ tab = $Tab; id = $Id; kind = $Kind; label = $Label; desc = $Desc; default = $Default }
+    if ($More) { foreach ($k in $More.Keys) { $f[$k] = $More[$k] } }
+    return $f
+}
+
+function Write-OptionsPage([string]$Path, [object[]]$Fields, [string[]]$Notes) {
+    $page = [ordered]@{ tabs = @($Fields | ForEach-Object { $_.tab } | Select-Object -Unique); notes = @($Notes | Where-Object { $_ }); fields = @($Fields | Where-Object { $_ }) }
+    [IO.File]::WriteAllText($Path, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
+}
+
+function Read-Options([object[]]$Fields, [string]$AnswersFile) {
+    $values = @{}
+    foreach ($f in $Fields) { if ($f.kind -ne 'header') { $values[$f.id] = $f.default } }
+    if ($AnswersFile) {
+        $json = [IO.File]::ReadAllText($AnswersFile) | ConvertFrom-Json
+        foreach ($prop in $json.PSObject.Properties) { $values[$prop.Name] = $prop.Value }
+        return $values
+    }
+    foreach ($f in $Fields) {
+        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        switch ($f.kind) {
+            'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
+            'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
+            'info'      { Write-Host "  $($f.label): $($f.desc)" -ForegroundColor DarkGray }
+            { $_ -in 'text', 'path' } { $values[$f.id] = "$(Read-Host "  $($f.label)")".Trim().Trim('"') }
+            'checklist' { $values[$f.id] = @($f.items | Where-Object { Ask "$($f.label): $($_.label)?" $false } | ForEach-Object { $_.value }) }
+            default {
+                # choice and select; "Skip" leaves it as it is
+                $options = @(Opt '' 'Skip') + @($f.options)
+                $values[$f.id] = $options[(Choose "$($f.label):" @($options | ForEach-Object { $_.label }) 0)].value
+            }
+        }
+    }
+    return $values
+}
+
+# Yes / No (scripts that ask more define their own, the same)
+function Ask([string]$Question, [bool]$Default) {
+    return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
+}
+
+#endregion
 
 #region ==================== 1. HELPERS ====================
 
@@ -44,15 +138,16 @@ $ErrorActionPreference = 'Continue'
 # Writes a registry value, creating the key if it doesn't exist.
 function Set-Reg {
     param([string]$Path, [string]$Name, [object]$Value, [string]$Type = 'DWord')
+    # Only the registry: a broken path would otherwise create files in the current folder
+    if ($Path -notmatch '^(HKLM|HKCU|HKCR|HKU|Registry):') { throw "not a registry path: $Path" }
     if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
     New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType $Type -Force | Out-Null
 }
 
 # Step title in the terminal.
-function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
+function Write-Step([string]$Text) { Write-Host "`n▸ $Text" -ForegroundColor Cyan }
 
 # Yes/no question shown as a "Yes / No" menu (same as Choose). The default comes selected.
-# With -NoPrompt, Choose returns the default right away.
 function Ask([string]$Question, [bool]$Default) {
     return (Choose $Question @('Yes', 'No') $(if ($Default) { 0 } else { 1 })) -eq 0
 }
@@ -60,7 +155,7 @@ function Ask([string]$Question, [bool]$Default) {
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
 # The "use the arrows" hint is shown only on the first menu.
 function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
-    if ($NoPrompt) { return $Default }
+    if ($script:Panel) { return [int](Request-Panel @{ type = 'choose'; question = $Question; options = @($Options); default = $Default }) }
     Write-Host "  $Question"
     $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
@@ -122,10 +217,15 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
 
 # Full-screen checklist with group headers and scrolling: ↑ ↓ move, Space checks, A checks/unchecks the
 # whole group, Enter confirms. $Items: objects with Group, Label, Note, Checked. Returns the checked items.
-# With -NoPrompt it returns what comes checked; without a real console, numbers separated by commas.
+# Without a real console: numbers separated by commas.
 function Select-Many([string]$Title, [object[]]$Items) {
-    if ($NoPrompt) { return @($Items | Where-Object Checked) }
-    $arrows = ($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
+    if ($script:Panel) {
+        $answer = Request-Panel @{ type = 'checklist'; title = $Title; cancel = $false
+            items = @($Items | ForEach-Object { @{ label = "$($_.Label)"; note = "$($_.Note)"; group = "$($_.Group)"; checked = [bool]$_.Checked } }) }
+        if ($null -ne $answer) { for ($i = 0; $i -lt $Items.Count; $i++) { $Items[$i].Checked = @($answer.checked) -contains $i } }
+        return @($Items | Where-Object Checked)
+    }
+    $arrows =($Host.Name -eq 'ConsoleHost') -and -not [Console]::IsInputRedirected
     if (-not $arrows) {
         Write-Host "  $Title"
         for ($i = 0; $i -lt $Items.Count; $i++) {
@@ -270,7 +370,7 @@ $script:LogPending = ''
 function Write-Host {
     param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
           [object]$Separator = ' ', [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor)
-    Microsoft.PowerShell.Utility\Write-Host @PSBoundParameters
+    if ($script:Panel) { Write-PanelHost @PSBoundParameters } else { Microsoft.PowerShell.Utility\Write-Host @PSBoundParameters }
     if (-not $script:LogFile) { return }
     $script:LogPending += ($Object -join "$Separator")
     if (-not $NoNewline) {
@@ -369,7 +469,7 @@ function Disable-TelemetryTasks {
         $task = Get-ScheduledTask -TaskPath '\Microsoft\Windows\Application Experience\' -TaskName $name -ErrorAction SilentlyContinue
         if ($task -and $task.State -eq 'Disabled') {
             Enable-ScheduledTask -InputObject $task -ErrorAction SilentlyContinue | Out-Null
-            Write-Host "  re-enabled: $name (needed for the yearly feature update)"
+            Write-Host "  Re-enabled: $name"; Write-Host '  Needed for the yearly feature update.' -ForegroundColor DarkGray
         }
     }
 }
@@ -408,7 +508,7 @@ function Disable-Widgets {
             New-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' -Name 'AllowNewsAndInterests' -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
             Write-Host '  Widgets disabled by policy'
         } catch {
-            Write-Host '  (Windows protects the Widgets policy; removing the Widgets package instead)' -ForegroundColor DarkYellow
+            Write-Host '  Windows protects the Widgets policy, so the Widgets package is removed instead.' -ForegroundColor DarkYellow
             $widgets = Get-AppxPackage -AllUsers -Name 'MicrosoftWindows.Client.WebExperience' -ErrorAction SilentlyContinue
             if (-not $widgets) { Write-Host '  Widgets are not installed anymore' }
             foreach ($pkg in $widgets) {
@@ -416,7 +516,7 @@ function Disable-Widgets {
                     Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
                     Write-Host '  Widgets removed'
                 } catch {
-                    Write-Host "  (could not remove Widgets: $($_.Exception.Message.Trim()). Turn them off in Settings → Personalization → Taskbar.)" -ForegroundColor DarkYellow
+                    Write-Host "  Could not remove Widgets: $($_.Exception.Message.Trim()). Turn them off in Settings → Personalization → Taskbar." -ForegroundColor DarkYellow
                 }
             }
         }
@@ -426,7 +526,7 @@ function Disable-Widgets {
             New-ItemProperty "$P\Windows Feeds" -Name 'EnableFeeds' -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
             Write-Host '  News and interests turned off'
         } catch {
-            Write-Host '  (could not turn off News and interests by policy; right-click the taskbar → News and interests → Turn off)' -ForegroundColor DarkYellow
+            Write-Host '  Could not turn off News and interests by policy. Right-click the taskbar → News and interests → Turn off.' -ForegroundColor DarkYellow
         }
     }
 }
@@ -613,7 +713,7 @@ function Disable-GameDvr {
     Set-Reg 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' 0
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR' 'AppCaptureEnabled' 0
     Set-Reg "$P\GameDVR" 'AllowGameDVR' 0
-    Write-Host '  game recording (Game DVR): off'
+    Write-Host '  Game recording (Game DVR): off'
 }
 
 # --- OneDrive --------------------------------------------------------------
@@ -668,22 +768,22 @@ function Set-WindowsSecurity {
     # Potentially unwanted app blocking (adware, installers bundling "extras")
     try {
         Set-MpPreference -PUAProtection Enabled -ErrorAction Stop
-        Write-Host '  potentially unwanted app blocking: on'
+        Write-Host '  Potentially unwanted app blocking: on'
     } catch {
-        Write-Host "  (could not turn on potentially unwanted app blocking: $($_.Exception.Message.Trim()). Another antivirus installed?)" -ForegroundColor DarkYellow
+        Write-Host "  Could not turn on potentially unwanted app blocking: $($_.Exception.Message.Trim()). Is another antivirus installed?" -ForegroundColor DarkYellow
     }
     # Second half of the same setting: "Block downloads" (SmartScreen in Edge). Without it, Windows Security
     # keeps warning that potentially unwanted app blocking is off.
     # (the value is the key's default value; reg.exe /ve writes it reliably)
     reg.exe add 'HKCU\SOFTWARE\Microsoft\Edge\SmartScreenPuaEnabled' /ve /t REG_DWORD /d 1 /f | Out-Null
-    if ($LASTEXITCODE) { Write-Host '  (could not turn on unwanted download blocking)' -ForegroundColor DarkYellow }
-    else               { Write-Host '  unwanted download blocking: on' }
+    if ($LASTEXITCODE) { Write-Host '  Could not turn on unwanted download blocking.' -ForegroundColor DarkYellow }
+    else               { Write-Host '  Unwanted download blocking: on' }
 
     $WSC = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center'
     # "Informational" notifications (suggestions, summaries). Important alerts — threat found,
     # protection turned off — keep showing up.
     Set-Reg "$WSC\Notifications" 'DisableEnhancedNotifications' 1
-    Write-Host '  informational notifications: hidden (important alerts still show up)'
+    Write-Host '  Informational notifications: hidden'; Write-Host '  Important alerts still show up.' -ForegroundColor DarkGray
 
     # "Set up OneDrive for ransomware recovery" card: without OneDrive it only causes the
     # exclamation mark on the icon. Hidden only when OneDrive is not installed.
@@ -691,9 +791,9 @@ function Set-WindowsSecurity {
                    (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")
     if (-not $hasOneDrive) {
         Set-Reg "$WSC\Virus and threat protection" 'HideRansomwareRecovery' 1
-        Write-Host '  OneDrive backup warning: hidden (OneDrive not installed)'
+        Write-Host '  OneDrive backup warning: hidden'; Write-Host '  OneDrive is not installed.' -ForegroundColor DarkGray
     } else {
-        Write-Host '  OneDrive backup warning: kept (OneDrive installed)'
+        Write-Host '  OneDrive backup warning: kept'; Write-Host '  OneDrive is installed.' -ForegroundColor DarkGray
     }
 }
 
@@ -702,7 +802,7 @@ function Set-WindowsSecurity {
 # Note: some vendor installers (e.g. Razer) ship inside the driver package itself and may still appear.
 function Disable-DeviceMetadata {
     Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1
-    Write-Host '  manufacturer apps and icons for devices: no longer downloaded (drivers still are)'
+    Write-Host '  Manufacturer apps and icons for devices: no longer downloaded'; Write-Host '  Drivers still are.' -ForegroundColor DarkGray
 }
 
 # Recall (Copilot+ PCs only): official policies that remove it and stop it from being turned on, and
@@ -710,7 +810,7 @@ function Disable-DeviceMetadata {
 function Disable-Recall {
     Set-Reg "$P\WindowsAI" 'AllowRecallEnablement' 0
     Set-Reg "$P\WindowsAI" 'DisableAIDataAnalysis' 1
-    Write-Host '  Recall: removed and blocked (after restarting; only exists on Copilot+ PCs)'
+    Write-Host '  Recall: removed and blocked'; Write-Host '  After restarting. Recall only exists on Copilot+ PCs.' -ForegroundColor DarkGray
 }
 
 # WPBT (Windows Platform Binary Table): lets the PC's firmware hand Windows a program to run at every
@@ -718,7 +818,7 @@ function Disable-Recall {
 # This stops Windows from running it; the firmware itself is not touched.
 function Disable-Wpbt {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' 1
-    Write-Host '  WPBT: Windows no longer runs programs provided by the firmware (after restarting)'
+    Write-Host '  WPBT: Windows no longer runs programs provided by the firmware'; Write-Host '  After restarting.' -ForegroundColor DarkGray
 }
 
 # Hides the "Account protection" and "Device security" areas of Windows Security (official policy).
@@ -743,7 +843,7 @@ function Clear-SystemDriveRoot {
     if (Test-Path $inetpub) {
         $folder = Get-Item $inetpub -Force
         $folder.Attributes = $folder.Attributes -bor [IO.FileAttributes]::Hidden   # -bor: safe if already hidden
-        Write-Host '  inetpub: hidden (not deleted: it is part of a security fix)'
+        Write-Host '  inetpub: hidden'; Write-Host '  Not deleted: a Windows security fix needs it.' -ForegroundColor DarkGray
     }
     if (Test-Path $perfLogs) {
         Remove-Item $perfLogs -Recurse -Force -ErrorAction Stop
@@ -789,7 +889,7 @@ function Set-Theme([bool]$Light) {
     Set-Reg "$Themes\Personalize" 'AppsUseLightTheme'    $mode
     Set-ThemeWallpaper $theme
     if ($current -ine $theme) { Write-Warning 'Could not confirm the theme. Check Settings → Personalization → Themes.' }
-    else { Write-Host "  theme applied: $(Split-Path $theme -Leaf)" }
+    else { Write-Host "  Theme applied: $(Split-Path $theme -Leaf)" }
 }
 
 # On Windows 11 the desktop background can stay on "Windows Spotlight" even after applying a theme
@@ -813,21 +913,21 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, stri
     }
     # SPI_SETDESKWALLPAPER = 0x14; SPIF_UPDATEINIFILE | SPIF_SENDCHANGE = 3
     if ([CfgWin.Wallpaper]::SystemParametersInfo(0x14, 0, $wallpaper, 3)) {
-        Write-Host "  theme wallpaper: $(Split-Path $wallpaper -Leaf) (Windows Spotlight off)"
+        Write-Host "  Theme wallpaper: $(Split-Path $wallpaper -Leaf)"; Write-Host '  Windows Spotlight is off.' -ForegroundColor DarkGray
     } else {
-        Write-Host '  (could not change the wallpaper; pick one in Settings → Personalization → Background)' -ForegroundColor DarkYellow
+        Write-Host '  Could not change the wallpaper. Pick one in Settings → Personalization → Background.' -ForegroundColor DarkYellow
     }
 }
 
 # Visible file extensions, frequent folders and recent files in File Explorer.
 function Set-Explorer([bool]$ShowExtensions, [bool]$HideFrequent, [bool]$HideRecent) {
     $Exp = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer'
-    if ($ShowExtensions) { Set-Reg "$Exp\Advanced" 'HideFileExt' 0; Write-Host '  file extensions visible' }
-    if ($HideFrequent)   { Set-Reg $Exp 'ShowFrequent' 0;          Write-Host '  frequent folders hidden (the ones you pinned stay)' }
+    if ($ShowExtensions) { Set-Reg "$Exp\Advanced" 'HideFileExt' 0; Write-Host '  File extensions visible' }
+    if ($HideFrequent)   { Set-Reg $Exp 'ShowFrequent' 0;          Write-Host '  Frequent folders hidden'; Write-Host '  The ones you pinned stay.' -ForegroundColor DarkGray }
     if ($HideRecent) {
         Set-Reg $Exp 'ShowRecent' 0
         if ($isWin11) { Set-Reg $Exp 'ShowRecommendations' 0 }
-        Write-Host '  recent files hidden'
+        Write-Host '  Recent files hidden'
     }
     $script:RestartExplorer = $true
 }
@@ -848,7 +948,7 @@ function Hide-HomeAndGallery {
 function Enable-ClassicContextMenu {
     reg.exe add 'HKCU\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' /ve /f | Out-Null   # /ve without /d = empty default value
     if ($LASTEXITCODE) { throw 'could not write the classic menu key' }
-    Write-Host '  classic context menu: on (no "Show more options")'
+    Write-Host '  Classic context menu: on'; Write-Host '  No "Show more options".' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -861,12 +961,12 @@ function Unpin-QuickAccessMusic {
     $item  = $quick.Items() | Where-Object { $_.Path -eq $music }
     if (-not $item) { Write-Host '  Music was not pinned to Quick access'; return }
     $item.InvokeVerb('unpinfromhome')
-    Write-Host '  Music unpinned from Quick access (the folder stays where it is)'
+    Write-Host '  Music unpinned from Quick access'; Write-Host '  The folder stays where it is.' -ForegroundColor DarkGray
 }
 
 function Show-HiddenFiles {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Hidden' 1
-    Write-Host '  hidden files and folders: visible (protected system files stay hidden)'
+    Write-Host '  Hidden files and folders: visible'; Write-Host '  Protected system files stay hidden.' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -877,7 +977,7 @@ function Disable-FolderDiscovery {
     $shell = 'HKCU:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\Shell'
     Remove-Item "$shell\Bags", "$shell\BagMRU" -Recurse -Force -ErrorAction SilentlyContinue
     Set-Reg "$shell\Bags\AllFolders\Shell" 'FolderType' 'NotSpecified' 'String'
-    Write-Host '  automatic folder type discovery: off (folder views reset)'
+    Write-Host '  Automatic folder type discovery: off'; Write-Host '  Folder views were reset.' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -885,7 +985,7 @@ function Disable-FolderDiscovery {
 # On older builds the value is simply ignored.
 function Enable-BatteryPercentage {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'IsBatteryPercentageEnabled' 1
-    Write-Host '  battery percentage on the taskbar: on (if your Windows version has the option)'
+    Write-Host '  Battery percentage on the taskbar: on'; Write-Host '  If your Windows version has the option.' -ForegroundColor DarkGray
     $script:RestartExplorer = $true
 }
 
@@ -893,7 +993,7 @@ function Enable-BatteryPercentage {
 # Windows default: -60. Takes effect after signing out and back in.
 function Set-ThinBorder {
     Set-Reg 'HKCU:\Control Panel\Desktop\WindowMetrics' 'PaddedBorderWidth' '0' 'String'
-    Write-Host '  border thinned (takes effect after signing out and back in)'
+    Write-Host '  Border thinned'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
 }
 
 # Snap windows off (Settings → System → Multitasking): no snapping to screen edges, no Snap layouts.
@@ -915,14 +1015,14 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, Syst
 function Set-TaskbarAlignment([bool]$Left) {
     $value = if ($Left) { 0 } else { 1 }
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarAl' $value
-    Write-Host "  taskbar icons: $(if ($Left) { 'left' } else { 'center' })"
+    Write-Host "  Taskbar icons: $(if ($Left) { 'left' } else { 'center' })"
     $script:RestartExplorer = $true
 }
 
 # Taskbar search (Windows 10 and 11): SearchboxTaskbarMode 0 = hidden, 1 = icon only, 2 = search box.
 function Set-TaskbarSearch([int]$Mode) {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search' 'SearchboxTaskbarMode' $Mode
-    Write-Host "  taskbar search: $(@('hidden', 'icon only', 'search box')[$Mode])"
+    Write-Host "  Taskbar search: $(@('hidden', 'icon only', 'search box')[$Mode])"
     $script:RestartExplorer = $true
 }
 
@@ -941,7 +1041,7 @@ function Clear-TaskbarPins {
     Remove-Item 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Taskband' -Recurse -Force -ErrorAction SilentlyContinue
     Get-ChildItem "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar" -Filter '*.lnk' -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
-    Write-Host '  pinned icons removed from the taskbar'
+    Write-Host '  Pinned icons removed from the taskbar'
     $script:RestartExplorer = $true
 }
 
@@ -983,9 +1083,9 @@ function Remove-StartAdPins {
     if ($done) {
         New-Item -ItemType Directory -Path (Split-Path $StartUnpinnedFile) -Force | Out-Null
         ConvertTo-Json -InputObject @($done) | Set-Content $StartUnpinnedFile -Encoding UTF8
-        Write-Host "  unpinned from Start: $($done -join ', ')"
+        Write-Host "  Unpinned from Start: $($done -join ', ')"
     } else {
-        Write-Host '  no ad shortcuts pinned to Start'
+        Write-Host '  No ad shortcuts pinned to Start'
     }
 }
 
@@ -1165,71 +1265,9 @@ function Initialize-DisplayApi { if (-not ('CfgWin.DisplayApi' -as [type])) { Ad
 
 function Format-Resolution([int]$Width, [int]$Height) { "$Width × $Height" }
 
-# Questions for one display. Returns what to change, or $null when everything stays "Default".
-function Read-DisplayChoice($Display, [int]$Number, [int]$Count) {
-    $name = if ($Display.Name) { $Display.Name } elseif ($Display.Internal) { 'Laptop screen' } else { "Screen $Number" }
-    $suffix = if ($Count -gt 1) { " — $name" } else { '' }
-    $cur = [CfgWin.DisplayApi]::GetCurrentMode($Display.Device)
-    if (-not $cur) { return $null }
-    $modes = @([CfgWin.DisplayApi]::GetModes($Display.Device) | Where-Object { $_[3] -eq 32 -and $_[0] -ge 800 })
-    if (-not $modes) { return $null }
-    $default = 'Default'
-    $recTag = ' · recommended'
-    $curTag = ' · current'
-
-    # Resolution: every one the monitor supports, from the largest to the smallest (the menu scrolls)
-    $all = @($modes | ForEach-Object { '{0}x{1}' -f $_[0], $_[1] } | Select-Object -Unique |
-             Sort-Object { [int]($_ -split 'x')[0] * [int]($_ -split 'x')[1] }, { [int]($_ -split 'x')[0] } -Descending)
-    $recKey = if ($Display.PreferredWidth) { '{0}x{1}' -f $Display.PreferredWidth, $Display.PreferredHeight } else { $all[0] }
-    $curKey = '{0}x{1}' -f $cur[0], $cur[1]
-    $shown = $all
-    $labels = @($default) + @($shown | ForEach-Object {
-        $wh = $_ -split 'x'
-        (Format-Resolution $wh[0] $wh[1]) + $(if ($_ -eq $recKey) { $recTag } else { '' }) + $(if ($_ -eq $curKey) { $curTag } else { '' })
-    })
-    $r = Choose "Resolution${suffix}:" $labels 0
-    $newKey = if ($r -gt 0) { $shown[$r - 1] } else { $curKey }
-    $w = [int]($newKey -split 'x')[0]; $h = [int]($newKey -split 'x')[1]
-
-    # Refresh rate: the ones available at that resolution
-    $rates = @($modes | Where-Object { $_[0] -eq $w -and $_[1] -eq $h } | ForEach-Object { $_[2] } | Where-Object { $_ -gt 1 } | Sort-Object -Unique -Descending)
-    $hz = $null
-    if ($rates.Count -gt 1) {
-        $rateLabels = @($default) + @($rates | ForEach-Object { "$_ Hz" + $(if ($newKey -eq $curKey -and $_ -eq $cur[2]) { $curTag } else { '' }) })
-        $f = Choose "Refresh rate${suffix}:" $rateLabels 0
-        if ($f -gt 0) { $hz = $rates[$f - 1] }
-    }
-    # Default rate with a new resolution: the current one if it exists there, otherwise the highest
-    if ($r -gt 0 -and -not $hz) { $hz = if ($rates -contains $cur[2]) { $cur[2] } else { $rates[0] } }
-    $changeMode = ($r -gt 0 -and $newKey -ne $curKey) -or ($hz -and $hz -ne $cur[2])
-
-    # Scale: from 100% to the largest Windows allows on this display
-    $scaleRel = $null; $scalePct = $null
-    if ($Display.HasScale) {
-        $steps = [CfgWin.DisplayApi]::ScaleSteps
-        $rec = -$Display.MinScaleRel
-        $curIdx = $rec + $Display.CurScaleRel
-        $maxIdx = [Math]::Min($steps.Count - 1, $rec + $Display.MaxScaleRel)
-        $scaleLabels = @($default) + @(for ($i = 0; $i -le $maxIdx; $i++) { "$($steps[$i])%" + $(if ($i -eq $rec) { $recTag } else { '' }) + $(if ($i -eq $curIdx) { $curTag } else { '' }) })
-        $s = Choose "Scale${suffix}:" $scaleLabels 0
-        if ($s -gt 0 -and ($s - 1) -ne $curIdx) { $scaleRel = ($s - 1) - $rec; $scalePct = $steps[$s - 1] }
-    }
-
-    if (-not $changeMode -and $null -eq $scaleRel) { return $null }
-    if (-not $hz) { $hz = $cur[2] }
-    $parts = @()
-    if ($changeMode) { $parts += "$(Format-Resolution $w $h), $hz Hz" }
-    if ($null -ne $scaleRel) { $parts += "scale $scalePct%" }
-    [pscustomobject]@{
-        Name = $name; Multi = ($Count -gt 1); Device = $Display.Device; Adapter = $Display.Adapter; SourceId = $Display.SourceId
-        ChangeMode = [bool]$changeMode; Width = $w; Height = $h; Hz = $hz; Old = $cur
-        ScaleRel = $scaleRel; ScalePct = $scalePct
-        Text = $(if ($Count -gt 1) { "${name}: " } else { '' }) + ($parts -join ', ')
-    }
-}
-
 # Enter keeps the new mode; with no key in 15 seconds, returns $false (the caller goes back).
 function Confirm-DisplayKeep {
+    if ($script:Panel) { return [bool](Request-Panel @{ type = 'keep'; question = 'Keep this screen setting?'; seconds = 15 }) }
     Write-Host '  Press Enter to keep it. It goes back by itself in 15 seconds.' -ForegroundColor Yellow
     if (($Host.Name -ne 'ConsoleHost') -or [Console]::IsInputRedirected) { [void](Read-Host); return $true }
     while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
@@ -1272,7 +1310,7 @@ function Set-DisplayChoice($Change) {
 
 function Enable-LongPaths {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1
-    Write-Host '  long paths: allowed'
+    Write-Host '  Long paths: allowed'
 }
 
 function Enable-EndTask {
@@ -1284,12 +1322,12 @@ function Enable-EndTask {
 # "Inline" mode: the command runs in the same terminal window, like on Linux.
 function Enable-Sudo {
     & "$env:SystemRoot\System32\sudo.exe" config --enable normal | Out-Null
-    Write-Host '  sudo: enabled (inline mode)'
+    Write-Host '  Sudo: enabled, inline mode'
 }
 
 function Enable-ClipboardHistory {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Clipboard' 'EnableClipboardHistory' 1
-    Write-Host '  clipboard history (Win+V): on (this PC only, no sync)'
+    Write-Host '  Clipboard history (Win+V): on'; Write-Host '  This PC only, no sync.' -ForegroundColor DarkGray
 }
 
 function Disable-MouseAcceleration {
@@ -1297,7 +1335,7 @@ function Disable-MouseAcceleration {
     Set-Reg $mouse 'MouseSpeed'      '0' 'String'
     Set-Reg $mouse 'MouseThreshold1' '0' 'String'
     Set-Reg $mouse 'MouseThreshold2' '0' 'String'
-    Write-Host '  Enhance pointer precision: off (takes effect after signing out and back in)'
+    Write-Host '  Enhance pointer precision: off'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
 }
 
 # 506 = Sticky Keys off and WITHOUT the 5x Shift shortcut (Windows default is 510).
@@ -1322,13 +1360,13 @@ function Enable-NumLockAtStartup {
 # updates load fresh and dual boot works. Startup gets a few seconds slower. Restart is not affected.
 function Disable-FastStartup {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' 0
-    Write-Host '  Fast Startup: off ("Shut down" now really shuts down)'
+    Write-Host '  Fast Startup: off'; Write-Host '  "Shut down" now really shuts down.' -ForegroundColor DarkGray
 }
 
 # Blue screen (BSoD) also shows the technical parameters of the error, which helps to look up the cause.
 function Enable-VerboseBsod {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1
-    Write-Host '  detailed blue screen: on (only shows up if the PC crashes)'
+    Write-Host '  Detailed blue screen: on'; Write-Host '  Only shows up if the PC crashes.' -ForegroundColor DarkGray
 }
 
 # Sets the volume of the default playback device (speakers/headphones in use) through the Windows
@@ -1417,29 +1455,13 @@ function Format-Minutes([int]$Minutes) {
     return "$Minutes min"
 }
 
-# Menu of times with the current one selected (added to the list when it isn't one of the usual values).
-function Select-Minutes([string]$Question, [int[]]$Choices, $Current) {
-    $values = @($Choices)
-    if ($null -ne $Current -and $values -notcontains $Current) {
-        $values = @($values + $Current | Sort-Object { if ($_ -eq 0) { [int]::MaxValue } else { $_ } })
-    }
-    $names = @($values | ForEach-Object { (Format-Minutes $_) + $(if ($_ -eq $Current) { ' · current' } else { '' }) })
-    $default = if ($null -ne $Current) { [array]::IndexOf($values, [int]$Current) } else { 0 }
-    return $values[(Choose $Question $names $default)]
-}
-
-# "Plugged in — turn off the screen after:" (laptops), or just "Turn off the screen after:" (desktops).
-function Get-PowerQuestion([string]$Mode, [string]$Question) {
-    if ($Mode) { return "$Mode — $($Question.Substring(0, 1).ToLower())$($Question.Substring(1)):" }
-    return "${Question}:"
-}
 # $Values: "powercfg /change" names (monitor-timeout-ac, standby-timeout-dc...) -> minutes.
 function Set-PowerTimeouts($Values) {
     foreach ($name in $Values.Keys) {
         powercfg /change $name $Values[$name]
         if ($LASTEXITCODE -ne 0) { throw "powercfg /change $name" }
     }
-    Write-Host '  times set in the active power plan'
+    Write-Host '  Times set in the active power plan'
 }
 
 #endregion
@@ -1466,7 +1488,7 @@ function Set-DNS([string[]]$V4, [string[]]$V6) {
         Write-Host "  $($adapter.Name): $($all -join ', ')$(if ($isWin11) { ' (encrypted, automatic template)' })"
     }
     Clear-DnsClientCache
-    if (-not $V6) { Write-Host '  IPv6: kept automatic (from the router).' -ForegroundColor DarkGray }
+    if (-not $V6) { Write-Host '  IPv6: kept automatic, from the router.' -ForegroundColor DarkGray }
 }
 
 #endregion
@@ -1582,8 +1604,12 @@ function Test-DNS([string[]]$V4) {
 }
 
 function Invoke-Check {
-    Write-Host "`nConfigure-Windows -Check — $osLabel" -ForegroundColor Green
+    Write-Host "`n$osLabel" -ForegroundColor Green
     if (-not (Test-Path $StateFile)) {
+        if ($Describe) {
+            Write-OptionsPage $Describe @(New-Field 'Check' 'Nothing' 'header' 'Nothing to compare with yet' 'Run Set up → Windows first: it saves what you choose, and this compares the PC with it.' $null)
+            return
+        }
         Write-Host '  No saved answers. Run Configure-Windows first (older versions of it did not save the answers).' -ForegroundColor Yellow
         return
     }
@@ -1628,6 +1654,7 @@ function Invoke-Check {
         if (-not $item.On) { continue }
         $problems = @(& $item.Test | Where-Object { $_ })
         if ($problems) {
+            $item.Problems = $problems
             $drifted += $item
             Write-Host '  [BACK]   ' -ForegroundColor Yellow -NoNewline
             Write-Host $item.Name -NoNewline
@@ -1638,9 +1665,25 @@ function Invoke-Check {
         }
     }
 
+    # The panel's page: what came back, nothing checked
+    if ($Describe) {
+        $saved = ([datetime]$state.Saved).ToString('d')
+        $fields = if ($drifted) {
+            @(New-Field 'Check' 'items' 'checklist' 'What came back' "Compared with what you chose on $saved. Only what you check is put back. Personalization is not checked: you may have changed it on purpose." @() @{
+                items = @($drifted | ForEach-Object { [ordered]@{ value = $_.Name; label = $_.Name; note = ($_.Problems -join '; '); group = ''; status = '' } }) })
+        } else {
+            @(New-Field 'Check' 'Nothing' 'header' 'Everything is still as you left it' "Compared with what you chose on $saved." $null)
+        }
+        Write-OptionsPage $Describe $fields
+        return
+    }
     if (-not $drifted) { Write-Host "`nEverything is still as you left it." -ForegroundColor Green; return }
     Write-Host ''
-    if (-not (Ask "Reapply what came back ($($drifted.Count) item(s))?" $true)) { Write-Host 'Nothing was changed.'; return }
+    if ($Answers) {
+        $picked = @(([IO.File]::ReadAllText($Answers) | ConvertFrom-Json).items)
+        $drifted = @($drifted | Where-Object { $picked -contains $_.Name })
+        if (-not $drifted) { Write-Host 'Nothing was selected, so nothing was changed.'; return }
+    } elseif (-not (Ask "Reapply what came back ($($drifted.Count) item(s))?" $true)) { Write-Host 'Nothing was changed.'; return }
     foreach ($item in $drifted) { Invoke-Step $item.Name $item.Fix }
     if ($script:Failures.Count) {
         Write-Host "`nSteps that failed:" -ForegroundColor Yellow
@@ -1654,155 +1697,351 @@ if ($Check) { Invoke-Check; return }
 #endregion
 
 
-#region ==================== 8. QUESTIONS ====================
+#region ==================== 8. OPTIONS ====================
 
-Write-Host "`nConfigure-Windows — $osLabel" -ForegroundColor Green
-if ($cv.EditionID -match 'Core') {
-    Write-Host '  Windows Home: some policies only work on Pro; the rest works normally.' -ForegroundColor DarkYellow
-}
-if (-not $NoPrompt) { Write-Host '  Use the arrows and Enter. The default answer is already selected.' }
+# Every option, written once. The panel shows them all (-Describe writes them to a file), sends back what
+# you chose (-Answers) and nothing is asked; without the panel they are asked here, one by one.
+#   toggle     on or off                       choice     a few options side by side
+#   select     a list; Parent + OptionsBy: the options depend on another select (refresh rate by resolution)
+#   checklist  items to check                  text       typed (Validate = ipv4 or ipv6; Optional)
+#   header     a title inside a tab
+#   When = @{ field = <id>; is = <value> }: shown only while that field has that value.
+# Label: what it is, short. Desc: what changes for you. Warn: a risk, when there is one.
 
-$opt = [ordered]@{}
+# Opt and New-Field: in the PANEL region.
 
-# --- Privacy and cleanup
-Write-Host "`n  Privacy and cleanup" -ForegroundColor Cyan
-$opt.Telemetry    = Ask 'Turn off telemetry?' $true
-$opt.Suggestions  = Ask 'Turn off ads, suggestions and apps installed without asking?' $true
-# Apps to remove: a checklist with only the apps on this PC (see Get-AppCatalog)
-$appRows = @(Get-AppCatalog)
+$themeIds    = @('Keep', 'Light', 'Dark');          $themeNames    = @('Default', 'Light', 'Dark')
+$taskbarIds  = @('Keep', 'Center', 'Left');         $taskbarNames  = @('Default', 'Center', 'Left')
+$searchIds   = @('Keep', 'Hidden', 'Icon', 'Box');  $searchNames   = @('Default', 'Hidden', 'Icon only', 'Search box')
+$taskViewIds = @('Keep', 'Show', 'Hide');           $taskViewNames = @('Default', 'Show', 'Hide')
+function Get-ChoiceOptions([string[]]$Ids, [string[]]$Names) { @(for ($i = 1; $i -lt $Ids.Count; $i++) { Opt $Ids[$i] $Names[$i] }) }   # without "Keep"
+
+# Preinstalled apps on this PC (see Get-AppCatalog); in the list by their first package name
 $presentApps = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name) +
                @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Select-Object -ExpandProperty DisplayName)
-$appRows = @($appRows | Where-Object { $row = $_; $row.Packages | Where-Object { $presentApps -contains $_ } })
-if ($appRows) {
-    $opt.RemoveApps = @(Select-Many 'Apps to remove' $appRows | ForEach-Object { $_.Packages })
-    Write-Host "`n  Configure-Windows — $osLabel" -ForegroundColor Green      # the checklist cleared the screen
-    Write-Host "  Apps to remove: $(@($opt.RemoveApps | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique).Count)"
-} else {
-    $opt.RemoveApps = @()
-    Write-Host '  No preinstalled apps left to remove.' -ForegroundColor DarkGray
-}
-if ($foldersInOneDrive) {
-    Write-Host "  WARNING: these folders are inside OneDrive: $($foldersInOneDrive -join ', ')" -ForegroundColor Yellow
-    Write-Host '  Turn off folder backup in OneDrive before removing it.' -ForegroundColor Yellow
-}
-$opt.OneDrive     = Ask 'Remove OneDrive?' (-not $foldersInOneDrive)
-$opt.Edge         = Ask 'Edge: turn off telemetry, background mode, sidebar, Copilot and shopping?' $true
-$opt.NoRecall     = if ($isWin11) { Ask 'Remove and block Recall? It takes screenshots of everything you do.' $true } else { $false }
-$opt.NoEdgeShortcut = Ask 'Delete the Edge shortcut from the Desktop and keep it from coming back?' $true
-$opt.Security     = Ask 'Windows Security: block unwanted apps and hide unimportant notices?' $true
-$opt.RootFolders  = Ask 'Hide the inetpub folder and delete PerfLogs from C:?' $true
-$opt.NoDeviceApps = Ask 'Stop downloading manufacturer apps when you connect a mouse, keyboard or headset? Drivers still install.' $false
-$opt.NoWpbt       = Ask 'Block programs the motherboard installs by itself, like Armoury Crate and Vantage? A needed driver may also stop installing.' $false
-$opt.HideAreas    = Ask 'Hide "Account protection" and "Device security" in Windows Security?' $isLocalAccount
+$appRows = @(Get-AppCatalog | Where-Object { $row = $_; $row.Packages | Where-Object { $presentApps -contains $_ } })
 
-# --- Personalization
-Write-Host "`n  Personalization, only for your user" -ForegroundColor Cyan
-$themeNames = @('Default', 'Light', 'Dark')
-$themeIds   = @('Keep', 'Light', 'Dark')
-$opt.Theme          = $themeIds[(Choose 'Theme:' $themeNames 1)]
-# Screen: resolution, refresh rate and scale for each display. "Default" changes nothing.
-$displayChanges = @()
-try {
-    Initialize-DisplayApi
-    $displays = @([CfgWin.DisplayApi]::GetDisplays())
-    for ($i = 0; $i -lt $displays.Count; $i++) {
-        $change = Read-DisplayChoice $displays[$i] ($i + 1) $displays.Count
-        if ($change) { $displayChanges += $change }
+# --- Screen: the same reading of each display for the options and for applying them
+$script:Displays = @()
+try { Initialize-DisplayApi; $script:Displays = @([CfgWin.DisplayApi]::GetDisplays()) } catch { }
+
+function Get-DisplayInfo($Display, [int]$Number, [int]$Count) {
+    $cur = [CfgWin.DisplayApi]::GetCurrentMode($Display.Device)
+    if (-not $cur) { return $null }
+    $modes = @([CfgWin.DisplayApi]::GetModes($Display.Device) | Where-Object { $_[3] -eq 32 -and $_[0] -ge 800 })
+    if (-not $modes) { return $null }
+    # Every resolution the monitor supports, from the largest to the smallest
+    $all = @($modes | ForEach-Object { '{0}x{1}' -f $_[0], $_[1] } | Select-Object -Unique |
+             Sort-Object { [int]($_ -split 'x')[0] * [int]($_ -split 'x')[1] }, { [int]($_ -split 'x')[0] } -Descending)
+    $info = [pscustomobject]@{
+        Name = $(if ($Display.Name) { $Display.Name } elseif ($Display.Internal) { 'Laptop screen' } else { "Screen $Number" })
+        Cur = $cur; CurKey = ('{0}x{1}' -f $cur[0], $cur[1]); All = $all; Modes = $modes
+        RecKey = $(if ($Display.PreferredWidth) { '{0}x{1}' -f $Display.PreferredWidth, $Display.PreferredHeight } else { $all[0] })
+        Steps = [CfgWin.DisplayApi]::ScaleSteps; RecScale = -1; CurScale = -1; MaxScale = -1
     }
-} catch {
-    Write-Host '  Could not read the screens; skipping resolution and scale.' -ForegroundColor DarkYellow
+    if ($Display.HasScale) {
+        $info.RecScale = -$Display.MinScaleRel
+        $info.CurScale = $info.RecScale + $Display.CurScaleRel
+        $info.MaxScale = [Math]::Min($info.Steps.Count - 1, $info.RecScale + $Display.MaxScaleRel)
+    }
+    return $info
 }
-$opt.Display = if ($displayChanges) { ($displayChanges | ForEach-Object { $_.Text }) -join '; ' } else { 'Keep' }
-$taskbarNames = @('Default', 'Center', 'Left')
-$taskbarIds   = @('Keep', 'Center', 'Left')
-$opt.Taskbar        = if ($isWin11) { $taskbarIds[(Choose 'Taskbar icons:' $taskbarNames 0)] } else { 'Keep' }
-$searchNames = @('Default', 'Hidden', 'Icon only', 'Search box')
-$searchIds   = @('Keep', 'Hidden', 'Icon', 'Box')
-$opt.Search         = $searchIds[(Choose 'Search on the taskbar:' $searchNames 0)]
-$taskViewNames = @('Default', 'Show', 'Hide')
-$taskViewIds   = @('Keep', 'Show', 'Hide')
-$opt.TaskView       = $taskViewIds[(Choose '"Task View" button:' $taskViewNames 0)]
-$opt.ClearPins      = Ask 'Unpin every icon from the taskbar?' $false
-$opt.NoStartAds     = Ask 'Unpin the ad shortcuts from Start, like LinkedIn, Spotify and TikTok? Your other pins stay.' $true
-$opt.BatteryPercent = if ($isWin11 -and $hasBattery) { Ask 'Show the battery percentage on the taskbar?' $false } else { $false }
-$opt.ShowExtensions = Ask 'Show file extensions, like .txt and .exe?' $true
-$opt.HideFrequent   = Ask 'Hide frequent folders in Quick access?' $true
-$opt.UnpinMusic     = Ask 'Unpin "Music" from Quick access? The folder stays.' $false
-$opt.HideRecent     = Ask 'Hide recent files in File Explorer?' $false
-$opt.ShowHidden     = Ask 'Show hidden files and folders?' $false
-$opt.NoFolderSniff  = Ask 'Open large folders faster? Turns off folder type discovery and resets custom folder views.' $true
-$opt.HideHomeGallery = if ($isWin11) { Ask 'Remove "Home" and "Gallery" from File Explorer? It opens in "This PC".' $false } else { $false }
-$opt.ClassicMenu    = if ($isWin11) { Ask 'Use the classic right-click menu, without "Show more options"?' $false } else { $false }
-$opt.NoSnap         = Ask 'Turn off Snap windows? Windows stop snapping to the screen edges.' $false
-$opt.ThinBorder     = Ask 'Make the window resize border thinner?' $false
 
-# --- Everyday use
-Write-Host "`n  Everyday use" -ForegroundColor Cyan
-$opt.LongPaths        = Ask 'Allow paths longer than 260 characters?' $true
-$opt.EndTask          = if ($hasEndTask) { Ask 'Add "End task" when you right-click an app on the taskbar?' $true } else { $false }
-$opt.Sudo             = if ($hasSudo)    { Ask 'Turn on sudo in the terminal?' $false } else { $false }
-$opt.ClipboardHistory = Ask 'Turn on clipboard history? It opens with Win+V.' $true
-$opt.NoMouseAccel     = Ask 'Turn off mouse acceleration?' $false
-$opt.NoStickyKeys     = Ask 'Turn off the Sticky Keys prompt when Shift is pressed 5 times?' $true
-$opt.NumLock          = Ask 'Turn on Num Lock when Windows starts?' $true
-$opt.NoFastStartup    = Ask 'Turn off Fast Startup? "Shut down" fully shuts down; startup takes a few seconds longer.' $false
-$opt.MaxVolume        = Ask 'Set the volume to 100%?' $true
-$opt.VerboseBsod      = Ask 'Show error details on the blue screen?' $true
+function Get-DisplayRates($Info, [string]$Key) {
+    $w = [int]($Key -split 'x')[0]; $h = [int]($Key -split 'x')[1]
+    @($Info.Modes | Where-Object { $_[0] -eq $w -and $_[1] -eq $h } | ForEach-Object { $_[2] } | Where-Object { $_ -gt 1 } | Sort-Object -Unique -Descending)
+}
 
-# --- Power: one question to keep everything as is; otherwise screen, sleep and hibernation times,
-# plugged in and (laptops) on battery, each menu starting at the current value.
-# Hibernation is only asked if it is turned on: turning it on is not this script's call (hiberfil.sys).
-Write-Host "`n  Power" -ForegroundColor Cyan
-$power = [ordered]@{}
-$opt.Power = 'Keep'
-if ((Choose 'Screen, sleep and hibernation times:' @('Default', 'Choose') 0) -eq 1) {
-    $canHibernate = Test-HibernateEnabled
-    $modes = @(@{ Key = 'ac'; Battery = $false; Label = $(if ($hasBattery) { 'Plugged in' } else { '' }) })
-    if ($hasBattery) { $modes += @{ Key = 'dc'; Battery = $true; Label = 'On battery' } }
-    $parts = @()
-    foreach ($m in $modes) {
-        $power["monitor-timeout-$($m.Key)"] = Select-Minutes (Get-PowerQuestion $m.Label 'Turn off the screen after') $ScreenChoices (Get-PowerTimeout SUB_VIDEO VIDEOIDLE $m.Battery)
-        $power["standby-timeout-$($m.Key)"] = Select-Minutes (Get-PowerQuestion $m.Label 'Sleep after') $SleepChoices (Get-PowerTimeout SUB_SLEEP STANDBYIDLE $m.Battery)
-        $text = 'screen ' + (Format-Minutes $power["monitor-timeout-$($m.Key)"]) + ', sleep ' + (Format-Minutes $power["standby-timeout-$($m.Key)"])
-        if ($canHibernate) {
-            $power["hibernate-timeout-$($m.Key)"] = Select-Minutes (Get-PowerQuestion $m.Label 'Hibernate after') $HibernateChoices (Get-PowerTimeout SUB_SLEEP HIBERNATEIDLE $m.Battery)
-            $text += ', hibernation ' + (Format-Minutes $power["hibernate-timeout-$($m.Key)"])
+function Get-DisplayFields {
+    $count = $script:Displays.Count
+    for ($i = 0; $i -lt $count; $i++) {
+        $n = $i + 1
+        $info = Get-DisplayInfo $script:Displays[$i] $n $count
+        if (-not $info) { continue }
+        $now = "Now: $(Format-Resolution $info.Cur[0] $info.Cur[1]), $($info.Cur[2]) Hz" + $(if ($info.CurScale -ge 0) { ", $($info.Steps[$info.CurScale])%" } else { '' })
+        New-Field 'Screen' "Screen${n}" 'header' $info.Name $now $null
+
+        $resOptions = @($info.All | ForEach-Object {
+            $wh = $_ -split 'x'
+            Opt $_ ((Format-Resolution $wh[0] $wh[1]) + $(if ($_ -eq $info.RecKey) { ' · recommended' } else { '' }) + $(if ($_ -eq $info.CurKey) { ' · current' } else { '' }))
+        })
+        New-Field 'Screen' "Screen${n}Res" 'select' 'Resolution' 'A new resolution goes back by itself after 15 seconds, unless you keep it.' '' @{ options = $resOptions }
+
+        # Refresh rates of each resolution ("current" = no resolution picked: the current one)
+        $byRes = [ordered]@{}
+        foreach ($key in @('current') + $info.All) {
+            $k = if ($key -eq 'current') { $info.CurKey } else { $key }
+            $byRes[$key] = @(Get-DisplayRates $info $k | ForEach-Object {
+                Opt "$_" ("$_ Hz" + $(if ($k -eq $info.CurKey -and $_ -eq $info.Cur[2]) { ' · current' } else { '' }))
+            })
         }
-        $parts += $(if ($m.Label) { "$($m.Label.ToLower()): $text" } else { $text })
+        New-Field 'Screen' "Screen${n}Hz" 'select' 'Refresh rate' 'Higher is smoother, if the monitor supports it.' '' @{ options = $byRes['current']; parent = "Screen${n}Res"; optionsBy = $byRes }
+
+        if ($info.MaxScale -ge 0) {
+            $scaleOptions = @(for ($s = 0; $s -le $info.MaxScale; $s++) {
+                Opt "$s" ("$($info.Steps[$s])%" + $(if ($s -eq $info.RecScale) { ' · recommended' } else { '' }) + $(if ($s -eq $info.CurScale) { ' · current' } else { '' }))
+            })
+            New-Field 'Screen' "Screen${n}Scale" 'select' 'Scale' 'Size of text and apps.' '' @{ options = $scaleOptions }
+        }
     }
-    $opt.Power = $parts -join '; '
 }
 
-# --- Network
-Write-Host "`n  Network" -ForegroundColor Cyan
-$dnsV4 = @(); $dnsV6 = @()
-if (Ask 'Set DNS manually?' $false) {
-    if (-not $isWin11) {
-        Write-Host '    Note: Windows 10 has no system-wide DNS over HTTPS. DNS will be set, but unencrypted.' -ForegroundColor Yellow
+# What to change on one display, or $null when everything stays "Default".
+function Get-DisplayChange([int]$Index, $Res, $Hz, $Scale) {
+    $count = $script:Displays.Count
+    $d = $script:Displays[$Index]
+    $info = Get-DisplayInfo $d ($Index + 1) $count
+    if (-not $info) { return $null }
+    $cur = $info.Cur
+    $newRes = $Res -and "$Res" -ne 'Keep' -and $info.All -contains "$Res"
+    $key = if ($newRes) { "$Res" } else { $info.CurKey }
+    $w = [int]($key -split 'x')[0]; $h = [int]($key -split 'x')[1]
+    $rates = @(Get-DisplayRates $info $key)
+    $hzValue = if ($Hz -and "$Hz" -ne 'Keep' -and $rates -contains [int]"$Hz") { [int]"$Hz" } else { $null }
+    # A new resolution with the default rate: the current rate if it exists there, otherwise the highest
+    if ($newRes -and -not $hzValue) { $hzValue = if ($rates -contains $cur[2]) { $cur[2] } else { $rates[0] } }
+    $changeMode = ($key -ne $info.CurKey) -or ($hzValue -and $hzValue -ne $cur[2])
+
+    $scaleRel = $null; $scalePct = $null
+    if ($info.MaxScale -ge 0 -and $Scale -and "$Scale" -ne 'Keep') {
+        $s = [int]"$Scale"
+        if ($s -ge 0 -and $s -le $info.MaxScale -and $s -ne $info.CurScale) { $scaleRel = $s - $info.RecScale; $scalePct = $info.Steps[$s] }
     }
-    $dnsV4 += Read-IP 'Preferred IPv4 DNS:' 'InterNetwork' $false
-    $altV4 = Read-IP 'Alternate IPv4 DNS, Enter skips:' 'InterNetwork' $true
-    if ($altV4) { $dnsV4 += $altV4 }
-    Write-Host '    IPv6: if left blank, IPv6 DNS stays the one from the router, unencrypted.' -ForegroundColor DarkGray
-    $prefV6 = Read-IP 'Preferred IPv6 DNS, Enter skips:' 'InterNetworkV6' $true
-    if ($prefV6) {
-        $dnsV6 += $prefV6
-        $altV6 = Read-IP 'Alternate IPv6 DNS, Enter skips:' 'InterNetworkV6' $true
-        if ($altV6) { $dnsV6 += $altV6 }
+    if (-not $changeMode -and $null -eq $scaleRel) { return $null }
+    if (-not $hzValue) { $hzValue = $cur[2] }
+    $parts = @()
+    if ($changeMode) { $parts += "$(Format-Resolution $w $h), $hzValue Hz" }
+    if ($null -ne $scaleRel) { $parts += "scale $scalePct%" }
+    [pscustomobject]@{
+        Name = $info.Name; Multi = ($count -gt 1); Device = $d.Device; Adapter = $d.Adapter; SourceId = $d.SourceId
+        ChangeMode = [bool]$changeMode; Width = $w; Height = $h; Hz = $hzValue; Old = $cur
+        ScaleRel = $scaleRel; ScalePct = $scalePct
+        Text = $(if ($count -gt 1) { "$($info.Name): " } else { '' }) + ($parts -join ', ')
     }
-    # The "automatic template" only exists for servers Windows knows (Cloudflare, Google, Quad9...)
-    if ($isWin11) {
-        foreach ($ip in ($dnsV4 + $dnsV6)) {
-            if (-not (Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue)) {
-                Write-Host "    Note: Windows has no automatic template for $ip. That server will be UNENCRYPTED." -ForegroundColor Yellow
+}
+
+# --- Power: one select per time, starting at the current value
+function Get-MinuteOptions([int[]]$Choices, $Current) {
+    $values = @($Choices)
+    if ($null -ne $Current -and $values -notcontains $Current) {
+        $values = @($values + $Current | Sort-Object { if ($_ -eq 0) { [int]::MaxValue } else { $_ } })
+    }
+    @($values | ForEach-Object { Opt $_ ((Format-Minutes $_) + $(if ($_ -eq $Current) { ' · current' } else { '' })) })
+}
+
+$canHibernate = Test-HibernateEnabled
+$powerModes = @(@{ Key = 'ac'; Battery = $false; Label = 'Plugged in' })
+if ($hasBattery) { $powerModes += @{ Key = 'dc'; Battery = $true; Label = 'On battery' } }
+
+function Get-PowerFields {
+    foreach ($m in $powerModes) {
+        if ($hasBattery) { New-Field 'Power' "power-$($m.Key)" 'header' $m.Label '' $null }
+        $cur = Get-PowerTimeout SUB_VIDEO VIDEOIDLE $m.Battery
+        New-Field 'Power' "monitor-timeout-$($m.Key)" 'select' 'Turn off the screen after' "Now: $(Format-Minutes $cur)" '' @{ options = (Get-MinuteOptions $ScreenChoices $cur) }
+        $cur = Get-PowerTimeout SUB_SLEEP STANDBYIDLE $m.Battery
+        New-Field 'Power' "standby-timeout-$($m.Key)" 'select' 'Sleep after' "Now: $(Format-Minutes $cur)" '' @{ options = (Get-MinuteOptions $SleepChoices $cur) }
+        # Only when hibernation is on: turning it on (hiberfil.sys) is not this script's call
+        if ($canHibernate) {
+            $cur = Get-PowerTimeout SUB_SLEEP HIBERNATEIDLE $m.Battery
+            New-Field 'Power' "hibernate-timeout-$($m.Key)" 'select' 'Hibernate after' "Now: $(Format-Minutes $cur)" '' @{ options = (Get-MinuteOptions $HibernateChoices $cur) }
+        }
+    }
+}
+
+function Get-Fields {
+    $T = 'Privacy'; $A = 'Apps'; $L = 'Appearance'; $E = 'File Explorer'; $U = 'Everyday'; $N = 'Network'
+
+    New-Field $T 'Telemetry' 'toggle' 'Turn off telemetry' 'Windows stops sending usage and diagnostic data to Microsoft. Widgets are turned off too.' $false
+    New-Field $T 'Suggestions' 'toggle' 'Turn off ads and suggestions' 'No tips, no suggestions in Start and Settings, and no apps like Candy Crush installed without asking.' $false
+    New-Field $T 'Edge' 'toggle' 'Quiet down Edge' 'Turns off Edge telemetry, running in the background, the sidebar, Copilot and shopping offers.' $false
+    if ($isWin11) { New-Field $T 'NoRecall' 'toggle' 'Remove Recall' 'Recall saves screenshots of everything you do. It is removed and can''t be turned on again.' $false }
+    New-Field $T 'Security' 'toggle' 'Block unwanted apps' 'Windows Security blocks potentially unwanted apps and downloads, like installers that bundle extras, and shows fewer minor notices.' $false
+    New-Field $T 'HideAreas' 'toggle' 'Hide account areas in Windows Security' '"Account protection" and "Device security" go away. They only ask you to sign in with a Microsoft account; nothing is turned off.' $false
+    New-Field $T 'NoDeviceApps' 'toggle' 'Don''t install device apps' 'Windows stops downloading manufacturer apps when you connect a mouse, keyboard or headset. Drivers still install.' $false
+    New-Field $T 'NoWpbt' 'toggle' 'Block programs from the motherboard' 'Apps like Armoury Crate and Lenovo Vantage stop installing themselves at startup. Only a Windows setting: the BIOS is not touched, and formatting brings it back to on.' $false
+
+    if ($appRows) {
+        New-Field $A 'RemoveApps' 'checklist' 'Apps to remove' "$($appRows.Count) of the $(@(Get-AppCatalog).Count) preinstalled apps TidyWin knows are still on this PC; the ones already removed don't show up. They are removed for every user and can be installed again from the Microsoft Store." @() @{
+            items = @($appRows | ForEach-Object { [ordered]@{ value = $_.Packages[0]; label = $_.Label; note = $_.Note; group = $_.Group; checked = $false } })
+            warn  = 'Without the Xbox apps, Game Pass games and games that use Xbox sign-in stop working.'
+        }
+    } else {
+        New-Field $A 'RemoveAppsDone' 'header' 'Apps to remove' 'All the preinstalled apps TidyWin knows are already removed from this PC.' $null
+    }
+    $oneDriveWarn = if ($foldersInOneDrive) { "Your $($foldersInOneDrive -join ', ') folders are inside OneDrive. Turn off folder backup in OneDrive before removing it." } else { '' }
+    New-Field $A 'OneDrive' 'toggle' 'Remove OneDrive' 'Uninstalls OneDrive and keeps it from coming back. Files already in your OneDrive stay online.' $false @{ warn = $oneDriveWarn }
+    New-Field $A 'NoEdgeShortcut' 'toggle' 'Delete the Edge shortcut from the Desktop' 'Edge updates stop putting it back.' $false
+    New-Field $A 'NoStartAds' 'toggle' 'Unpin ads from Start' 'Unpins shortcuts like LinkedIn, Spotify and TikTok. Your other pins stay.' $false
+
+    New-Field $L 'Theme' 'choice' 'Theme' 'Light or dark for Windows and apps, with the matching Windows wallpaper. Windows Spotlight is turned off.' '' @{ options = (Get-ChoiceOptions $themeIds $themeNames) }
+    if ($isWin11) { New-Field $L 'Taskbar' 'choice' 'Taskbar icons' 'Where the Start button and the app icons sit.' '' @{ options = (Get-ChoiceOptions $taskbarIds $taskbarNames) } }
+    New-Field $L 'Search' 'choice' 'Search on the taskbar' 'Hidden, just the icon, or the full search box.' '' @{ options = (Get-ChoiceOptions $searchIds $searchNames) }
+    New-Field $L 'TaskView' 'choice' 'Task View button' 'Shows your open windows and desktops. Win+Tab works either way.' '' @{ options = (Get-ChoiceOptions $taskViewIds $taskViewNames) }
+    New-Field $L 'ClearPins' 'toggle' 'Unpin everything from the taskbar' 'Removes every pinned icon, File Explorer and Edge included. Nothing is uninstalled.' $false
+    if ($isWin11 -and $hasBattery) { New-Field $L 'BatteryPercent' 'toggle' 'Show the battery percentage' 'Next to the battery icon on the taskbar.' $false }
+    if ($isWin11) { New-Field $L 'ClassicMenu' 'toggle' 'Classic right-click menu' 'The full menu opens right away, without "Show more options".' $false }
+    New-Field $L 'NoSnap' 'toggle' 'Turn off Snap windows' 'Windows stop resizing when you drag them to the screen edges, and the Snap layouts menu goes away.' $false
+    New-Field $L 'ThinBorder' 'toggle' 'Thinner resize border' 'The invisible edge used to resize windows gets smaller, so you resize less by accident. Applies after signing out.' $false
+
+    New-Field $E 'ShowExtensions' 'toggle' 'Show file extensions' 'File names show their end, like .txt and .exe, so you can tell files apart.' $false
+    New-Field $E 'ShowHidden' 'toggle' 'Show hidden files' 'Hidden files and folders show up. Protected system files stay hidden.' $false
+    New-Field $E 'HideFrequent' 'toggle' 'Hide frequent folders' 'Quick access stops listing the folders you open most.' $false
+    New-Field $E 'HideRecent' 'toggle' 'Hide recent files' 'File Explorer stops listing the files you opened recently.' $false
+    New-Field $E 'UnpinMusic' 'toggle' 'Unpin Music from Quick access' 'The Music folder itself stays.' $false
+    New-Field $E 'NoFolderSniff' 'toggle' 'Open large folders faster' 'File Explorer stops guessing each folder''s type. The views you saved for each folder are reset.' $false
+    if ($isWin11) { New-Field $E 'HideHomeGallery' 'toggle' 'Remove Home and Gallery' 'File Explorer opens in This PC.' $false }
+    New-Field $E 'RootFolders' 'toggle' 'Tidy up drive C:' 'Hides the inetpub folder, which a Windows update needs, and deletes the empty PerfLogs folder.' $false
+
+    Get-DisplayFields
+
+    New-Field $U 'ClipboardHistory' 'toggle' 'Clipboard history' 'Win+V shows the things you copied before.' $false
+    if ($hasEndTask) { New-Field $U 'EndTask' 'toggle' 'End task on the taskbar' 'Right-click a frozen app on the taskbar to close it.' $false }
+    New-Field $U 'NumLock' 'toggle' 'Num Lock on at startup' 'The number keys work right away, on the sign-in screen too.' $false
+    New-Field $U 'NoStickyKeys' 'toggle' 'Turn off the Sticky Keys prompt' 'No prompt when you press Shift five times. Sticky Keys is still in Settings.' $false
+    New-Field $U 'NoMouseAccel' 'toggle' 'Turn off mouse acceleration' 'The pointer moves the same distance however fast you move the mouse. Applies after signing out.' $false
+    New-Field $U 'MaxVolume' 'toggle' 'Volume at 100%' 'Sets the volume of the speakers or headphones in use to 100%.' $false
+    New-Field $U 'LongPaths' 'toggle' 'Allow long file paths' 'Programs can use paths longer than 260 characters.' $false
+    if ($hasSudo) { New-Field $U 'Sudo' 'toggle' 'Turn on sudo' 'Run a command as administrator from a normal terminal.' $false }
+    New-Field $U 'VerboseBsod' 'toggle' 'Error details on the blue screen' 'When Windows crashes, the blue screen shows the technical cause, which helps when asking for help.' $false
+    New-Field $U 'NoFastStartup' 'toggle' 'Turn off Fast Startup' '"Shut down" fully shuts down, which avoids some driver and dual-boot problems. Startup takes a few seconds longer.' $false
+
+    Get-PowerFields
+
+    $dnsDesc = if ($isWin11) { 'Use DNS servers you choose on every Wi-Fi and Ethernet adapter, encrypted when Windows supports the server, like Cloudflare, Google and Quad9.' }
+               else { 'Use DNS servers you choose on every Wi-Fi and Ethernet adapter.' }
+    New-Field $N 'Dns' 'toggle' 'Set DNS servers' $dnsDesc $false @{ warn = $(if (-not $isWin11) { 'Windows 10 can''t encrypt DNS: the servers are set without encryption.' } else { '' }) }
+    $dns = @{ field = 'Dns'; is = $true }
+    New-Field $N 'Dns4a' 'text' 'Preferred IPv4 DNS' '' '' @{ placeholder = '1.1.1.1'; validate = 'ipv4'; optional = $false; when = $dns }
+    New-Field $N 'Dns4b' 'text' 'Alternate IPv4 DNS' '' '' @{ placeholder = '1.0.0.1'; validate = 'ipv4'; optional = $true; when = $dns }
+    New-Field $N 'Dns6a' 'text' 'Preferred IPv6 DNS' 'Leave it empty to keep the router''s IPv6 DNS.' '' @{ placeholder = '2606:4700:4700::1111'; validate = 'ipv6'; optional = $true; when = $dns }
+    New-Field $N 'Dns6b' 'text' 'Alternate IPv6 DNS' '' '' @{ placeholder = '2606:4700:4700::1001'; validate = 'ipv6'; optional = $true; when = $dns }
+}
+
+function Test-FieldShown($Field, $Values) {
+    if (-not $Field.when) { return $true }
+    return "$($Values[$Field.when.field])" -eq "$($Field.when.is)"
+}
+
+# A typed IP address checked and written the standard way; $null when empty or wrong.
+function ConvertTo-IPText($Text, [string]$Family) {
+    $t = "$Text".Trim()
+    if (-not $t) { return $null }
+    $ip = $null
+    $formatOk = if ($Family -eq 'InterNetwork') { $t -match '^\d{1,3}(\.\d{1,3}){3}$' } else { $t -match ':' }
+    if ($formatOk -and [System.Net.IPAddress]::TryParse($t, [ref]$ip) -and $ip.AddressFamily -eq $Family) { return $ip.ToString() }
+    Write-Host "  Not a valid address, skipped: $t" -ForegroundColor DarkYellow
+    return $null
+}
+
+# Without the panel: each option as a question, in order.
+function Read-FieldsFromConsole($Fields, $Values) {
+    $tab = $null
+    foreach ($f in $Fields) {
+        if (-not (Test-FieldShown $f $Values)) { continue }
+        if ($f.tab -ne $tab) { Write-Host "`n  $($f.tab)" -ForegroundColor Cyan; $tab = $f.tab }
+        switch ($f.kind) {
+            'header' { Write-Host "  $($f.label) · $($f.desc)" -ForegroundColor DarkCyan }
+            'toggle' { $Values[$f.id] = Ask "$($f.label)?" ([bool]$f.default) }
+            'checklist' {
+                $rows = @($f.items | ForEach-Object { [pscustomobject]@{ Group = $_.group; Label = $_.label; Note = $_.note; Checked = $_.checked; Value = $_.value } })
+                $Values[$f.id] = @(Select-Many $f.label $rows | ForEach-Object { $_.Value })
+            }
+            'text' {
+                $family = if ($f.validate -eq 'ipv6') { 'InterNetworkV6' } else { 'InterNetwork' }
+                $Values[$f.id] = "$(Read-IP "$($f.label)$(if ($f.optional) { ', Enter skips' }):" $family ([bool]$f.optional))"
+            }
+            default {
+                # choice and select; "Skip" leaves the setting as it is
+                $key = if ($f.parent -and "$($Values[$f.parent])") { "$($Values[$f.parent])" } else { 'current' }
+                $options = @(Opt '' 'Skip') + @(if ($f.parent) { $f.optionsBy[$key] } else { $f.options })
+                $Values[$f.id] = $options[(Choose "$($f.label):" @($options | ForEach-Object { $_.label }) 0)].value
             }
         }
     }
 }
-$opt.DNS = if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' }
 
-# --- Summary and confirmation
-# Labels shown on screen for each option (in the chosen language, like the questions).
+Write-Host "`n$osLabel" -ForegroundColor Green
+if ($cv.EditionID -match 'Core' -and -not $Describe) {
+    Write-Host '  Windows Home: some policies only work on Pro; the rest works normally.' -ForegroundColor DarkYellow
+}
+
+$fields = @(Get-Fields)
+
+# --- For the panel: every option and its default, then stop
+if ($Describe) {
+    $notes = @(if ($cv.EditionID -match 'Core') { 'Windows Home: some policies only work on Pro. The rest works normally.' })
+    $page = [ordered]@{ tabs = @($fields | ForEach-Object { $_.tab } | Select-Object -Unique); notes = $notes; fields = $fields }
+    [IO.File]::WriteAllText($Describe, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
+    return
+}
+
+# --- The answers: defaults, then the panel's file or the questions
+$values = @{}
+foreach ($f in $fields) { if ($f.kind -ne 'header') { $values[$f.id] = $f.default } }
+if ($Answers) {
+    $json = [IO.File]::ReadAllText($Answers) | ConvertFrom-Json
+    foreach ($prop in $json.PSObject.Properties) { if ($values.ContainsKey($prop.Name)) { $values[$prop.Name] = $prop.Value } }   # not $p: it would overwrite $P
+} else {
+    Write-Host '  Use the arrows and Enter. Nothing comes selected: only what you turn on is applied.'
+    Read-FieldsFromConsole $fields $values
+}
+
+# --- The answers as the steps below use them ($opt is also what -Check compares)
+$chosenApps = @($values.RemoveApps)
+$displayChanges = @()
+for ($i = 0; $i -lt $script:Displays.Count; $i++) {
+    $n = $i + 1
+    $change = Get-DisplayChange $i $values["Screen${n}Res"] $values["Screen${n}Hz"] $values["Screen${n}Scale"]
+    if ($change) { $displayChanges += $change }
+}
+$power = [ordered]@{}
+$parts = @()
+foreach ($m in $powerModes) {
+    $text = @()
+    foreach ($kind in @('monitor', 'standby', 'hibernate')) {
+        $id = "$kind-timeout-$($m.Key)"
+        if ("$($values[$id])" -notmatch '^\d+$') { continue }        # nothing picked: stays as it is
+        $power[$id] = [int]$values[$id]
+        $text += @{ monitor = 'screen'; standby = 'sleep'; hibernate = 'hibernation' }[$kind] + ' ' + (Format-Minutes $power[$id])
+    }
+    if ($text) { $parts += $(if ($hasBattery) { "$($m.Label.ToLower()): " } else { '' }) + ($text -join ', ') }
+}
+$powerText = if ($parts) { $parts -join '; ' } else { 'Keep' }
+$dnsV4 = @(); $dnsV6 = @()
+if ($values.Dns) {
+    foreach ($id in 'Dns4a', 'Dns4b') { $ip = ConvertTo-IPText $values[$id] 'InterNetwork'; if ($ip) { $dnsV4 += $ip } }
+    if ($dnsV4) { foreach ($id in 'Dns6a', 'Dns6b') { $ip = ConvertTo-IPText $values[$id] 'InterNetworkV6'; if ($ip) { $dnsV6 += $ip } } }
+}
+$flag = { param($id) [bool]$values[$id] }
+$opt = [ordered]@{
+    Telemetry = & $flag 'Telemetry'; Suggestions = & $flag 'Suggestions'
+    RemoveApps = @($appRows | Where-Object { $chosenApps -contains $_.Packages[0] } | ForEach-Object { $_.Packages })
+    OneDrive = & $flag 'OneDrive'; Edge = & $flag 'Edge'; NoRecall = & $flag 'NoRecall'; NoEdgeShortcut = & $flag 'NoEdgeShortcut'
+    Security = & $flag 'Security'; RootFolders = & $flag 'RootFolders'; NoDeviceApps = & $flag 'NoDeviceApps'; NoWpbt = & $flag 'NoWpbt'
+    HideAreas = & $flag 'HideAreas'
+    Theme = $(if ($themeIds -contains "$($values.Theme)") { "$($values.Theme)" } else { 'Keep' })
+    Display = $(if ($displayChanges) { ($displayChanges | ForEach-Object { $_.Text }) -join '; ' } else { 'Keep' })
+    Taskbar = $(if ($taskbarIds -contains "$($values.Taskbar)") { "$($values.Taskbar)" } else { 'Keep' })
+    Search = $(if ($searchIds -contains "$($values.Search)") { "$($values.Search)" } else { 'Keep' })
+    TaskView = $(if ($taskViewIds -contains "$($values.TaskView)") { "$($values.TaskView)" } else { 'Keep' })
+    ClearPins = & $flag 'ClearPins'; NoStartAds = & $flag 'NoStartAds'; BatteryPercent = & $flag 'BatteryPercent'
+    ShowExtensions = & $flag 'ShowExtensions'; HideFrequent = & $flag 'HideFrequent'; UnpinMusic = & $flag 'UnpinMusic'
+    HideRecent = & $flag 'HideRecent'; ShowHidden = & $flag 'ShowHidden'; NoFolderSniff = & $flag 'NoFolderSniff'
+    HideHomeGallery = & $flag 'HideHomeGallery'; ClassicMenu = & $flag 'ClassicMenu'; NoSnap = & $flag 'NoSnap'; ThinBorder = & $flag 'ThinBorder'
+    LongPaths = & $flag 'LongPaths'; EndTask = & $flag 'EndTask'; Sudo = & $flag 'Sudo'; ClipboardHistory = & $flag 'ClipboardHistory'
+    NoMouseAccel = & $flag 'NoMouseAccel'; NoStickyKeys = & $flag 'NoStickyKeys'; NumLock = & $flag 'NumLock'
+    NoFastStartup = & $flag 'NoFastStartup'; MaxVolume = & $flag 'MaxVolume'; VerboseBsod = & $flag 'VerboseBsod'
+    Power = $powerText
+    DNS = $(if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' })
+}
+
+$chosen = @($opt.Keys | Where-Object {
+    $v = $opt[$_]
+    if ($v -is [bool]) { $v } elseif ($_ -eq 'RemoveApps') { @($v).Count -gt 0 } else { "$v" -ne 'Keep' }
+})
+if (-not $chosen) { Write-Host "`n  Nothing was selected, so nothing was changed." -ForegroundColor DarkGray; return }
+
+# --- Summary (and, without the panel, the confirmation)
 $labels = @{
     Telemetry = 'Telemetry'; Suggestions = 'Suggestions'; RemoveApps = 'Apps to remove'; Display = 'Screen'
     OneDrive = 'OneDrive'; Edge = 'Edge'; Security = 'Security'; HideAreas = 'Hide areas'; RootFolders = 'C: folders'; Theme = 'Theme'; Taskbar = 'Taskbar'
@@ -1814,23 +2053,28 @@ $labels = @{
     NoFolderSniff = 'No folder discovery'; VerboseBsod = 'Detailed blue screen'; Power = 'Power'
 }
 $answerLines = @()      # also written to the log file
-if (-not $NoPrompt) {
-    Write-Host "`n  Summary:" -ForegroundColor Cyan
-    foreach ($key in $opt.Keys) {
+if ($chosen) {
+    # Only what was chosen, with the names the panel shows
+    $names = @{ Display = 'Screen'; Power = 'Screen and sleep times'; DNS = 'DNS servers' }
+    foreach ($f in $fields) { if (-not $names.ContainsKey($f.id)) { $names[$f.id] = $f.label } }
+    # From the panel you already reviewed them: only the log file gets the list
+    if (-not $Answers) { Write-Host "`n  What will be done:" -ForegroundColor Cyan }
+    foreach ($key in $chosen) {
         $value = $opt[$key]
-        $text = if ($value -is [bool]) { if ($value) { 'yes' } else { 'no' } }
-                elseif ($key -eq 'Theme')   { $themeNames[[array]::IndexOf($themeIds, $value)] }
-                elseif ($key -eq 'Taskbar') { $taskbarNames[[array]::IndexOf($taskbarIds, $value)] }
-                elseif ($key -eq 'Search')  { $searchNames[[array]::IndexOf($searchIds, $value)] }
+        $name = if ($names[$key]) { $names[$key] } else { $labels[$key] }
+        $text = if ($value -is [bool]) { '' }
+                elseif ($key -eq 'Theme')    { $themeNames[[array]::IndexOf($themeIds, $value)] }
+                elseif ($key -eq 'Taskbar')  { $taskbarNames[[array]::IndexOf($taskbarIds, $value)] }
+                elseif ($key -eq 'Search')   { $searchNames[[array]::IndexOf($searchIds, $value)] }
                 elseif ($key -eq 'TaskView') { $taskViewNames[[array]::IndexOf($taskViewIds, $value)] }
-                elseif (($key -eq 'DNS' -or $key -eq 'Power' -or $key -eq 'Display') -and $value -eq 'Keep') { 'default' }
-                elseif ($key -eq 'RemoveApps') { $n = @($value | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique).Count; if ($n) { "$n app(s)" } else { 'none' } }
+                elseif ($key -eq 'RemoveApps') { @($value | ForEach-Object { Get-AppLabel $_ } | Select-Object -Unique) -join ', ' }
                 else { $value }
-        $line = "    {0,-24} {1}" -f $labels[$key], $text
-        Write-Host $line
+        $line = if ($text) { "    - ${name}: $text" } else { "    - $name" }
+        if (-not $Answers) { Write-Host $line }
         $answerLines += $line
     }
-    if (-not (Ask 'Apply now?' $true)) { Write-Host 'Nothing was changed.'; return }
+    # The panel already showed what changes and you pressed Apply there
+    if (-not $Answers -and -not (Ask 'Apply now?' $true)) { Write-Host 'Nothing was changed.'; return }
 }
 
 #endregion
@@ -1841,7 +2085,7 @@ if (-not $NoPrompt) {
 # --- Log file on the Desktop, starting with the answers
 Start-Log
 if ($script:LogFile -and $answerLines) {
-    Add-Content -LiteralPath $script:LogFile -Value (@('', 'Answers:') + $answerLines) -Encoding UTF8
+    Add-Content -LiteralPath $script:LogFile -Value (@('', 'Chosen:') + $answerLines) -Encoding UTF8
 }
 
 # --- Save the answers for -Check
@@ -1851,7 +2095,16 @@ try { Save-State $opt $dnsV4 $dnsV6 } catch { Write-Warning "Could not save the 
 Write-Step 'Creating restore point'
 try {
     Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction SilentlyContinue
-    Checkpoint-Computer -Description 'Before Configure-Windows' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+    # Windows creates at most one a day (otherwise it only warns): compare the newest point before and after
+    $before = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue) | Select-Object -Last 1
+    Checkpoint-Computer -Description 'Before Configure-Windows' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop -WarningAction SilentlyContinue
+    $after = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue) | Select-Object -Last 1
+    if ($after -and (-not $before -or $after.SequenceNumber -ne $before.SequenceNumber)) { Write-Host '  Restore point created' }
+    elseif ($after) {
+        Write-Host "  Using the restore point from $($after.ConvertToDateTime($after.CreationTime).ToString('g'))."
+        Write-Host '  Windows creates at most one restore point a day.' -ForegroundColor Yellow
+    }
+    else { throw 'System Restore did not create it' }
 } catch {
     Write-Warning "Could not create the restore point: $($_.Exception.Message)"
     if (-not (Ask 'Continue anyway?' $false)) { Write-Host 'Nothing was changed.'; return }
@@ -1926,7 +2179,20 @@ if ($opt.VerboseBsod) { Invoke-Step 'Detailed blue screen' { Enable-VerboseBsod 
 if ($power.Count) { Invoke-Step 'Screen, sleep and hibernation times' { Set-PowerTimeouts $power } }
 
 # --- Network
-if ($dnsV4) { Invoke-Step "DNS: $($opt.DNS)" { Set-DNS $dnsV4 $dnsV6 } }
+if ($dnsV4) {
+    Invoke-Step "DNS: $($opt.DNS)" {
+        # The "automatic template" only exists for servers Windows knows (Cloudflare, Google, Quad9...)
+        if (-not $isWin11) { Write-Host '  Windows 10 has no system-wide DNS over HTTPS: DNS is set unencrypted.' -ForegroundColor Yellow }
+        else {
+            foreach ($ip in ($dnsV4 + $dnsV6)) {
+                if (-not (Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue)) {
+                    Write-Host "  Windows has no encryption template for ${ip}: that server is UNENCRYPTED." -ForegroundColor Yellow
+                }
+            }
+        }
+        Set-DNS $dnsV4 $dnsV6
+    }
+}
 
 # --- Apply visuals right away (no need to sign out)
 if ($script:RestartExplorer) { Invoke-Step 'Applying visuals without signing out' { Restart-Explorer } }
@@ -1938,12 +2204,12 @@ Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
 Write-Host "$($script:ChangedCount) setting(s) changed now"
 Write-Host "  [--] $($script:AlreadyCount) were already like that" -ForegroundColor DarkGray
 if ($script:Failures.Count) {
-    Write-Host "  [ERROR] $($script:Failures.Count) step(s) failed (the rest was applied):" -ForegroundColor Yellow
+    Write-Host "  [ERROR] $($script:Failures.Count) step(s) failed. The rest was applied:" -ForegroundColor Yellow
     $script:Failures | ForEach-Object { Write-Host "    - $_" -ForegroundColor Yellow }
 }
 Write-Host "`nDone. Restart the computer." -ForegroundColor Green
-Write-Host '  To undo: TidyWin menu → Undo → Windows.' -ForegroundColor DarkGray
-Write-Host '  After a big Windows update: Maintenance → Check after a Windows update.' -ForegroundColor DarkGray
+Write-Host '  To undo: TidyWin → Undo → Windows.' -ForegroundColor DarkGray
+Write-Host '  After a big Windows update: TidyWin → Maintenance → Check after an update.' -ForegroundColor DarkGray
 if ($script:LogFile) {
     $file = $script:LogFile
     $script:LogFile = $null      # this last line only on screen

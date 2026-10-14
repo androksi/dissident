@@ -4,24 +4,22 @@
 
 From backup to a PC ready to use, with the TidyWin options in the right order.
 
-Every **bold menu path** below is an option of the TidyWin menu. Open it with (right-click Start → Terminal):
+Every **bold path** below is an option in the sidebar of the TidyWin panel. Open it with (right-click Start → Terminal):
 
 ```powershell
 irm androksi.github.io/tidywin/run | iex
 ```
 
-The menu comes back after each option, so you can keep it open and go down the list.
+The panel stays open after each option, so you can keep it open and go down the list.
 
 ## Before formatting
 
-1. **Back up your apps and drivers** to a USB drive: menu → **Formatting the PC → Back up apps and drivers**. It saves the app list, then the drivers (the ones in use come checked); skip either step if you don't need it. Drivers matter most on laptops and for the network card: without it there's no internet after formatting. [Details](drivers.md)
+1. **Back up your apps and drivers** to a USB drive: panel → **Formatting the PC → Back up apps and drivers**. It saves the app list, then the drivers (the ones in use come checked); skip either step if you don't need it. Drivers matter most on laptops and for the network card: without it there's no internet after formatting. [Details](drivers.md)
    Keep the app list on a USB drive, in Google Drive or in an e-mail to yourself. **Not in OneDrive**: the Windows option can remove OneDrive.
 2. **Back up your files**: Documents, Desktop, Downloads, projects that are not on GitHub, game saves and `.env` files.
 3. **Browsers**: make sure sync is on (Firefox, Brave, Chrome), or export your passwords if you don't keep them in a password manager.
 4. **Activation**: Settings → System → Activation should say *activated with a digital license*. It is tied to the hardware and comes back on its own.
 5. **Video driver**: download the NVIDIA (or AMD/Intel) driver installer and keep it on the USB drive. It brings the control panel too; the saved driver is the fallback.
-
-SSH keys don't need a backup: Development creates a new one and deletes the old key of this PC from GitHub.
 
 ## Formatting
 
@@ -35,28 +33,24 @@ SSH keys don't need a backup: Development creates a new one and deletes the old 
 
 8. **Windows Update** until nothing is left, restarting between rounds. This brings chipset, network and audio drivers.
 9. **Microsoft Store** → Library → **Update all**. This updates WinGet (App Installer), which installs your apps back; on a fresh Windows it sometimes doesn't work yet.
-10. **Restore your apps and drivers**: menu → **Formatting the PC → Restore apps and drivers**. First the drivers Windows Update didn't bring back, then your apps.
+10. **Restore your apps and drivers**: panel → **Formatting the PC → Restore apps and drivers**. First the drivers Windows Update didn't bring back, then your apps.
 11. **Video driver**: install it (clean install) and restart.
-12. **Windows**: menu → **Set up → Windows**. Creates a restore point, then cleans up and configures Windows. Restart at the end. Then **Set up → Install apps** for anything new.
-13. **Browsers**, after installing them, only the ones you use: menu → **Set up → Firefox**, **Brave** or **Chrome**.
-14. **Development**, if you program: menu → **Set up → Development**. Editors, Git, SSH key sent to GitHub, signed commits and Windows Terminal with a Nerd Font.
-15. **Wallpapers**, if you want: menu → **Set up → Wallpapers**.
-16. **Your files**: copy them back from the backup and sign in to your accounts.
-17. **Free up disk space**: menu → **Maintenance → Free up disk space**. You can also accept *Old Windows components*. Restart one last time.
-18. **Check everything**: menu → **Maintenance → PC report**. Only reads; the summary at the top lists anything left to fix (activation, drivers, TPM/Secure Boot, disks).
+12. **Windows**: panel → **Set up → Windows**. Creates a restore point, then cleans up and configures Windows. Restart at the end. Then **Set up → Applications** for anything new.
+13. **Browsers**, after installing them, only the ones you use: panel → **Set up → Browsers**, turning on Firefox, Brave or Chrome.
+14. **Your files**: copy them back from the backup and sign in to your accounts.
+15. **Free up disk space**: panel → **Maintenance → Free up disk space**. You can also turn on *Old Windows components*. Restart one last time.
 
 ## From time to time
 
 | Menu option | When |
 |---|---|
-| Maintenance → Check after a Windows update | After a big Windows update, to see whether anything came back. |
+| Maintenance → Check after an update | After a big Windows update, to see whether anything came back. |
 | Formatting the PC → Back up apps and drivers | Every now and then, so the backup is current for the next reinstall. |
 | Maintenance → Repair Windows | Only when Windows acts strange. |
-| Maintenance → PC report | Before asking for help: send the report (it has no personal data). |
 
 ## Games with anti-cheat
 
-None of the options touch TPM, Secure Boot, Memory integrity or test signing. If a game like VALORANT complains (VAN 9001/9003), run **Maintenance → PC report**: its *Security and anti-cheat* section shows all four. Or check the BIOS: updating or resetting it sometimes turns TPM or Secure Boot off.
+None of the options touch TPM, Secure Boot, Memory integrity or test signing. If a game like VALORANT complains (VAN 9001/9003), check them in Windows Security → Device security and in System Information (`msinfo32`), or in the BIOS: updating or resetting it sometimes turns TPM or Secure Boot off.
 
 - TPM: <kbd>Win</kbd> + <kbd>R</kbd> → `tpm.msc` → *The TPM is ready for use*.
 - Secure Boot: <kbd>Win</kbd> + <kbd>R</kbd> → `msinfo32` → *Secure Boot State* = **On**.
