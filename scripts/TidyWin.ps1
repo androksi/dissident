@@ -109,7 +109,7 @@ function Get-Menu {
             'Creates a restore point first. Takes 10 to 30 minutes.'
         ) 'Repair' @(New-Step 'windows/repair-windows.ps1') -Form
 
-        New-MenuEntry $care 'network-reset' 'E701' 'Network' 'Network' 'Fix "connected, no internet" and sites that don''t load.' @(
+        New-MenuEntry $care 'network-reset' 'E701' 'Internet connection' 'Internet connection' 'Fix "connected, no internet" and sites that don''t load.' @(
             'Quick: clears the caches and gets a new IP. No restart.'
             'Full: also resets the Windows network settings. Needs a restart.'
             'Your DNS settings stay.'

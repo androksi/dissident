@@ -115,7 +115,7 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 ## Network reset
 
-In the [TidyWin panel](../README.md#quick-start): **Maintenance → Network**.
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Internet connection**.
 
 For "connected, no internet", sites that don't open or a connection that keeps dropping. The page shows the network adapters (connected or not, and the DNS set by hand that will be kept) and how far to go, nothing picked:
 
