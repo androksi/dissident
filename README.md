@@ -10,7 +10,7 @@ Clean up telemetry and bloat, install your apps and fonts, diagnose and fix prob
 
 ---
 
-![The TidyWin panel in Windows PowerShell](assets/banner.svg)
+![The TidyWin panel on the Windows page](assets/banner.png)
 
 ## Quick Start
 
@@ -24,26 +24,6 @@ It asks for administrator rights, then opens the TidyWin window: pick an option 
 
 > [!TIP]
 > Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the options in the right order.
-
-## What's in TidyWin
-
-| Option | What it does | Details |
-|---|---|---|
-| **Set up** | | |
-| Windows | Removes telemetry, ads, preinstalled apps and OneDrive; adjusts the taskbar, File Explorer, power and DNS. Only what you turn on. | [Options](docs/windows.md) |
-| Applications | Pick from 105 apps and install them with WinGet. | [List](docs/apps.md) |
-| Fonts | Pick fonts for code, the terminal and text, and install them. | [List](docs/fonts.md) |
-| Browsers | Chrome, Brave and Firefox, each with its switch. Privacy settings: no telemetry, AI features or ads. | [Policies](docs/browsers.md) |
-| **Maintenance** | | |
-| Check after an update | Finds what a big update brought back and reapplies it. | [Details](docs/windows.md#check) |
-| Uninstall programs | With their official uninstaller, then shows the leftovers before deleting them. | [Details](docs/apps.md#uninstalling) |
-| Free up disk space | Temporary files, update downloads and more, each with its size. | [Details](docs/windows.md#cleanup) |
-| Repair Windows | Repairs system files and the disk with Windows' own tools. | [Details](docs/windows.md#repair) |
-| Network | Fixes "connected, no internet" with Windows' own commands, keeping your DNS. | [Details](docs/windows.md#network-reset) |
-| **Formatting the PC** | | |
-| Back up apps and drivers | Before formatting: saves your app list and the drivers you pick. | [Apps](docs/apps.md#moving-apps-to-another-pc) · [Drivers](docs/drivers.md) |
-| Restore apps and drivers | After formatting: installs back the drivers Windows didn't, then your apps. | |
-| **Undo** | Windows, the browsers and fonts. | |
 
 ## Good to know
 
