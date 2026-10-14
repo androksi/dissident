@@ -179,6 +179,10 @@ function Remove-Reg([string]$Path, [string[]]$Names) {
 # Step title in the terminal.
 function Write-Step([string]$Text) { Write-Host "`n▸ $Text" -ForegroundColor Cyan }
 
+# The result of a step: [OK] done, [--] nothing to do
+function Write-Done([string]$Text) { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host $Text }
+function Write-Skip([string]$Text) { Write-Host "  [--] $Text" -ForegroundColor DarkGray }
+
 
 #endregion
 
@@ -277,8 +281,8 @@ function Restore-Border {
     $wm = 'HKCU:\Control Panel\Desktop\WindowMetrics'
     if ((Get-ItemProperty $wm -Name PaddedBorderWidth -ErrorAction SilentlyContinue).PaddedBorderWidth -eq '0') {
         Set-ItemProperty $wm -Name PaddedBorderWidth -Value '-60'
-        Write-Host '  Border restored'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
-    }
+        Write-Done 'Border restored'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
+    } else { Write-Skip 'The border was already the default' }
 }
 
 # Pins back to Start the ad shortcuts Configure-Windows unpinned (it saved their names), with the same
@@ -286,7 +290,7 @@ function Restore-Border {
 # whose app was never installed can't be pinned again: Windows only shows it on new accounts.
 function Restore-StartPins {
     $file = Join-Path $env:ProgramData 'TidyWin\start-unpinned.json'
-    if (-not (Test-Path $file)) { Write-Host '  Nothing was unpinned'; return }
+    if (-not (Test-Path $file)) { Write-Skip 'Nothing was unpinned'; return }
     $names = @(Get-Content $file -Raw -Encoding UTF8 | ConvertFrom-Json)
     if (-not ('RevWin.Res' -as [type])) {
         Add-Type -Namespace RevWin -Name Res -MemberDefinition @'
@@ -307,7 +311,7 @@ public static extern int LoadString(System.IntPtr module, uint id, System.Text.S
         if ($verb) { $verb.DoIt(); $done += $item.Name }
     }
     $left = @($names | Where-Object { $done -notcontains $_ })
-    if ($done) { Write-Host "  Pinned back: $($done -join ', ')" }
+    if ($done) { Write-Done "Pinned back: $($done -join ', ')" }
     if ($left) { Write-Host "  Not pinned back, the app is not installed: $($left -join ', ')" -ForegroundColor DarkGray }
     Remove-Item $file -Force -ErrorAction SilentlyContinue
 }
@@ -317,8 +321,8 @@ function Restore-SnapWindows {
     $d = 'HKCU:\Control Panel\Desktop'
     if ((Get-ItemProperty $d -Name WindowArrangementActive -ErrorAction SilentlyContinue).WindowArrangementActive -eq '0') {
         Set-ItemProperty $d -Name WindowArrangementActive -Value '1'
-        Write-Host '  Snap windows: on'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
-    }
+        Write-Done 'Snap windows: on'; Write-Host '  Takes effect after signing out and back in.' -ForegroundColor DarkGray
+    } else { Write-Skip 'Snap windows was already on' }
 }
 
 # Automatic DNS (from the router) and no DNS over HTTPS, on every physical adapter.
@@ -327,7 +331,7 @@ function Restore-DNS {
     foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue)) {
         Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ResetServerAddresses -ErrorAction SilentlyContinue
         Remove-Item "$base\$($adapter.InterfaceGuid)\DohInterfaceSettings" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "  $($adapter.Name): automatic"
+        Write-Done "$($adapter.Name): automatic"
     }
     Clear-DnsClientCache
 }
@@ -344,13 +348,13 @@ function Restore-HomeAndGallery {
         $pinned = $shell.Namespace('shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}').Items() | Where-Object { $_.Path -eq $music }
         if (-not $pinned -and (Test-Path $music)) { $shell.Namespace($music).Self.InvokeVerb('pintohome') }
     } catch { }
-    Write-Host '  Home, Gallery and Music in Quick access are back'; Write-Host '  Some show up after restarting.' -ForegroundColor DarkGray
+    Write-Done 'Home, Gallery and Music in Quick access are back'; Write-Host '  Some show up after restarting.' -ForegroundColor DarkGray
 }
 
 # Windows 11's own right-click menu (the classic one was turned on by Configure-Windows)
 function Restore-ContextMenu {
     Remove-Item 'HKCU:\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}' -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host '  New right-click menu: back'; Write-Host '  Shows up after restarting File Explorer or the PC.' -ForegroundColor DarkGray
+    Write-Done 'New right-click menu: back'; Write-Host '  Shows up after restarting File Explorer or the PC.' -ForegroundColor DarkGray
 }
 
 # Folder type discovery: File Explorer picks a view for each folder from its contents again.
@@ -384,8 +388,8 @@ function Show-Inetpub {
     if (Test-Path $inetpub) {
         $folder = Get-Item $inetpub -Force
         $folder.Attributes = $folder.Attributes -band -bnot [IO.FileAttributes]::Hidden
-        Write-Host '  Inetpub: visible again'
-    }
+        Write-Done 'Inetpub: visible again'
+    } else { Write-Skip 'There is no inetpub folder' }
 }
 
 function Remove-EdgePolicies {
@@ -454,32 +458,32 @@ $v = Read-Options $fields $Answers
 if (-not @($v.Keys | Where-Object { $v[$_] })) { Write-Host 'Nothing was selected, so nothing was changed.'; return }
 
 # --- Undo what was turned on
-if ($v.Telemetry)            { Write-Step 'Telemetry back to default';              Restore-TelemetryServices; Restore-TelemetryTasks; Remove-TelemetryPolicies }
-if ($v.Suggestions)          { Write-Step 'Suggestions and ads back';               Restore-Suggestions }
-if ($v.Activity)             { Write-Step 'Activity history back on';               Remove-ActivityPolicies }
-if ($v.WebSearch)            { Write-Step 'Web results back in search';             Remove-SearchPolicies }
-if ($v.Recall)               { Write-Step 'Recall allowed again';                   Remove-RecallPolicies }
-if ($v.Widgets)              { Write-Step 'Widgets back';                           Remove-WidgetsPolicies }
-if ($v.OneDrive)             { Write-Step 'OneDrive allowed again';                 Remove-OneDrivePolicy }
-if ($v.GameDVR)              { Write-Step 'Game recording back on';                 Restore-GameDVR }
-if ($v.PrintScreen)          { Write-Step 'Print Screen opens the Snipping Tool';   Restore-PrintScreen }
-if ($v.Edge)                 { Write-Step 'Removing Edge policies';                 Remove-EdgePolicies }
-if ($v.Security)             { Write-Step 'Windows Security back to default';       Remove-SecurityPolicies }
+if ($v.Telemetry)            { Write-Step 'Telemetry back to default';              Restore-TelemetryServices; Restore-TelemetryTasks; Remove-TelemetryPolicies; Write-Done 'Back to the Windows default' }
+if ($v.Suggestions)          { Write-Step 'Suggestions and ads back';               Restore-Suggestions; Write-Done 'Back to the Windows default' }
+if ($v.Activity)             { Write-Step 'Activity history back on';               Remove-ActivityPolicies; Write-Done 'Back to the Windows default' }
+if ($v.WebSearch)            { Write-Step 'Web results back in search';             Remove-SearchPolicies; Write-Done 'Back to the Windows default' }
+if ($v.Recall)               { Write-Step 'Recall allowed again';                   Remove-RecallPolicies; Write-Done 'Back to the Windows default' }
+if ($v.Widgets)              { Write-Step 'Widgets back';                           Remove-WidgetsPolicies; Write-Done 'Back to the Windows default' }
+if ($v.OneDrive)             { Write-Step 'OneDrive allowed again';                 Remove-OneDrivePolicy; Write-Done 'Back to the Windows default' }
+if ($v.GameDVR)              { Write-Step 'Game recording back on';                 Restore-GameDVR; Write-Done 'Back to the Windows default' }
+if ($v.PrintScreen)          { Write-Step 'Print Screen opens the Snipping Tool';   Restore-PrintScreen; Write-Done 'Back to the Windows default' }
+if ($v.Edge)                 { Write-Step 'Removing Edge policies';                 Remove-EdgePolicies; Write-Done 'Back to the Windows default' }
+if ($v.Security)             { Write-Step 'Windows Security back to default';       Remove-SecurityPolicies; Write-Done 'Back to the Windows default' }
 if ($v.StartPins)            { Write-Step 'Ad shortcuts back in Start';             Restore-StartPins }
 if ($v.HomeGallery)          { Write-Step 'Home and Gallery back in File Explorer'; Restore-HomeAndGallery }
 if ($v.ContextMenu)          { Write-Step 'New right-click menu back';              Restore-ContextMenu }
-if ($v.FolderTypes)          { Write-Step 'Folder views back to default';           Restore-FolderTypes }
+if ($v.FolderTypes)          { Write-Step 'Folder views back to default';           Restore-FolderTypes; Write-Done 'Back to the Windows default' }
 if ($v.Inetpub)              { Write-Step 'Inetpub folder visible again';           Show-Inetpub }
 if ($v.Border)               { Write-Step 'Window border back to default';          Restore-Border }
 if ($v.Snap)                 { Write-Step 'Snap windows back on';                   Restore-SnapWindows }
-if ($v.FastStartup)          { Write-Step 'Fast Startup back on';                   Restore-FastStartup }
-if ($v.NumLock)              { Write-Step 'Num Lock off at startup';                Restore-NumLock }
-if ($v.BlueScreen)           { Write-Step 'Simple blue screen';                     Restore-BlueScreen }
-if ($v.DeviceApps)           { Write-Step 'Device apps download again';             Restore-DeviceApps }
-if ($v.Wpbt)                 { Write-Step 'Programs from the firmware allowed';     Restore-Wpbt }
-if ($v.SavedAnswers)         { Write-Step 'Forgetting the saved choices';           Remove-SavedAnswers }
+if ($v.FastStartup)          { Write-Step 'Fast Startup back on';                   Restore-FastStartup; Write-Done 'Back to the Windows default' }
+if ($v.NumLock)              { Write-Step 'Num Lock off at startup';                Restore-NumLock; Write-Done 'Back to the Windows default' }
+if ($v.BlueScreen)           { Write-Step 'Simple blue screen';                     Restore-BlueScreen; Write-Done 'Back to the Windows default' }
+if ($v.DeviceApps)           { Write-Step 'Device apps download again';             Restore-DeviceApps; Write-Done 'Back to the Windows default' }
+if ($v.Wpbt)                 { Write-Step 'Programs from the firmware allowed';     Restore-Wpbt; Write-Done 'Back to the Windows default' }
+if ($v.SavedAnswers)         { Write-Step 'Forgetting the saved choices';           Remove-SavedAnswers; Write-Done 'Deleted' }
 if ($v.DNS)                  { Write-Step 'DNS back to automatic';                  Restore-DNS }
-if ($v.DeliveryOptimization) { Write-Step 'Update sharing back to default';         Remove-DeliveryOptimizationPolicy }
+if ($v.DeliveryOptimization) { Write-Step 'Update sharing back to default';         Remove-DeliveryOptimizationPolicy; Write-Done 'Back to the Windows default' }
 Write-Host "`nDone." -ForegroundColor Green; Write-Host '  Restart the PC so every change takes effect.' -ForegroundColor DarkGray
 
 #endregion

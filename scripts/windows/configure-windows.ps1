@@ -345,6 +345,17 @@ function Write-Change([string]$Label, [string]$State, [bool]$Changed) {
     }
 }
 
+# A step that did something without a registry value to compare: [OK]. One that found nothing to do: [--].
+function Write-Done([string]$Text) {
+    Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
+    Write-Host $Text
+    $script:ChangedCount++
+}
+function Write-Skip([string]$Text) {
+    Write-Host "  [--] $Text" -ForegroundColor DarkGray
+    $script:AlreadyCount++
+}
+
 # A registry value for Set-Option: RegValue <path> <name> <value> [type]
 function RegValue([string]$Path, [string]$Name, $Value, [string]$Type = 'DWord') {
     @{ Path = $Path; Name = $Name; Value = $Value; Type = $Type }
@@ -506,15 +517,15 @@ function Disable-Widgets {
         try {
             if (-not (Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh')) { New-Item 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' -Force -ErrorAction Stop | Out-Null }
             New-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' -Name 'AllowNewsAndInterests' -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
-            Write-Host '  Widgets disabled by policy'
+            Write-Done 'Widgets disabled by policy'
         } catch {
             Write-Host '  Windows protects the Widgets policy, so the Widgets package is removed instead.' -ForegroundColor DarkYellow
             $widgets = Get-AppxPackage -AllUsers -Name 'MicrosoftWindows.Client.WebExperience' -ErrorAction SilentlyContinue
-            if (-not $widgets) { Write-Host '  Widgets are not installed anymore' }
+            if (-not $widgets) { Write-Skip 'Widgets are not installed anymore' }
             foreach ($pkg in $widgets) {
                 try {
                     Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
-                    Write-Host '  Widgets removed'
+                    Write-Done 'Widgets removed'
                 } catch {
                     Write-Host "  Could not remove Widgets: $($_.Exception.Message.Trim()). Turn them off in Settings → Personalization → Taskbar." -ForegroundColor DarkYellow
                 }
@@ -524,7 +535,7 @@ function Disable-Widgets {
         try {
             if (-not (Test-Path "$P\Windows Feeds")) { New-Item "$P\Windows Feeds" -Force -ErrorAction Stop | Out-Null }
             New-ItemProperty "$P\Windows Feeds" -Name 'EnableFeeds' -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
-            Write-Host '  News and interests turned off'
+            Write-Done 'News and interests turned off'
         } catch {
             Write-Host '  Could not turn off News and interests by policy. Right-click the taskbar → News and interests → Turn off.' -ForegroundColor DarkYellow
         }
@@ -713,7 +724,7 @@ function Disable-GameDvr {
     Set-Reg 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' 0
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR' 'AppCaptureEnabled' 0
     Set-Reg "$P\GameDVR" 'AllowGameDVR' 0
-    Write-Host '  Game recording (Game DVR): off'
+    Write-Done 'Game recording (Game DVR): off'
 }
 
 # --- OneDrive --------------------------------------------------------------
@@ -728,7 +739,7 @@ function Remove-OneDrive {
     }
     Remove-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'OneDriveSetup' -ErrorAction SilentlyContinue
     Set-Reg "$P\OneDrive" 'DisableFileSyncNGSC' 1
-    Write-Host '  OneDrive removed'
+    Write-Done 'OneDrive removed'
 }
 
 # --- Edge ------------------------------------------------------------------
@@ -746,7 +757,7 @@ function Remove-EdgeDesktopShortcut {
     Set-Reg $U 'CreateDesktopShortcutDefault' 0
     Set-Reg $U 'CreateDesktopShortcut{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}' 0   # Edge (Stable)
     Get-EdgeShortcuts | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }
-    Write-Host '  Edge desktop shortcut: deleted, and Edge updates no longer create it'
+    Write-Done 'Edge desktop shortcut: deleted, and Edge updates no longer create it'
 }
 
 function Set-EdgePolicies {
@@ -768,7 +779,7 @@ function Set-WindowsSecurity {
     # Potentially unwanted app blocking (adware, installers bundling "extras")
     try {
         Set-MpPreference -PUAProtection Enabled -ErrorAction Stop
-        Write-Host '  Potentially unwanted app blocking: on'
+        Write-Done 'Potentially unwanted app blocking: on'
     } catch {
         Write-Host "  Could not turn on potentially unwanted app blocking: $($_.Exception.Message.Trim()). Is another antivirus installed?" -ForegroundColor DarkYellow
     }
@@ -777,7 +788,7 @@ function Set-WindowsSecurity {
     # (the value is the key's default value; reg.exe /ve writes it reliably)
     reg.exe add 'HKCU\SOFTWARE\Microsoft\Edge\SmartScreenPuaEnabled' /ve /t REG_DWORD /d 1 /f | Out-Null
     if ($LASTEXITCODE) { Write-Host '  Could not turn on unwanted download blocking.' -ForegroundColor DarkYellow }
-    else               { Write-Host '  Unwanted download blocking: on' }
+    else               { Write-Done 'Unwanted download blocking: on' }
 
     $WSC = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center'
     # "Informational" notifications (suggestions, summaries). Important alerts — threat found,
@@ -847,7 +858,7 @@ function Clear-SystemDriveRoot {
     }
     if (Test-Path $perfLogs) {
         Remove-Item $perfLogs -Recurse -Force -ErrorAction Stop
-        Write-Host '  PerfLogs: deleted'
+        Write-Done 'PerfLogs: deleted'
     }
 }
 
@@ -889,7 +900,7 @@ function Set-Theme([bool]$Light) {
     Set-Reg "$Themes\Personalize" 'AppsUseLightTheme'    $mode
     Set-ThemeWallpaper $theme
     if ($current -ine $theme) { Write-Warning 'Could not confirm the theme. Check Settings → Personalization → Themes.' }
-    else { Write-Host "  Theme applied: $(Split-Path $theme -Leaf)" }
+    else { Write-Done "Theme applied: $(Split-Path $theme -Leaf)" }
 }
 
 # On Windows 11 the desktop background can stay on "Windows Spotlight" even after applying a theme
@@ -922,12 +933,12 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, stri
 # Visible file extensions, frequent folders and recent files in File Explorer.
 function Set-Explorer([bool]$ShowExtensions, [bool]$HideFrequent, [bool]$HideRecent) {
     $Exp = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer'
-    if ($ShowExtensions) { Set-Reg "$Exp\Advanced" 'HideFileExt' 0; Write-Host '  File extensions visible' }
+    if ($ShowExtensions) { Set-Reg "$Exp\Advanced" 'HideFileExt' 0; Write-Done 'File extensions visible' }
     if ($HideFrequent)   { Set-Reg $Exp 'ShowFrequent' 0;          Write-Host '  Frequent folders hidden'; Write-Host '  The ones you pinned stay.' -ForegroundColor DarkGray }
     if ($HideRecent) {
         Set-Reg $Exp 'ShowRecent' 0
         if ($isWin11) { Set-Reg $Exp 'ShowRecommendations' 0 }
-        Write-Host '  Recent files hidden'
+        Write-Done 'Recent files hidden'
     }
     $script:RestartExplorer = $true
 }
@@ -939,7 +950,7 @@ function Hide-HomeAndGallery {
     Set-Reg "$CLSID\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}" 'System.IsPinnedToNameSpaceTree' 0   # Home
     Set-Reg "$CLSID\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}" 'System.IsPinnedToNameSpaceTree' 0   # Gallery
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'LaunchTo' 1      # open in This PC
-    Write-Host '  Home and Gallery removed from the sidebar; File Explorer opens in "This PC"'
+    Write-Done 'Home and Gallery removed from the sidebar; File Explorer opens in "This PC"'
     $script:RestartExplorer = $true
 }
 
@@ -959,7 +970,7 @@ function Unpin-QuickAccessMusic {
     $music = [Environment]::GetFolderPath('MyMusic')
     $quick = (New-Object -ComObject Shell.Application).Namespace('shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}')
     $item  = $quick.Items() | Where-Object { $_.Path -eq $music }
-    if (-not $item) { Write-Host '  Music was not pinned to Quick access'; return }
+    if (-not $item) { Write-Skip 'Music was not pinned to Quick access'; return }
     $item.InvokeVerb('unpinfromhome')
     Write-Host '  Music unpinned from Quick access'; Write-Host '  The folder stays where it is.' -ForegroundColor DarkGray
 }
@@ -1008,21 +1019,21 @@ public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, Syst
     }
     # SPI_SETWINARRANGEMENT = 0x0083; SPIF_UPDATEINIFILE | SPIF_SENDCHANGE = 3
     [void][CfgWin.Snap]::SystemParametersInfo(0x0083, 0, [IntPtr]::Zero, 3)
-    Write-Host '  Snap windows: off'
+    Write-Done 'Snap windows: off'
 }
 
 # Taskbar icon alignment (Windows 11 only): TaskbarAl 0 = left, 1 = center (Windows default).
 function Set-TaskbarAlignment([bool]$Left) {
     $value = if ($Left) { 0 } else { 1 }
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarAl' $value
-    Write-Host "  Taskbar icons: $(if ($Left) { 'left' } else { 'center' })"
+    Write-Done "Taskbar icons: $(if ($Left) { 'left' } else { 'center' })"
     $script:RestartExplorer = $true
 }
 
 # Taskbar search (Windows 10 and 11): SearchboxTaskbarMode 0 = hidden, 1 = icon only, 2 = search box.
 function Set-TaskbarSearch([int]$Mode) {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search' 'SearchboxTaskbarMode' $Mode
-    Write-Host "  Taskbar search: $(@('hidden', 'icon only', 'search box')[$Mode])"
+    Write-Done "Taskbar search: $(@('hidden', 'icon only', 'search box')[$Mode])"
     $script:RestartExplorer = $true
 }
 
@@ -1030,7 +1041,7 @@ function Set-TaskbarSearch([int]$Mode) {
 # Win+Tab keeps working either way.
 function Set-TaskViewButton([bool]$Show) {
     Set-Reg 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowTaskViewButton' ([int]$Show)
-    Write-Host "  Task View button: $(if ($Show) { 'visible' } else { 'hidden (Win+Tab still works)' })"
+    Write-Done "Task View button: $(if ($Show) { 'visible' } else { 'hidden (Win+Tab still works)' })"
     $script:RestartExplorer = $true
 }
 
@@ -1041,7 +1052,7 @@ function Clear-TaskbarPins {
     Remove-Item 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Taskband' -Recurse -Force -ErrorAction SilentlyContinue
     Get-ChildItem "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar" -Filter '*.lnk' -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
-    Write-Host '  Pinned icons removed from the taskbar'
+    Write-Done 'Pinned icons removed from the taskbar'
     $script:RestartExplorer = $true
 }
 
@@ -1083,9 +1094,9 @@ function Remove-StartAdPins {
     if ($done) {
         New-Item -ItemType Directory -Path (Split-Path $StartUnpinnedFile) -Force | Out-Null
         ConvertTo-Json -InputObject @($done) | Set-Content $StartUnpinnedFile -Encoding UTF8
-        Write-Host "  Unpinned from Start: $($done -join ', ')"
+        Write-Done "Unpinned from Start: $($done -join ', ')"
     } else {
-        Write-Host '  No ad shortcuts pinned to Start'
+        Write-Skip 'No ad shortcuts pinned to Start'
     }
 }
 
@@ -1104,7 +1115,7 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
     Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
     if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
-    Write-Host '  File Explorer restarted'
+    Write-Done 'File Explorer restarted'
 }
 
 # --- Screen: resolution, refresh rate and scale ------------------------------
@@ -1310,7 +1321,7 @@ function Set-DisplayChoice($Change) {
 
 function Enable-LongPaths {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1
-    Write-Host '  Long paths: allowed'
+    Write-Done 'Long paths: allowed'
 }
 
 function Enable-EndTask {
@@ -1322,7 +1333,7 @@ function Enable-EndTask {
 # "Inline" mode: the command runs in the same terminal window, like on Linux.
 function Enable-Sudo {
     & "$env:SystemRoot\System32\sudo.exe" config --enable normal | Out-Null
-    Write-Host '  Sudo: enabled, inline mode'
+    Write-Done 'Sudo: enabled, inline mode'
 }
 
 function Enable-ClipboardHistory {
@@ -1342,7 +1353,7 @@ function Disable-MouseAcceleration {
 # The feature is still available in Settings → Accessibility → Keyboard.
 function Disable-StickyKeysShortcut {
     Set-Reg 'HKCU:\Control Panel\Accessibility\StickyKeys' 'Flags' '506' 'String'
-    Write-Host '  Sticky Keys shortcut (5x Shift): off'
+    Write-Done 'Sticky Keys shortcut (5x Shift): off'
 }
 
 # Num Lock on when Windows starts: on the sign-in screen (.DEFAULT) and for your user.
@@ -1353,7 +1364,7 @@ function Enable-NumLockAtStartup {
         $n = [int64]0; [void][int64]::TryParse([string](Get-RegValue $k 'InitialKeyboardIndicators'), [ref]$n)
         Set-Reg $k 'InitialKeyboardIndicators' ([string]($n -bor 2)) 'String'
     }
-    Write-Host '  Num Lock: on when Windows starts'
+    Write-Done 'Num Lock: on when Windows starts'
 }
 
 # Fast Startup makes "Shut down" a partial hibernation. Off = a real shutdown every time: drivers and
@@ -1423,7 +1434,7 @@ namespace CfgWin {
 '@
     }
     [CfgWin.Audio]::SetVolume(1.0)
-    Write-Host "  Windows volume: $([math]::Round([CfgWin.Audio]::GetVolume() * 100))%"
+    Write-Done "Windows volume: $([math]::Round([CfgWin.Audio]::GetVolume() * 100))%"
 }
 
 # --- Power: screen and sleep times ------------------------------------------
@@ -1461,7 +1472,7 @@ function Set-PowerTimeouts($Values) {
         powercfg /change $name $Values[$name]
         if ($LASTEXITCODE -ne 0) { throw "powercfg /change $name" }
     }
-    Write-Host '  Times set in the active power plan'
+    Write-Done 'Times set in the active power plan'
 }
 
 #endregion
@@ -2099,9 +2110,9 @@ try {
     $before = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue) | Select-Object -Last 1
     Checkpoint-Computer -Description 'Before Configure-Windows' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop -WarningAction SilentlyContinue
     $after = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue) | Select-Object -Last 1
-    if ($after -and (-not $before -or $after.SequenceNumber -ne $before.SequenceNumber)) { Write-Host '  Restore point created' }
+    if ($after -and (-not $before -or $after.SequenceNumber -ne $before.SequenceNumber)) { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host 'Restore point created' }
     elseif ($after) {
-        Write-Host "  Using the restore point from $($after.ConvertToDateTime($after.CreationTime).ToString('g'))."
+        Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "Using the restore point from $($after.ConvertToDateTime($after.CreationTime).ToString('g'))."
         Write-Host '  Windows creates at most one restore point a day.' -ForegroundColor Yellow
     }
     else { throw 'System Restore did not create it' }
