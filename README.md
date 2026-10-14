@@ -49,4 +49,4 @@ Run as Administrator. The panel uses the scripts next to it instead of downloadi
 
 ---
 
-[Changelog](CHANGELOG.md) · [Report an issue](https://github.com/androksi/tidywin/issues) · [GPL-3.0](LICENSE), provided as is, without warranty.
+[Report an issue](https://github.com/androksi/tidywin/issues) · [GPL-3.0](LICENSE), provided as is, without warranty.
