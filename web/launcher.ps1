@@ -50,11 +50,13 @@
             FilePath     = 'powershell.exe'
             WindowStyle  = 'Hidden'
             ArgumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-EncodedCommand', $encoded)
-            Wait         = $true
+            PassThru     = $true
         }
         if (-not $isAdmin) { $start.Verb = 'RunAs' }
-        try { Start-Process @start }
+        try { $proc = Start-Process @start }
         catch { Write-Host "`n  Permission denied. Nothing was changed." -ForegroundColor Red; return }
+        # Waits by its id, not with -Wait: -Wait puts the elevated process in a job object, which can end it
+        while (Get-Process -Id $proc.Id -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }
         Write-Host "`n  Cya!`n" -ForegroundColor Cyan
         return
     }
@@ -80,8 +82,14 @@
     # --- Run it in Windows PowerShell 5.1 (the scripts target it), with Bypass only for this process
     $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', $file)
     if ($Extra) { $argv += $Extra }
-    & powershell.exe @argv
-
+    # Its errors go to this hidden console: when it stops with one, show it (PowerShell may send it as CLIXML)
+    $errors = & powershell.exe @argv 2>&1 | Where-Object { $_ -is [Management.Automation.ErrorRecord] } | Out-String
+    if ($LASTEXITCODE -ne 0 -and $errors.Trim()) {
+        if ($errors -match '<S S="Error">') {
+            $errors = (([regex]::Matches($errors, '<S S="Error">(.*?)</S>') | ForEach-Object { $_.Groups[1].Value }) -join '') -replace '_x000D__x000A_', "`n"
+        }
+        Show-Error "TidyWin stopped with an error:`n`n$($errors.Trim())"
+    }
     # --- Clean up: nothing stays on the PC besides what the scripts configured
     Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 }
