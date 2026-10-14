@@ -495,15 +495,22 @@ function Get-UndoGroups {
 #region ==================== 4. EXECUTION ====================
 
 # --- The panel's Browsers page has the three browsers: a switch for this one (it counts for nothing by
-# itself), then its options, shown only while it is on. Their ids get the browser in front (chrome.AI),
+# itself), then its options, shown only while it is on: the on/off ones as a list of boxes. Their ids get the browser in front (chrome.AI),
 # so the three scripts share one page and one answers file; each reads back only its own.
 function Get-BrowserFields([object[]]$Fields, [string]$Browser, [string]$Desc) {
     $key = $Browser.ToLower()
-    @(New-Field 'Browsers' $key 'toggle' $Browser $Desc $false @{ quiet = $true }) + @($Fields | ForEach-Object {
+    $shown = @{ tab = 'Browsers'; group = $Browser; indent = $true; when = @{ field = $key; is = 'True' } }
+    # The on/off options become one list of boxes, with "Select all" (key.items); the others stay as they are
+    $toggles = @($Fields | Where-Object { $_.kind -eq 'toggle' })
+    $list = if ($toggles) {
+        New-Field 'Browsers' "$key.items" 'checklist' '' '' @() @{ items = @($toggles | ForEach-Object {
+            [ordered]@{ value = $_.id; label = $_.label; note = $_.desc; warn = "$($_.warn)"; group = '' } }) }
+    }
+    @(New-Field 'Browsers' $key 'toggle' $Browser $Desc $false @{ quiet = $true }) + @(@($list) + @($Fields | Where-Object { $_.kind -ne 'toggle' }) | Where-Object { $_ } | ForEach-Object {
         $f = [ordered]@{}
         foreach ($k in $_.Keys) { $f[$k] = $_[$k] }
-        $f.tab = 'Browsers'; $f.id = "$key.$($_.id)"; $f.group = $Browser; $f.indent = $true
-        $f.when = @{ field = $key; is = 'True' }
+        if ($f.id -ne "$key.items") { $f.id = "$key.$($_.id)" }
+        foreach ($k in $shown.Keys) { $f[$k] = $shown[$k] }
         $f
     })
 }
@@ -514,7 +521,10 @@ function Get-BrowserAnswers([string]$File, [string]$Browser) {
     $json = [IO.File]::ReadAllText($File) | ConvertFrom-Json
     if (-not $json.$key) { return $null }
     $own = [ordered]@{}
-    foreach ($prop in $json.PSObject.Properties) { if ($prop.Name.StartsWith("$key.")) { $own[$prop.Name.Substring($key.Length + 1)] = $prop.Value } }
+    foreach ($prop in $json.PSObject.Properties) {
+        if ($prop.Name -eq "$key.items") { foreach ($id in @($prop.Value)) { $own["$id"] = $true } }      # each checked box is an option on
+        elseif ($prop.Name.StartsWith("$key.")) { $own[$prop.Name.Substring($key.Length + 1)] = $prop.Value }
+    }
     $path = Join-Path $env:TEMP "tidywin-$key-answers.json"
     [IO.File]::WriteAllText($path, (ConvertTo-Json $own -Depth 5), (New-Object Text.UTF8Encoding $false))
     return $path

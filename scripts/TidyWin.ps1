@@ -1580,6 +1580,7 @@ function New-FieldRow($Form, $F) {
             $content = New-Object Windows.Controls.StackPanel
             $content.Children.Add($name) | Out-Null
             if ("$($item.note)") { $content.Children.Add((New-Text "$($item.note)" 12 'Normal' 'Fg2')) | Out-Null }
+            if ("$($item.warn)") { $content.Children.Add((New-Text "$($item.warn)" 12 'Normal' 'Warn')) | Out-Null }
             $box = New-Object Windows.Controls.CheckBox
             $box.Content = $content
             $box.VerticalAlignment = 'Center'
@@ -1848,13 +1849,15 @@ function Get-FormChanges($Form) {
                 $names = @($f.items | Where-Object { @($value) -contains "$($_.value)" } | ForEach-Object {
                     "$($_.label)" + $(if ($flagged -contains "$($_.value)") { " ($("$($f.flagLabel)".ToLower()))" } else { '' })
                 })
-                if ($names) { $text = "$(if ($f.label) { $f.label } else { $f.tab }): $($names -join ', ')" }
+                # A list with no title (Browsers) reads like separate options: one line each
+                if ($names) { $text = if ($f.label) { "$($f.label): $($names -join ', ')" } elseif ($f.group) { $names } else { "$($f.tab): $($names -join ', ')" } }
             }
             { $_ -in 'text', 'path' } { if ($value) { $text = "${label}: $value" } }
             { $_ -in 'choice', 'select' } { if ($value) { $text = "${label}: $(Get-OptionLabel $Form $f $value)" } }
         }
         $count = if ($f.footer) { 0 } elseif ($f.kind -eq 'checklist') { @($value).Count } else { 1 }
-        if ($text) { [pscustomobject]@{ Tab = $(if ($f.group) { "$($f.group)" } else { "$($f.tab)" }); Text = $text; Footer = [bool]$f.footer; Count = $count } }
+        if (@($text).Count -gt 1) { $count = 1 }
+        foreach ($line in @($text | Where-Object { $_ })) { [pscustomobject]@{ Tab = $(if ($f.group) { "$($f.group)" } else { "$($f.tab)" }); Text = $line; Footer = [bool]$f.footer; Count = $count } }
     }
 }
 

@@ -4,9 +4,9 @@
 
 All three use each browser's official policies: they apply to every profile, even if the browser is installed later. Close and reopen the browser to apply them (it will show "Managed by your organization" — that's normal with policies). Check them at `brave://policy`, `chrome://policy` or `about:policies`.
 
-In the panel: **Set up → Browsers**, one page for the three. Turn on a browser and its options show up under it, each row below as a switch, all off at first: only what you turn on is applied. Review lists the changes by browser.
+In the panel: **Set up → Browsers**, one page for the three. Turn on a browser and its options show up under it, each row below as a box in one list with "Select all", none checked at first: only what you check is applied. Review lists the changes by browser.
 
-To undo: panel → **Undo → Browsers**, or run the same script with `-Revert`. Turn on a browser and it shows a switch for each group above that is on this PC, all off, and one more for policies TidyWin doesn't know about (from an older version or another program); only what you turn on is removed.
+To undo: panel → **Undo → Browsers**, or run the same script with `-Revert`. Turn on a browser and it lists a box for each group above that is on this PC, none checked, with "Select all", and one more for policies TidyWin doesn't know about (from an older version or another program); only what you check is removed.
 
 ## Brave
 
