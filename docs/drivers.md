@@ -6,7 +6,7 @@ Save the PC's drivers before formatting and install them back afterwards, so you
 
 ## Before formatting
 
-In the [TidyWin panel](../README.md#quick-start): **Utils → Back up**, with **Drivers** on. [How the backup works](backup.md)
+In the [TidyWin panel](../README.md#quick-start): **Back up → Create**, with **Drivers** on. [How the backup works](backup.md)
 
 1. Saves the drivers that didn't come with Windows and that some device uses now (video, audio, network, Bluetooth...), plus their add-ons (audio effects, manufacturer settings). Old versions and drivers of unplugged devices are left out.
 2. The page shows how many and their size. Video drivers take 2 to 3 GB each, so a USB drive or another disk is the best place.
@@ -19,7 +19,7 @@ In the [TidyWin panel](../README.md#quick-start): **Utils → Back up**, with **
 
 Run **Windows Update** first: it brings back many drivers by itself. Then:
 
-In the [TidyWin panel](../README.md#quick-start): **Utils → Restore**, with **Drivers** on (they are installed before the Wi-Fi networks and the apps).
+In the [TidyWin panel](../README.md#quick-start): **Back up → Restore**, with **Drivers** on (they are installed before the Wi-Fi networks and the apps).
 
 1. Finds the newest `tidywin-backup-*` folder on USB drives, other disks, Desktop, Documents, Downloads and OneDrive (or choose another folder).
 2. Installs the drivers Windows doesn't have yet; the ones it already has, in the same version or newer, are skipped.

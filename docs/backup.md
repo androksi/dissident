@@ -2,9 +2,9 @@
 
 # Back up and Restore
 
-Save your drivers, apps and Wi-Fi networks before formatting, and put them back afterwards. In the [TidyWin panel](../README.md#quick-start): **Utils → Back up** and **Utils → Restore**.
+Save your drivers, apps and Wi-Fi networks before formatting, and put them back afterwards. In the [TidyWin panel](../README.md#quick-start): **Back up → Create** and **Back up → Restore**.
 
-## Back up
+## Create
 
 1. **Save to** comes already set to a USB drive or another disk, if there is one: they survive formatting. You can pick Desktop, Documents, Downloads, OneDrive or another folder instead.
 2. Turn on what to save:

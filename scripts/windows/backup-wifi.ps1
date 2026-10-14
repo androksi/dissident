@@ -6,7 +6,7 @@
         powershell -ExecutionPolicy Bypass -File .\backup-wifi.ps1 -Export     (before formatting)
         powershell -ExecutionPolicy Bypass -File .\backup-wifi.ps1 -Import     (after formatting)
 
-    In the panel: Utils → Back up and Utils → Restore, with the drivers and the apps.
+    In the panel: Back up → Create and Back up → Restore, with the drivers and the apps.
     Export: netsh saves each network to the wifi folder of a tidywin-backup-<PC>-<date> folder, with the
     password readable (an encrypted one only works on the Windows install that saved it).
     Import: finds that backup and adds the networks for every user. Needs the Wi-Fi adapter's driver.
@@ -192,9 +192,9 @@ function Get-SavePlaces {
 function Get-PlaceFields {
     $places = Get-SavePlaces
     @(
-        New-Field 'Back up' 'Place' 'select' 'Save to' 'A USB drive or another disk survives formatting. Everything goes in one tidywin-backup folder there.' "$(@($places.Values)[0])" @{
+        New-Field 'Create' 'Place' 'select' 'Save to' 'A USB drive or another disk survives formatting. Everything goes in one tidywin-backup folder there.' "$(@($places.Values)[0])" @{
             options = @(@($places.Keys | ForEach-Object { Opt $places[$_] $_ }) + (Opt 'other' 'Another folder')); setting = $true }
-        New-Field 'Back up' 'Folder' 'path' 'Folder' 'Where to save.' '' @{ when = @{ field = 'Place'; is = 'other' }; required = $true; setting = $true }
+        New-Field 'Create' 'Folder' 'path' 'Folder' 'Where to save.' '' @{ when = @{ field = 'Place'; is = 'other' }; required = $true; setting = $true }
     )
 }
 
@@ -245,10 +245,10 @@ function Invoke-Export {
     $field = if ($networks) {
         $shown = ($networks | Select-Object -First 3) -join ', '
         if ($networks.Count -gt 3) { $shown += " and $($networks.Count - 3) more" }
-        New-Field 'Back up' 'WiFi' 'toggle' 'Wi-Fi networks' "The saved networks and their passwords: $shown." $false @{
+        New-Field 'Create' 'WiFi' 'toggle' 'Wi-Fi networks' "The saved networks and their passwords: $shown." $false @{
             badge = "$($networks.Count)"; warn = 'The passwords are saved readable in the backup folder: keep it safe, and delete it when you no longer need it.' }
     } else {
-        New-Field 'Back up' 'WiFi' 'info' 'Wi-Fi networks' 'No Wi-Fi network is saved on this PC.' $null
+        New-Field 'Create' 'WiFi' 'info' 'Wi-Fi networks' 'No Wi-Fi network is saved on this PC.' $null
     }
     $fields = @(Get-PlaceFields) + @($field)
     if ($Describe) { Write-OptionsPage $Describe $fields; return }

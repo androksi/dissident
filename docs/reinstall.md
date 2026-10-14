@@ -14,7 +14,7 @@ The panel stays open after each option, so you can keep it open and go down the 
 
 ## Before formatting
 
-1. **Back up your drivers, apps and Wi-Fi networks** to a USB drive: panel → **Utils → Back up**. Turn on what you need. Drivers matter most on laptops and for the network card: without it there's no internet after formatting. [Details](backup.md)
+1. **Back up your drivers, apps and Wi-Fi networks** to a USB drive: panel → **Back up → Create**. Turn on what you need. Drivers matter most on laptops and for the network card: without it there's no internet after formatting. [Details](backup.md)
    Keep the app list on a USB drive, in Google Drive or in an e-mail to yourself. **Not in OneDrive**: the Windows option can remove OneDrive.
 2. **Back up your files**: Documents, Desktop, Downloads, projects that are not on GitHub, game saves and `.env` files.
 3. **Browsers**: make sure sync is on (Firefox, Brave, Chrome), or export your passwords if you don't keep them in a password manager.
@@ -33,7 +33,7 @@ The panel stays open after each option, so you can keep it open and go down the 
 
 8. **Windows Update** until nothing is left, restarting between rounds. This brings chipset, network and audio drivers.
 9. **Microsoft Store** → Library → **Update all**. This updates WinGet (App Installer), which installs your apps back; on a fresh Windows it sometimes doesn't work yet.
-10. **Restore your drivers, Wi-Fi networks and apps**: panel → **Utils → Restore**. First the drivers Windows Update didn't bring back, then the Wi-Fi networks, then your apps.
+10. **Restore your drivers, Wi-Fi networks and apps**: panel → **Back up → Restore**. First the drivers Windows Update didn't bring back, then the Wi-Fi networks, then your apps.
 11. **Video driver**: install it (clean install) and restart.
 12. **Windows**: panel → **Set up → Windows**. Creates a restore point, then cleans up and configures Windows. Restart at the end. Then **Set up → Apps** for anything new.
 13. **Browsers**, after installing them, only the ones you use: panel → **Set up → Browsers**, turning on Firefox, Brave or Chrome.
@@ -44,7 +44,7 @@ The panel stays open after each option, so you can keep it open and go down the 
 
 | Menu option | When |
 |---|---|
-| Utils → Back up | Every now and then, so the backup is current for the next reinstall. |
+| Back up → Create | Every now and then, so the backup is current for the next reinstall. |
 | Maintenance → Fix Windows | Only when Windows acts strange. |
 
 ## Games with anti-cheat

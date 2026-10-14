@@ -6,7 +6,7 @@
         powershell -ExecutionPolicy Bypass -File .\backup-drivers.ps1 -Export     (before formatting)
         powershell -ExecutionPolicy Bypass -File .\backup-drivers.ps1 -Import     (after formatting)
 
-    In the panel: Utils → Back up and Utils → Restore, with the apps and the Wi-Fi networks.
+    In the panel: Back up → Create and Back up → Restore, with the apps and the Wi-Fi networks.
     Export: saves the third-party drivers some device uses now (the ones Windows didn't bring itself),
     and their add-ons, with pnputil to the drivers folder of a tidywin-backup-<PC>-<date> folder,
     preferably on a USB drive or another disk, with a drivers.json and a README.txt for installing by hand.
@@ -220,9 +220,9 @@ function Get-SavePlaces {
 function Get-PlaceFields {
     $places = Get-SavePlaces
     @(
-        New-Field 'Back up' 'Place' 'select' 'Save to' 'A USB drive or another disk survives formatting. Everything goes in one tidywin-backup folder there.' "$(@($places.Values)[0])" @{
+        New-Field 'Create' 'Place' 'select' 'Save to' 'A USB drive or another disk survives formatting. Everything goes in one tidywin-backup folder there.' "$(@($places.Values)[0])" @{
             options = @(@($places.Keys | ForEach-Object { Opt $places[$_] $_ }) + (Opt 'other' 'Another folder')); setting = $true }
-        New-Field 'Back up' 'Folder' 'path' 'Folder' 'Where to save.' '' @{ when = @{ field = 'Place'; is = 'other' }; required = $true; setting = $true }
+        New-Field 'Create' 'Folder' 'path' 'Folder' 'Where to save.' '' @{ when = @{ field = 'Place'; is = 'other' }; required = $true; setting = $true }
     )
 }
 
@@ -309,9 +309,9 @@ function Invoke-Export {
     catch { $drivers = @(); $listError = $_.Exception.Message }
     $total = [int64]($drivers | Measure-Object Size -Sum).Sum
     $field = if ($drivers) {
-        New-Field 'Back up' 'Drivers' 'toggle' 'Drivers' 'The ones Windows doesn''t bring by itself, for the devices of this PC: video, network, audio and others.' $false @{ badge = "$($drivers.Count) · $(Format-Size $total)" }
+        New-Field 'Create' 'Drivers' 'toggle' 'Drivers' 'The ones Windows doesn''t bring by itself, for the devices of this PC: video, network, audio and others.' $false @{ badge = "$($drivers.Count) · $(Format-Size $total)" }
     } else {
-        New-Field 'Back up' 'Drivers' 'info' 'Drivers' $(if ($listError) { "Could not list them: $listError" } else { 'Nothing to save: Windows brought all of them.' }) $null
+        New-Field 'Create' 'Drivers' 'info' 'Drivers' $(if ($listError) { "Could not list them: $listError" } else { 'Nothing to save: Windows brought all of them.' }) $null
     }
     $fields = @(Get-PlaceFields) + @($field)
     if ($Describe) { Write-OptionsPage $Describe $fields; return }
@@ -347,7 +347,7 @@ Drivers saved by TidyWin from $env:COMPUTERNAME on $(Get-Date -Format 'yyyy-MM-d
 
 To install them back after formatting, in PowerShell:
     irm androksi.github.io/tidywin/run | iex
-and in the menu choose Utils > Restore.
+and in the menu choose Back up > Restore.
 
 By hand: Device Manager > right-click the device > Update driver > Browse my computer >
 pick this folder (with "Include subfolders" checked). Or right-click a .inf file > Install.

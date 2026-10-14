@@ -65,7 +65,7 @@ function New-MenuEntry($Group, $Id, $Icon, $Name, $Title, $Desc, [string[]]$Poin
 }
 
 function Get-Menu {
-    $setup = 'Set up'; $care = 'Maintenance'; $utils = 'Utils'; $undo = 'Undo'
+    $setup = 'Set up'; $care = 'Maintenance'; $backup = 'Back up'; $undo = 'Undo'
     @(
         New-MenuEntry $setup 'windows' 'E770' 'Windows' 'Windows' 'Clean up Windows and set it up the way you like.' @(
             'Turns off telemetry, ads and suggestions.'
@@ -117,11 +117,11 @@ function Get-Menu {
 
         # Before formatting and after: drivers, apps and Wi-Fi in one tidywin-backup folder. Restore goes
         # drivers first (the Wi-Fi adapter may need one), then Wi-Fi, then the apps, which need the internet.
-        New-MenuEntry $utils 'backup' 'E74E' 'Back up' 'Back up' 'Save your drivers, apps and Wi-Fi networks before formatting.' @(
+        New-MenuEntry $backup 'backup' 'E74E' 'Create' 'Create' 'Save your drivers, apps and Wi-Fi networks before formatting.' @(
             'Pick what to save and where: a USB drive or another disk.'
-        ) 'Back up' @((New-Step 'drivers/backup-drivers.ps1' '-Export' 'Drivers'), (New-Step 'apps/backup-apps.ps1' '-Export' 'Apps'), (New-Step 'windows/backup-wifi.ps1' '-Export' 'Wi-Fi')) -Form
+        ) 'Create' @((New-Step 'drivers/backup-drivers.ps1' '-Export' 'Drivers'), (New-Step 'apps/backup-apps.ps1' '-Export' 'Apps'), (New-Step 'windows/backup-wifi.ps1' '-Export' 'Wi-Fi')) -Form
 
-        New-MenuEntry $utils 'restore' 'E896' 'Restore' 'Restore' 'Put your drivers, Wi-Fi networks and apps back after formatting.' @(
+        New-MenuEntry $backup 'restore' 'E896' 'Restore' 'Restore' 'Put your drivers, Wi-Fi networks and apps back after formatting.' @(
             'Finds the backup on your drives by itself.'
         ) 'Restore' @((New-Step 'drivers/backup-drivers.ps1' '-Import' 'Drivers'), (New-Step 'windows/backup-wifi.ps1' '-Import' 'Wi-Fi'), (New-Step 'apps/backup-apps.ps1' '-Import' 'Apps')) -Form
 

@@ -6,7 +6,7 @@
         powershell -ExecutionPolicy Bypass -File .\backup-apps.ps1 -Export     (before formatting)
         powershell -ExecutionPolicy Bypass -File .\backup-apps.ps1 -Import     (after formatting)
 
-    In the panel: Utils → Back up and Utils → Restore, with the drivers and the Wi-Fi networks.
+    In the panel: Back up → Create and Back up → Restore, with the drivers and the Wi-Fi networks.
     Export: saves apps.json, every app WinGet knows (Microsoft Store apps included), in a
     tidywin-backup-<PC>-<date> folder, preferably on a USB drive or another disk.
     Import: finds that backup and installs the apps that are not on the PC yet.
@@ -225,9 +225,9 @@ function Get-SavePlaces {
 function Get-PlaceFields {
     $places = Get-SavePlaces
     @(
-        New-Field 'Back up' 'Place' 'select' 'Save to' 'A USB drive or another disk survives formatting. Everything goes in one tidywin-backup folder there.' "$(@($places.Values)[0])" @{
+        New-Field 'Create' 'Place' 'select' 'Save to' 'A USB drive or another disk survives formatting. Everything goes in one tidywin-backup folder there.' "$(@($places.Values)[0])" @{
             options = @(@($places.Keys | ForEach-Object { Opt $places[$_] $_ }) + (Opt 'other' 'Another folder')); setting = $true }
-        New-Field 'Back up' 'Folder' 'path' 'Folder' 'Where to save.' '' @{ when = @{ field = 'Place'; is = 'other' }; required = $true; setting = $true }
+        New-Field 'Create' 'Folder' 'path' 'Folder' 'Where to save.' '' @{ when = @{ field = 'Place'; is = 'other' }; required = $true; setting = $true }
     )
 }
 
@@ -274,7 +274,7 @@ function Get-RestoreRoot($Values) {
 #region ==================== 2. BACK UP ====================
 
 function Invoke-Export {
-    $fields = @(Get-PlaceFields) + @(Get-AppsField 'Back up' 'The list of apps WinGet knows, Microsoft Store apps included. Only the apps: not their settings, logins or files.')
+    $fields = @(Get-PlaceFields) + @(Get-AppsField 'Create' 'The list of apps WinGet knows, Microsoft Store apps included. Only the apps: not their settings, logins or files.')
     if ($Describe) { Write-OptionsPage $Describe $fields; return }
 
     $v = Read-Options $fields $Answers

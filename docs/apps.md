@@ -190,7 +190,7 @@ In the [TidyWin panel](../README.md#quick-start): **Set up → Apps**. From a lo
 
 ## Moving apps to another PC
 
-In the [TidyWin panel](../README.md#quick-start): **Utils → Back up** and **Utils → Restore**, with **Apps** on. [How the backup works](backup.md). From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Back up → Create** and **Back up → Restore**, with **Apps** on. [How the backup works](backup.md). From a local copy:
 
 ```powershell
 .\scripts\apps\backup-apps.ps1 -Export   # before formatting
