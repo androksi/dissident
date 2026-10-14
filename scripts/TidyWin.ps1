@@ -587,8 +587,7 @@ $Xaml = @'
           <RowDefinition Height="*"/>
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock x:Name="PageTitle" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="22" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-        <TextBlock x:Name="PageDesc" Grid.Row="1" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{StaticResource Fg2}" FontSize="13"/>
+        <TextBlock x:Name="PageTitle" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
 
         <!-- Before running: what it does, and the button -->
         <ScrollViewer x:Name="Intro" Grid.Row="2" Margin="0,22,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
@@ -2113,7 +2112,6 @@ function Show-Page($Item) {
     foreach ($n in $Nav.Values) { $n.Button.Tag = $null }
     $Nav[$Item.Id].Button.Tag = 'on'
     $ui.PageTitle.Text = $Item.Title
-    $ui.PageDesc.Text = $Item.Desc
 
     if ($S.Item -and $S.Item.Id -eq $Item.Id) {
         Set-View 'run'
@@ -2171,7 +2169,7 @@ foreach ($k in $Theme.Keys) { $text = $text.Replace("%$k%", "$($Theme[$k])") }
 $W = [Windows.Markup.XamlReader]::Parse($text)
 
 $ui = @{}
-foreach ($name in 'Logo', 'OsLabel', 'Nav', 'PageTitle', 'PageDesc', 'Intro', 'Points', 'StartBtn', 'IntroNote', 'Run',
+foreach ($name in 'Logo', 'OsLabel', 'Nav', 'PageTitle', 'Intro', 'Points', 'StartBtn', 'IntroNote', 'Run',
                   'QuestionRow', 'LogRow', 'Question', 'Log', 'Footer', 'Status', 'CopyBtn', 'StopBtn', 'DoneBtn',
                   'Loading', 'Spinner', 'FormView', 'Tabs', 'FormScroll', 'ReviewView', 'ReviewList', 'RetryBtn', 'BackBtn', 'ReviewBtn', 'ApplyBtn', 'FooterSlot') {
     $ui[$name] = $W.FindName($name)
