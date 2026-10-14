@@ -33,7 +33,7 @@ echo "Launcher:"
 shortcut run            scripts/TidyWin.ps1
 
 # No placeholder may be left over
-if grep -rl '__[A-Z]*__' "$out" --exclude-dir=scripts --exclude-dir=assets; then
+if grep -rlE '__[A-Z]+__' "$out" --exclude-dir=scripts --exclude-dir=assets; then
     echo "unreplaced placeholder in the files above" >&2
     exit 1
 fi
