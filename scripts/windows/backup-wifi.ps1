@@ -97,7 +97,7 @@ function Read-Options([object[]]$Fields, [string]$AnswersFile) {
         return $values
     }
     foreach ($f in $Fields) {
-        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        if (@($f.when | Where-Object { $_ -and "$($values[$_.field])" -ne "$($_.is)" }).Count) { continue }     # "when": one condition or a list
         switch ($f.kind) {
             'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
             'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
@@ -235,6 +235,27 @@ function Get-RestoreRoot($Values) {
     if ($Values.Backup -eq 'other') { "$($Values.BackupOther)".Trim().Trim('"') } else { "$($Values.Backup)" }
 }
 
+# A switch and, under it while it is on, the list to pick from, nothing checked ("Select all" on each
+# group). Like the Browsers page: the switch only opens the list, the checked items are what counts
+# ($Quiet), and Review lists them under the switch's name.
+function New-SwitchField([string]$Tab, [string]$Id, [string]$Label, [string]$Desc, [bool]$Quiet, [hashtable]$More) {
+    $m = @{ quiet = $Quiet }
+    if ($More) { foreach ($k in $More.Keys) { $m[$k] = $More[$k] } }
+    New-Field $Tab $Id 'toggle' $Label $Desc $false $m
+}
+function New-ListField([string]$Tab, [string]$Id, [string]$Group, [object[]]$Items, [object[]]$When) {
+    New-Field $Tab $Id 'checklist' '' '' @() @{ items = @($Items); group = $Group; indent = $true; when = @($When) }
+}
+function New-ListItem([string]$Value, [string]$Label, [string]$Note, [string]$Group, [string]$Status) {
+    [ordered]@{ value = $Value; label = $Label; note = $Note; group = $Group; status = $Status }
+}
+
+# Restore: the list of each backup found shows only while that backup is chosen and the switch is on.
+function Get-ListWhen([string]$Backup, [string]$Switch) { @(@{ field = 'Backup'; is = $Backup }, @{ field = $Switch; is = 'True' }) }
+
+# Restore: the index of the chosen backup among the ones found (-1: another folder, which has no list)
+function Get-BackupIndex([object[]]$Found, [string]$Root) { [array]::IndexOf(@($Found | ForEach-Object { $_.FullName }), $Root) }
+
 #endregion
 
 
@@ -242,29 +263,31 @@ function Get-RestoreRoot($Values) {
 
 function Invoke-Export {
     $networks = @(Get-WifiNetworks)
-    $field = if ($networks) {
-        $shown = ($networks | Select-Object -First 3) -join ', '
-        if ($networks.Count -gt 3) { $shown += " and $($networks.Count - 3) more" }
-        New-Field 'Create' 'WiFi' 'toggle' 'Wi-Fi networks' "The saved networks and their passwords: $shown." $false @{
+    $fields = @(Get-PlaceFields)
+    if ($networks) {
+        $fields += New-SwitchField 'Create' 'WiFi' 'Wi-Fi networks' 'The saved networks and their passwords. Pick the ones to save.' $true @{
             badge = "$($networks.Count)"; warn = 'The passwords are saved readable in the backup folder: keep it safe, and delete it when you no longer need it.' }
+        $fields += New-ListField 'Create' 'WifiList' 'Wi-Fi networks' @($networks | ForEach-Object { New-ListItem $_ $_ '' '' '' }) @(@{ field = 'WiFi'; is = 'True' })
     } else {
-        New-Field 'Create' 'WiFi' 'info' 'Wi-Fi networks' 'No Wi-Fi network is saved on this PC.' $null
+        $fields += New-Field 'Create' 'WiFi' 'info' 'Wi-Fi networks' 'No Wi-Fi network is saved on this PC.' $null
     }
-    $fields = @(Get-PlaceFields) + @($field)
     if ($Describe) { Write-OptionsPage $Describe $fields; return }
 
     $v = Read-Options $fields $Answers
-    if (-not $v.WiFi -or -not $networks) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
+    $picked = @(if ($v.WiFi) { @($v.WifiList) | Where-Object { $networks -contains $_ } })
+    if (-not $picked) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
     $root = Get-BackupRoot $v
     if (-not $root) { Write-Host '  The place to save was not found. Plug in the drive and try again.' -ForegroundColor Red; return }
     $dir = Join-Path $root 'wifi'
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 
     # key=clear: the password goes in the file as text; encrypted, it only works on this Windows install
-    $out = & netsh wlan export profile key=clear folder="$dir" 2>&1
-    $files = @(Get-ChildItem -LiteralPath $dir -Filter '*.xml' -File -ErrorAction SilentlyContinue)
-    if (-not $files) { Write-Host "  [ERROR] Could not save the networks: $(($out | Where-Object { "$_".Trim() } | Select-Object -Last 1))" -ForegroundColor Red; return }
-    foreach ($f in $files) { Write-Done "$(Get-ProfileName $f.FullName)" }
+    foreach ($name in $picked) {
+        $before = @(Get-ChildItem -LiteralPath $dir -Filter '*.xml' -File -ErrorAction SilentlyContinue).Count
+        $out = & netsh wlan export profile name="$name" key=clear folder="$dir" 2>&1
+        if (@(Get-ChildItem -LiteralPath $dir -Filter '*.xml' -File -ErrorAction SilentlyContinue).Count -gt $before) { Write-Done $name }
+        else { Write-Host "  [ERROR] ${name}: $(($out | Where-Object { "$_".Trim() } | Select-Object -Last 1))" -ForegroundColor Red }
+    }
 }
 
 #endregion
@@ -272,27 +295,45 @@ function Invoke-Export {
 
 #region ==================== 3. RESTORE ====================
 
+# The networks saved in a backup: Name and File.
+function Get-SavedNetworks([string]$Root) {
+    @(Get-ChildItem -LiteralPath (Join-Path $Root 'wifi') -Filter '*.xml' -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $name = Get-ProfileName $_.FullName
+        if ($name) { [pscustomobject]@{ Name = $name; File = $_.FullName } }
+    } | Sort-Object Name)
+}
+
 function Invoke-Import {
+    $found = @(Find-Backups)
+    $here = @(Get-WifiNetworks)
     $fields = @(Get-RestoreFields) + @(
-        New-Field 'Restore' 'WiFi' 'toggle' 'Wi-Fi networks' 'The saved networks and their passwords, so the PC connects by itself.' $false
+        New-SwitchField 'Restore' 'WiFi' 'Wi-Fi networks' 'Pick the ones to add, with their passwords, so the PC connects by itself. The ones marked Saved are already on this PC.' ($found.Count -gt 0)
     )
+    for ($i = 0; $i -lt $found.Count; $i++) {
+        $saved = @(Get-SavedNetworks $found[$i].FullName)
+        if (-not $saved) { continue }
+        $fields += New-ListField 'Restore' "WifiList$i" 'Wi-Fi networks' @($saved | ForEach-Object { New-ListItem $_.Name $_.Name '' '' $(if ($here -contains $_.Name) { 'Saved' } else { '' }) }) (Get-ListWhen $found[$i].FullName 'WiFi')
+    }
     if ($Describe) { Write-OptionsPage $Describe $fields; return }
 
     $v = Read-Options $fields $Answers
     if (-not $v.WiFi) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
-    $files = @(Get-ChildItem -LiteralPath (Join-Path (Get-RestoreRoot $v) 'wifi') -Filter '*.xml' -File -ErrorAction SilentlyContinue)
-    if (-not $files) { Write-Skip 'This backup has no Wi-Fi networks'; return }
+    $root = Get-RestoreRoot $v
+    $saved = @(Get-SavedNetworks $root)
+    if (-not $saved) { Write-Skip 'This backup has no Wi-Fi networks'; return }
+    # A backup from the list: the networks checked there. Another folder: all of them.
+    $index = Get-BackupIndex $found $root
+    $chosen = if ($index -ge 0) { $picked = @($v["WifiList$index"]); @($saved | Where-Object { $picked -contains $_.Name }) } else { $saved }
+    if (-not $chosen) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
     $service = Get-Service WlanSvc -ErrorAction SilentlyContinue
     if (-not $service -or $service.Status -ne 'Running') {
         Write-Host '  [ERROR] Wi-Fi is not available on this PC: it has no Wi-Fi adapter, or its driver is not installed yet.' -ForegroundColor Red
         return
     }
-    foreach ($f in $files) {
-        $name = Get-ProfileName $f.FullName
-        if (-not $name) { continue }
-        $out = & netsh wlan add profile filename="$($f.FullName)" user=all 2>&1
-        if ($LASTEXITCODE -eq 0) { Write-Done $name }
-        else { Write-Host "  [ERROR] ${name}: $(($out | Where-Object { "$_".Trim() } | Select-Object -Last 1))" -ForegroundColor Red }
+    foreach ($n in $chosen) {
+        $out = & netsh wlan add profile filename="$($n.File)" user=all 2>&1
+        if ($LASTEXITCODE -eq 0) { Write-Done $n.Name }
+        else { Write-Host "  [ERROR] $($n.Name): $(($out | Where-Object { "$_".Trim() } | Select-Object -Last 1))" -ForegroundColor Red }
     }
 }
 

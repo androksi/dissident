@@ -99,7 +99,7 @@ function Read-Options([object[]]$Fields, [string]$AnswersFile) {
         return $values
     }
     foreach ($f in $Fields) {
-        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        if (@($f.when | Where-Object { $_ -and "$($values[$_.field])" -ne "$($_.is)" }).Count) { continue }     # "when": one condition or a list
         switch ($f.kind) {
             'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
             'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
@@ -263,6 +263,27 @@ function Get-RestoreRoot($Values) {
     if ($Values.Backup -eq 'other') { "$($Values.BackupOther)".Trim().Trim('"') } else { "$($Values.Backup)" }
 }
 
+# A switch and, under it while it is on, the list to pick from, nothing checked ("Select all" on each
+# group). Like the Browsers page: the switch only opens the list, the checked items are what counts
+# ($Quiet), and Review lists them under the switch's name.
+function New-SwitchField([string]$Tab, [string]$Id, [string]$Label, [string]$Desc, [bool]$Quiet, [hashtable]$More) {
+    $m = @{ quiet = $Quiet }
+    if ($More) { foreach ($k in $More.Keys) { $m[$k] = $More[$k] } }
+    New-Field $Tab $Id 'toggle' $Label $Desc $false $m
+}
+function New-ListField([string]$Tab, [string]$Id, [string]$Group, [object[]]$Items, [object[]]$When) {
+    New-Field $Tab $Id 'checklist' '' '' @() @{ items = @($Items); group = $Group; indent = $true; when = @($When) }
+}
+function New-ListItem([string]$Value, [string]$Label, [string]$Note, [string]$Group, [string]$Status) {
+    [ordered]@{ value = $Value; label = $Label; note = $Note; group = $Group; status = $Status }
+}
+
+# Restore: the list of each backup found shows only while that backup is chosen and the switch is on.
+function Get-ListWhen([string]$Backup, [string]$Switch) { @(@{ field = 'Backup'; is = $Backup }, @{ field = $Switch; is = 'True' }) }
+
+# Restore: the index of the chosen backup among the ones found (-1: another folder, which has no list)
+function Get-BackupIndex([object[]]$Found, [string]$Root) { [array]::IndexOf(@($Found | ForEach-Object { $_.FullName }), $Root) }
+
 #endregion
 
 
@@ -296,28 +317,36 @@ function Get-DriverList {
     }
 }
 
-# Name of a driver in the log: device name (or provider and .inf when no device uses it now).
+# Name of a driver: device name (or provider and .inf when no device uses it now).
 function Get-DriverLabel($Driver) {
     $devs = @($Driver.Devices | Where-Object { $_ })
     if ($devs.Count) { "$($devs[0])" + $(if ($devs.Count -gt 1) { " (+$($devs.Count - 1))" }) } else { "$($Driver.Provider) · $($Driver.Inf)" }
 }
 
+# Row of the list: the name, then provider, version and size; the type is the group.
+function Get-DriverRow($Driver, [string]$Value, [string]$Status) {
+    $extra = if ($Driver.Devices.Count) { '' } elseif ($Driver.ClassName -eq 'Extension') { ' · add-on to another driver' } else { ' · not in use now' }
+    New-ListItem $Value (Get-DriverLabel $Driver) "$($Driver.Provider) $($Driver.Version) · $(Format-Size $Driver.Size)$extra" $Driver.Class $Status
+}
+
 function Invoke-Export {
-    # The drivers some device uses now, and the add-ons to other drivers (audio effects, OEM settings),
-    # which no device lists as in use. Old versions and drivers of unplugged devices are left out.
-    try { $drivers = @(Get-DriverList | Where-Object { $_.Devices.Count -or $_.ClassName -eq 'Extension' } | Sort-Object Class) }
+    # In use first in each type; old versions and drivers of unplugged devices last
+    try { $drivers = @(Get-DriverList | Sort-Object Class, @{ Expression = { $_.Devices.Count -eq 0 -and $_.ClassName -ne 'Extension' } }, @{ Expression = { Get-DriverLabel $_ } }) }
     catch { $drivers = @(); $listError = $_.Exception.Message }
-    $total = [int64]($drivers | Measure-Object Size -Sum).Sum
-    $field = if ($drivers) {
-        New-Field 'Create' 'Drivers' 'toggle' 'Drivers' 'The ones Windows doesn''t bring by itself, for the devices of this PC: video, network, audio and others.' $false @{ badge = "$($drivers.Count) · $(Format-Size $total)" }
+    $fields = @(Get-PlaceFields)
+    if ($drivers) {
+        $fields += New-SwitchField 'Create' 'Drivers' 'Drivers' 'The ones Windows doesn''t bring by itself: video, network, audio and others. Pick the ones to save.' $true @{ badge = "$($drivers.Count)" }
+        $fields += New-ListField 'Create' 'DriverList' 'Drivers' @($drivers | ForEach-Object { Get-DriverRow $_ $_.Published '' }) @(@{ field = 'Drivers'; is = 'True' })
     } else {
-        New-Field 'Create' 'Drivers' 'info' 'Drivers' $(if ($listError) { "Could not list them: $listError" } else { 'Nothing to save: Windows brought all of them.' }) $null
+        $fields += New-Field 'Create' 'Drivers' 'info' 'Drivers' $(if ($listError) { "Could not list them: $listError" } else { 'Nothing to save: Windows brought all of them.' }) $null
     }
-    $fields = @(Get-PlaceFields) + @($field)
     if ($Describe) { Write-OptionsPage $Describe $fields; return }
 
     $v = Read-Options $fields $Answers
-    if (-not $v.Drivers -or -not $drivers) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
+    $picked = @($v.DriverList)
+    $chosen = @(if ($v.Drivers) { $drivers | Where-Object { $picked -contains $_.Published } })
+    if (-not $chosen) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
+    $total = [int64]($chosen | Measure-Object Size -Sum).Sum
     $root = Get-BackupRoot $v
     if (-not $root) { Write-Host '  The place to save was not found. Plug in the drive and try again.' -ForegroundColor Red; return }
     $free = try { (Get-PSDrive -Name (Split-Path $root -Qualifier -ErrorAction Stop).TrimEnd(':') -ErrorAction Stop).Free } catch { $null }   # $null: network path
@@ -327,7 +356,7 @@ function Invoke-Export {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
     Write-Host "  Saving to $dir" -ForegroundColor DarkGray
     $saved = @(); $failed = @()
-    foreach ($d in $drivers) {
+    foreach ($d in $chosen) {
         $target = New-Item -ItemType Directory -Path (Join-Path $dir $d.Folder) -Force
         $out = & pnputil /export-driver $d.Published $target.FullName 2>&1
         if ($LASTEXITCODE -eq 0) { Write-Done "$($d.Class) · $(Get-DriverLabel $d)"; $saved += $d }
@@ -339,7 +368,7 @@ function Invoke-Export {
         Computer = $env:COMPUTERNAME
         Date     = (Get-Date -Format 'yyyy-MM-dd HH:mm')
         Windows  = "$((Get-CimInstance Win32_OperatingSystem).Caption) ($([Environment]::OSVersion.Version))"
-        Drivers  = @($saved | Select-Object Folder, Inf, Class, Provider, Version, Date, Devices, Size)
+        Drivers  = @($saved | Select-Object Folder, Inf, Class, ClassName, Provider, Version, Date, Devices, Size)
     }
     ConvertTo-Json -InputObject $manifest -Depth 4 | Set-Content (Join-Path $dir 'drivers.json') -Encoding UTF8
     $readme = @"
@@ -369,31 +398,56 @@ function Test-NewerVersion([string]$A, [string]$B) {
     return [version]::TryParse($A, [ref]$va) -and [version]::TryParse($B, [ref]$vb) -and $va -gt $vb
 }
 
+# The drivers saved in a backup, each with Installed: Windows has the same package (same store folder) or
+# a newer version of it. $null when the backup has no drivers.
+function Get-SavedDrivers([string]$Root) {
+    $file = Join-Path $Root 'drivers\drivers.json'
+    if (-not (Test-Path -LiteralPath $file)) { return $null }
+    try { $manifest = Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return $null }
+    if (-not $script:InstalledDrivers) {
+        $script:InstalledDrivers = @(Get-WindowsDriver -Online -ErrorAction SilentlyContinue | ForEach-Object {
+            [pscustomobject]@{ Folder = Split-Path (Split-Path $_.OriginalFileName -Parent) -Leaf; Inf = Split-Path $_.OriginalFileName -Leaf; Provider = $_.ProviderName; Version = "$($_.Version)" }
+        })
+    }
+    $drivers = @(@($manifest.Drivers) | Where-Object { Test-Path -LiteralPath (Join-Path $Root "drivers\$($_.Folder)") } | Sort-Object Class | ForEach-Object {
+        $d = $_
+        $installed = @($script:InstalledDrivers | Where-Object { $_.Folder -eq $d.Folder -or ($_.Inf -eq $d.Inf -and $_.Provider -eq $d.Provider -and (Test-NewerVersion $_.Version $d.Version)) }).Count -gt 0
+        $d | Add-Member -NotePropertyName Installed -NotePropertyValue $installed -PassThru
+    })
+    return @{ Manifest = $manifest; Drivers = $drivers }
+}
+
 function Invoke-Import {
     # Restore runs drivers first, then Wi-Fi (its adapter may need a driver), then apps (they need the internet)
+    $found = @(Find-Backups)
     $fields = @(Get-RestoreFields) + @(
-        New-Field 'Restore' 'Drivers' 'toggle' 'Drivers' 'The saved drivers this PC doesn''t have yet. Some only work after restarting.' $false
+        New-SwitchField 'Restore' 'Drivers' 'Drivers' 'Pick the ones to install. The ones marked Installed are already on this PC. Some only work after restarting.' ($found.Count -gt 0)
     )
+    for ($i = 0; $i -lt $found.Count; $i++) {
+        $saved = Get-SavedDrivers $found[$i].FullName
+        if (-not $saved -or -not $saved.Drivers) { continue }
+        $fields += New-ListField 'Restore' "DriverList$i" 'Drivers' @($saved.Drivers | ForEach-Object { Get-DriverRow $_ $_.Folder $(if ($_.Installed) { 'Installed' } else { '' }) }) (Get-ListWhen $found[$i].FullName 'Drivers')
+    }
     $notes = @('Runs in this order: drivers, then Wi-Fi networks, then apps, which need the internet.')
-    if (-not @(Find-Backups)) { $notes += 'No backup found on USB drives, other disks, Desktop, Documents, Downloads or OneDrive. Plug in the drive, or choose the folder.' }
+    if (-not $found) { $notes += 'No backup found on USB drives, other disks, Desktop, Documents, Downloads or OneDrive. Plug in the drive, or choose the folder.' }
     if ($Describe) { Write-OptionsPage $Describe $fields $notes; return }
 
     $v = Read-Options $fields $Answers
     if (-not $v.Drivers) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
-    $dir = Join-Path (Get-RestoreRoot $v) 'drivers'
-    $manifestFile = Join-Path $dir 'drivers.json'
-    if (-not (Test-Path -LiteralPath $manifestFile)) { Write-Skip 'This backup has no drivers'; return }
-    try { $manifest = Get-Content -LiteralPath $manifestFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { Write-Host '  Could not read drivers.json.' -ForegroundColor Red; return }
-    Write-Host "  Saved from $($manifest.Computer) on $($manifest.Date) · $($manifest.Windows)" -ForegroundColor DarkGray
+    $root = Get-RestoreRoot $v
+    $saved = Get-SavedDrivers $root
+    if (-not $saved) { Write-Skip 'This backup has no drivers'; return }
+    Write-Host "  Saved from $($saved.Manifest.Computer) on $($saved.Manifest.Date) · $($saved.Manifest.Windows)" -ForegroundColor DarkGray
+    # A backup from the list: the drivers checked there. Another folder: the ones Windows doesn't have.
+    $index = Get-BackupIndex $found $root
+    $chosen = if ($index -ge 0) { $picked = @($v["DriverList$index"]); @($saved.Drivers | Where-Object { $picked -contains $_.Folder }) }
+              else { @($saved.Drivers | Where-Object { -not $_.Installed }) }
+    if (-not $chosen) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
 
-    # Skipped: the same package (same store folder) or a newer version of it is already installed
-    $installed = @(Get-WindowsDriver -Online -ErrorAction SilentlyContinue | ForEach-Object {
-        [pscustomobject]@{ Folder = Split-Path (Split-Path $_.OriginalFileName -Parent) -Leaf; Inf = Split-Path $_.OriginalFileName -Leaf; Provider = $_.ProviderName; Version = "$($_.Version)" }
-    })
-    $restart = $false; $failed = @(); $already = 0
-    foreach ($d in @($manifest.Drivers | Where-Object { Test-Path -LiteralPath (Join-Path $dir $_.Folder) } | Sort-Object Class)) {
+    $dir = Join-Path $root 'drivers'
+    $restart = $false; $failed = @()
+    foreach ($d in $chosen) {
         $label = "$($d.Class) · $(Get-DriverLabel $d)"
-        if (@($installed | Where-Object { $_.Folder -eq $d.Folder -or ($_.Inf -eq $d.Inf -and $_.Provider -eq $d.Provider -and (Test-NewerVersion $_.Version $d.Version)) }).Count) { $already++; continue }
         $out = & pnputil /add-driver (Join-Path (Join-Path $dir $d.Folder) '*.inf') /subdirs /install 2>&1
         switch ($LASTEXITCODE) {
             0       { Write-Done $label }
@@ -402,7 +456,6 @@ function Invoke-Import {
             default { Write-Host "  [ERROR] ${label}: $(($out | Select-Object -Last 1))" -ForegroundColor Red; $failed += $label }
         }
     }
-    if ($already) { Write-Skip "$already driver(s) Windows already has" }
     if ($failed) { Write-Host "  Not installed: $($failed -join ', ')" -ForegroundColor Yellow }
     if ($restart) { Write-Host '  Restart the PC when everything is done: some drivers only start working after it.' -ForegroundColor Yellow }
 }

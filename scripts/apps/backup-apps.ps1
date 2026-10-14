@@ -98,7 +98,7 @@ function Read-Options([object[]]$Fields, [string]$AnswersFile) {
         return $values
     }
     foreach ($f in $Fields) {
-        if ($f.when -and "$($values[$f.when.field])" -ne "$($f.when.is)") { continue }
+        if (@($f.when | Where-Object { $_ -and "$($values[$_.field])" -ne "$($_.is)" }).Count) { continue }     # "when": one condition or a list
         switch ($f.kind) {
             'header'    { Write-Host "`n  $($f.label)" -ForegroundColor Cyan }
             'toggle'    { $values[$f.id] = Ask "$($f.label)?" $false }
@@ -126,6 +126,7 @@ function Ask([string]$Question, [bool]$Default) {
 #region ==================== 1. HELPERS ====================
 
 function Write-Step([string]$Text) { Write-Host "`n▸ $Text" -ForegroundColor Cyan }
+function Write-Done([string]$Text) { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host $Text }
 function Write-Skip([string]$Text) { Write-Host "  [--] $Text" -ForegroundColor DarkGray }
 
 # Menu driven by the ↑ ↓ arrow keys and Enter. Returns the chosen index.
@@ -171,18 +172,6 @@ function Choose([string]$Question, [string[]]$Options, [int]$Default = 0) {
         [Console]::CursorVisible = $true
     }
     return $selected
-}
-
-# Package IDs inside a WinGet export file.
-function Get-PackageIds([string]$File) {
-    $json = Get-Content -LiteralPath $File -Raw -Encoding UTF8 | ConvertFrom-Json
-    @($json.Sources | ForEach-Object { $_.Packages } | ForEach-Object { $_.PackageIdentifier })
-}
-
-# The Apps switch, or why it can't be used: WinGet is not on the PC yet.
-function Get-AppsField([string]$Tab, [string]$Desc) {
-    if (Get-Command winget -ErrorAction SilentlyContinue) { return New-Field $Tab 'Apps' 'toggle' 'Apps' $Desc $false }
-    New-Field $Tab 'Apps' 'info' 'Apps' 'WinGet is not installed. Open Set up → Apps first: it installs WinGet. Then come back here.' $null
 }
 
 #endregion
@@ -268,26 +257,121 @@ function Get-RestoreRoot($Values) {
     if ($Values.Backup -eq 'other') { "$($Values.BackupOther)".Trim().Trim('"') } else { "$($Values.Backup)" }
 }
 
+# A switch and, under it while it is on, the list to pick from, nothing checked ("Select all" on each
+# group). Like the Browsers page: the switch only opens the list, the checked items are what counts
+# ($Quiet), and Review lists them under the switch's name.
+function New-SwitchField([string]$Tab, [string]$Id, [string]$Label, [string]$Desc, [bool]$Quiet, [hashtable]$More) {
+    $m = @{ quiet = $Quiet }
+    if ($More) { foreach ($k in $More.Keys) { $m[$k] = $More[$k] } }
+    New-Field $Tab $Id 'toggle' $Label $Desc $false $m
+}
+function New-ListField([string]$Tab, [string]$Id, [string]$Group, [object[]]$Items, [object[]]$When) {
+    New-Field $Tab $Id 'checklist' '' '' @() @{ items = @($Items); group = $Group; indent = $true; when = @($When) }
+}
+function New-ListItem([string]$Value, [string]$Label, [string]$Note, [string]$Group, [string]$Status) {
+    [ordered]@{ value = $Value; label = $Label; note = $Note; group = $Group; status = $Status }
+}
+
+# Restore: the list of each backup found shows only while that backup is chosen and the switch is on.
+function Get-ListWhen([string]$Backup, [string]$Switch) { @(@{ field = 'Backup'; is = $Backup }, @{ field = $Switch; is = 'True' }) }
+
+# Restore: the index of the chosen backup among the ones found (-1: another folder, which has no list)
+function Get-BackupIndex([object[]]$Found, [string]$Root) { [array]::IndexOf(@($Found | ForEach-Object { $_.FullName }), $Root) }
+
 #endregion
 
 
 #region ==================== 2. BACK UP ====================
 
+# The apps WinGet knows on this PC: id -> name, from "winget list" (its columns, whatever the language;
+# names cut short end in "…"). Empty when WinGet can't list them.
+function Get-InstalledApps {
+    $apps = @{}
+    $encoding = [Console]::OutputEncoding
+    try {
+        [Console]::OutputEncoding = [Text.Encoding]::UTF8
+        $lines = @(& winget list --accept-source-agreements 2>$null | ForEach-Object { ("$_" -split "`r")[-1] })
+    } catch { $lines = @() } finally { [Console]::OutputEncoding = $encoding }
+    $dash = [array]::FindIndex([string[]]$lines, [Predicate[string]]{ param($l) $l -match '^-{10,}' })
+    if ($dash -lt 1 -or $dash -ge $lines.Count - 1) { return $apps }
+    $words = [regex]::Matches($lines[$dash - 1], '\S+')
+    if ($words.Count -lt 2) { return $apps }
+    $idAt = $words[1].Index
+    foreach ($line in $lines[($dash + 1)..($lines.Count - 1)]) {
+        if ($line.Length -le $idAt) { continue }
+        $id = ($line.Substring($idAt).Trim() -split '\s+')[0]
+        $name = $line.Substring(0, $idAt).Trim()
+        if ($id -and $name -and -not $apps.ContainsKey($id)) { $apps[$id] = $name }
+    }
+    return $apps
+}
+
+# A readable name from an id, when WinGet gave none: Microsoft.VisualStudioCode -> Visual Studio Code.
+function Get-NameFromId([string]$Id) {
+    $parts = $Id.Split('.')
+    $name = if ($parts.Count -gt 1) { ($parts | Select-Object -Skip 1) -join ' ' } else { $Id }
+    ($name -creplace '([a-z0-9])([A-Z])', '$1 $2').Trim()
+}
+
+# The packages of a WinGet export file: Id, Source (winget, msstore) and the source they come from.
+function Get-ExportPackages([string]$File) {
+    $json = Get-Content -LiteralPath $File -Raw -Encoding UTF8 | ConvertFrom-Json
+    @(foreach ($s in @($json.Sources)) { foreach ($p in @($s.Packages)) { [pscustomobject]@{ Id = "$($p.PackageIdentifier)"; Source = "$($s.SourceDetails.Name)" } } })
+}
+
+# A copy of an export file with only some of its apps (winget import installs everything in the file).
+function Save-ExportSubset([string]$File, [string[]]$Ids, [string]$Out) {
+    $json = Get-Content -LiteralPath $File -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($s in @($json.Sources)) { $s.Packages = @(@($s.Packages) | Where-Object { $Ids -contains "$($_.PackageIdentifier)" }) }
+    $json.Sources = @(@($json.Sources) | Where-Object { @($_.Packages).Count })
+    [IO.File]::WriteAllText($Out, (ConvertTo-Json $json -Depth 10), (New-Object Text.UTF8Encoding $false))
+}
+
+function Get-AppRow([string]$Id, [string]$Name, [string]$Source, [string]$Status) {
+    New-ListItem $Id $(if ($Name) { $Name } else { Get-NameFromId $Id }) "$Id$(if ($Source -eq 'msstore') { ' · Microsoft Store' })" '' $Status
+}
+
 function Invoke-Export {
-    $fields = @(Get-PlaceFields) + @(Get-AppsField 'Create' 'The list of apps WinGet knows, Microsoft Store apps included. Only the apps: not their settings, logins or files.')
+    $hasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
+    $fields = @(Get-PlaceFields)
+    $packages = @(); $names = @{}
+    if ($hasWinget) {
+        # What winget export would save, to show it (apps WinGet doesn't know are left out)
+        $list = Join-Path $env:TEMP "tidywin-apps-$PID.json"
+        & winget export -o $list --accept-source-agreements *> $null
+        if (Test-Path -LiteralPath $list) { $packages = @(Get-ExportPackages $list | Sort-Object Id -Unique); Remove-Item -LiteralPath $list -Force -ErrorAction SilentlyContinue }
+        $names = Get-InstalledApps
+        $packages = @($packages | Sort-Object { if ($names[$_.Id]) { $names[$_.Id] } else { Get-NameFromId $_.Id } })
+    }
+    if ($packages) {
+        $fields += New-SwitchField 'Create' 'Apps' 'Apps' 'The apps WinGet can install again, Microsoft Store apps included. Only the apps: not their settings, logins or files.' $true @{ badge = "$($packages.Count)" }
+        $fields += New-ListField 'Create' 'AppList' 'Apps' @($packages | ForEach-Object { Get-AppRow $_.Id $names[$_.Id] $_.Source '' }) @(@{ field = 'Apps'; is = 'True' })
+    } else {
+        $fields += New-Field 'Create' 'Apps' 'info' 'Apps' $(if (-not $hasWinget) { 'WinGet is not installed. Open Set up → Apps first: it installs WinGet. Then come back here.' } else { 'WinGet found no app it can install again.' }) $null
+    }
     if ($Describe) { Write-OptionsPage $Describe $fields; return }
 
     $v = Read-Options $fields $Answers
-    if (-not $v.Apps -or -not (Get-Command winget -ErrorAction SilentlyContinue)) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
+    $picked = @(if ($v.Apps) { @($v.AppList) | Where-Object { $_ } })
+    if (-not $picked) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
     $root = Get-BackupRoot $v
     if (-not $root) { Write-Host '  The place to save was not found. Plug in the drive and try again.' -ForegroundColor Red; return }
     New-Item -ItemType Directory -Path $root -Force | Out-Null
-    $file = Join-Path $root 'apps.json'
 
-    Write-Host '  Apps that are not in WinGet show up as warnings and are left out.' -ForegroundColor DarkGray
-    & winget export -o $file --accept-source-agreements
-    if (-not (Test-Path -LiteralPath $file)) { Write-Host '  [ERROR] Could not create the list.' -ForegroundColor Red; return }
-    Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "$(@(Get-PackageIds $file).Count) apps saved to $file"
+    $all = Join-Path $env:TEMP "tidywin-apps-$PID.json"
+    & winget export -o $all --accept-source-agreements *> $null
+    if (-not (Test-Path -LiteralPath $all)) { Write-Host '  [ERROR] WinGet could not list the apps.' -ForegroundColor Red; return }
+    $file = Join-Path $root 'apps.json'
+    Save-ExportSubset $all $picked $file
+    Remove-Item -LiteralPath $all -Force -ErrorAction SilentlyContinue
+    # The names, for Restore's list (apps.json itself only has ids)
+    $saved = @(Get-ExportPackages $file)
+    $nameMap = [ordered]@{}
+    foreach ($p in $saved) { $nameMap[$p.Id] = $(if ($names[$p.Id]) { $names[$p.Id] } else { Get-NameFromId $p.Id }) }
+    [IO.File]::WriteAllText((Join-Path $root 'apps-names.json'), (ConvertTo-Json $nameMap), (New-Object Text.UTF8Encoding $false))
+    foreach ($p in $saved) { Write-Done $nameMap[$p.Id] }
+    $missing = @($picked | Where-Object { @($saved.Id) -notcontains $_ })
+    if ($missing) { Write-Host "  Not saved (WinGet no longer lists them): $($missing -join ', ')" -ForegroundColor Yellow }
 }
 
 #endregion
@@ -295,19 +379,52 @@ function Invoke-Export {
 
 #region ==================== 3. RESTORE ====================
 
+# The apps saved in a backup, with their names; $null when it has no app list.
+function Get-SavedApps([string]$Root) {
+    $file = Join-Path $Root 'apps.json'
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return $null }
+    try { $packages = @(Get-ExportPackages $file) } catch { return $null }
+    $names = try { Get-Content -LiteralPath (Join-Path $Root 'apps-names.json') -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $null }
+    @($packages | ForEach-Object {
+        $name = if ($names -and $names.PSObject.Properties[$_.Id]) { "$($names.($_.Id))" } else { Get-NameFromId $_.Id }
+        $_ | Add-Member -NotePropertyName Name -NotePropertyValue $name -PassThru
+    } | Sort-Object Name)
+}
+
 function Invoke-Import {
-    $fields = @(Get-RestoreFields) + @(Get-AppsField 'Restore' 'The saved apps this PC doesn''t have yet, installed with WinGet. Apps already installed are skipped.')
+    $hasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
+    $found = @(Find-Backups)
+    $fields = @(Get-RestoreFields)
+    if ($hasWinget) {
+        $fields += New-SwitchField 'Restore' 'Apps' 'Apps' 'Pick the ones to install, with WinGet. The ones marked Installed are already on this PC.' ($found.Count -gt 0)
+        $installed = if ($found) { Get-InstalledApps } else { @{} }
+        for ($i = 0; $i -lt $found.Count; $i++) {
+            $apps = @(Get-SavedApps $found[$i].FullName)
+            if (-not $apps) { continue }
+            $fields += New-ListField 'Restore' "AppList$i" 'Apps' @($apps | ForEach-Object { Get-AppRow $_.Id $_.Name $_.Source $(if ($installed.ContainsKey($_.Id)) { 'Installed' } else { '' }) }) (Get-ListWhen $found[$i].FullName 'Apps')
+        }
+    } else {
+        $fields += New-Field 'Restore' 'Apps' 'info' 'Apps' 'WinGet is not installed. Open Set up → Apps first: it installs WinGet. Then come back here.' $null
+    }
     if ($Describe) { Write-OptionsPage $Describe $fields; return }
 
     $v = Read-Options $fields $Answers
-    if (-not $v.Apps -or -not (Get-Command winget -ErrorAction SilentlyContinue)) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
-    $file = Join-Path (Get-RestoreRoot $v) 'apps.json'
-    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { Write-Skip 'This backup has no app list'; return }
-    try { $ids = Get-PackageIds $file } catch { Write-Host '  apps.json is not a WinGet list.' -ForegroundColor Red; return }
-    Write-Host "  $($ids.Count) apps in the list. Apps already installed are skipped." -ForegroundColor DarkGray
+    if (-not $v.Apps -or -not $hasWinget) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
+    $root = Get-RestoreRoot $v
+    $apps = @(Get-SavedApps $root)
+    if (-not $apps) { Write-Skip 'This backup has no app list'; return }
+    # A backup from the list: the apps checked there. Another folder: all of them (installed ones are skipped).
+    $index = Get-BackupIndex $found $root
+    $ids = if ($index -ge 0) { @($v["AppList$index"] | Where-Object { $_ }) } else { @($apps.Id) }
+    if (-not $ids) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
 
+    $file = Join-Path $env:TEMP "tidywin-restore-apps-$PID.json"
+    Save-ExportSubset (Join-Path $root 'apps.json') $ids $file
+    Write-Host "  Installing $($ids.Count) app(s). Apps already installed are skipped." -ForegroundColor DarkGray
     & winget import -i $file --ignore-unavailable --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -eq 0) { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host 'Apps installed' }
+    $code = $LASTEXITCODE
+    Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue
+    if ($code -eq 0) { Write-Done 'Apps installed' }
     else { Write-Host '  Finished with warnings: see above for the apps that were not installed.' -ForegroundColor Yellow }
 }
 

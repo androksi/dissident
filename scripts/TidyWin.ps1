@@ -783,12 +783,12 @@ function Start-Item($Item, [string]$Extra) {
     Start-NextStep
 }
 
-# Next step of the option; options with several steps ask before each one.
+# Next step of the option: what to do in each was already chosen on its page, so it just runs.
 function Start-NextStep {
     $S.StepIndex++
     if ($S.Stopped -or $S.StepIndex -ge $S.Steps.Count) { Complete-Item; return }
     $step = $S.Steps[$S.StepIndex]
-    if ($S.Steps.Count -gt 1) { Show-StepCard $step } else { Start-Script $step }
+    Start-Script $step
 }
 
 function Start-Script($Step) {
@@ -1334,34 +1334,6 @@ function Show-KeepCard($Q) {
     Set-FocusLater $keep
 }
 
-# Options with several steps (Back up, Restore): each one can be skipped.
-function Show-StepCard($Step) {
-    $S.Question = $null
-    $card = New-Card
-    $stack = New-Object Windows.Controls.StackPanel
-    $stack.Children.Add((New-Text "Step $($S.StepIndex + 1) of $($S.Steps.Count): $($Step.Name)" 14 'SemiBold')) | Out-Null
-    $buttons = New-ButtonRow
-    $buttons.HorizontalAlignment = 'Left'
-    $buttons.Margin = New-Object Windows.Thickness -8, 16, 0, 0
-    $run = New-Button 'Start' -Primary
-    $run.IsDefault = $true
-    $run.Tag = $Step
-    $run.Add_Click({ $step = $this.Tag; Clear-Question; Start-Script $step })
-    $skip = New-Button 'Skip'
-    $skip.Tag = $Step
-    $skip.Add_Click({
-        Add-LogLine ([string][char]1 + 'DarkGray' + [char]2 + "Skipped: $($this.Tag.Name)")
-        Clear-Question
-        Start-NextStep
-    })
-    $buttons.Children.Add($run) | Out-Null
-    $buttons.Children.Add($skip) | Out-Null
-    $stack.Children.Add($buttons) | Out-Null
-    $card.Child = $stack
-    Set-QuestionCard $card
-    Set-FocusLater $run
-}
-
 #endregion
 
 
@@ -1803,8 +1775,9 @@ function Get-FlagValues($Form, [string]$Id) {
 }
 
 function Test-FieldShown($Form, $Field) {
-    if (-not $Field.when) { return $true }
-    return "$(Get-FieldValue $Form "$($Field.when.field)")" -eq "$($Field.when.is)"
+    # "when" is one condition or a list of them, all needed (Restore: this backup and its switch on)
+    foreach ($w in @($Field.when | Where-Object { $_ })) { if ("$(Get-FieldValue $Form "$($w.field)")" -ne "$($w.is)") { return $false } }
+    return $true
 }
 
 function Test-FieldValid($Form, $Field) {

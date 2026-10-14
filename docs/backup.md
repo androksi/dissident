@@ -7,17 +7,17 @@ Save your drivers, apps and Wi-Fi networks before formatting, and put them back 
 ## Create
 
 1. **Save to** comes already set to a USB drive or another disk, if there is one: they survive formatting. You can pick Desktop, Documents, Downloads, OneDrive or another folder instead.
-2. Turn on what to save:
-   - **Drivers**: the ones Windows doesn't bring by itself, for the devices of this PC (video, network, audio...), with how many and their size. Video drivers take 2 to 3 GB each. [Details](drivers.md)
-   - **Apps**: the list of apps WinGet knows, Microsoft Store apps included. Only the apps, not their settings or files. [Details](apps.md#moving-apps-to-another-pc)
-   - **Wi-Fi networks**: the saved networks and their passwords. The passwords are saved readable in the backup folder (an encrypted one only works on the Windows that saved it): keep the folder safe and delete it when you no longer need it.
+2. Turn on what to save, then check the items in the list that opens under it (nothing comes checked; **Select all** checks a whole list or type):
+   - **Drivers**: the ones Windows doesn't bring by itself, by type (video, network, audio...), with the device, version and size of each. Video drivers take 2 to 3 GB each. [Details](drivers.md)
+   - **Apps**: the apps WinGet can install again, by name, Microsoft Store apps included. Only the apps, not their settings or files. [Details](apps.md#moving-apps-to-another-pc)
+   - **Wi-Fi networks**: the saved networks, by name, and their passwords. The passwords are saved readable in the backup folder (an encrypted one only works on the Windows that saved it): keep the folder safe and delete it when you no longer need it.
 
 Everything goes in one folder:
 
 ```
 tidywin-backup-<PC>-<date>\
     drivers\      one folder per driver, drivers.json and a README.txt for installing by hand
-    apps.json     the WinGet list
+    apps.json     the WinGet list (apps-names.json: their names, for Restore)
     wifi\         one .xml per network
 ```
 
@@ -26,7 +26,7 @@ Your own files (Documents, Pictures, Desktop...) are not saved: copy them yourse
 ## Restore
 
 1. **Backup** comes already set to the newest `tidywin-backup-*` folder on USB drives, other disks, Desktop, Documents, Downloads and OneDrive, with what it has. You can pick another folder.
-2. Turn on what to put back. It always runs in this order:
+2. Turn on what to put back and check the items, like in Create. **Installed** (or **Saved**, for networks) marks what this PC already has. With another folder, everything in it is restored. It always runs in this order, without asking anything else:
    1. **Drivers**: the ones this PC doesn't have yet (the same version or a newer one is skipped). Some need a restart.
    2. **Wi-Fi networks**: added for every user, so the PC connects by itself. Needs the Wi-Fi adapter's driver, which is why drivers come first.
    3. **Apps**: the ones not installed yet, with WinGet. They need the internet, which is why they come last.
