@@ -44,7 +44,10 @@
         Write-Host ''
         if (-not $isAdmin) { Write-Host '  Allow the administrator prompt to open the panel.' -ForegroundColor DarkYellow }
         Write-Host '  The panel opens in its own window. Close it to come back here.' -ForegroundColor DarkGray
-        $cmd = "`$TidyWinElevated = `$true; irm '$Base/$Name' | iex"
+        # The administrator copy writes what happens to a log: if it ends right away, this terminal shows it
+        $log = Join-Path $env:TEMP 'tidywin-launch.log'
+        if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue }
+        $cmd = "Start-Transcript -LiteralPath '$log' -Force | Out-Null; `$TidyWinElevated = `$true; irm '$Base/$Name' | iex"
         $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
         $start = @{
             FilePath     = 'powershell.exe'
@@ -56,7 +59,22 @@
         try { $proc = Start-Process @start }
         catch { Write-Host "`n  Permission denied. Nothing was changed." -ForegroundColor Red; return }
         # Waits by its id, not with -Wait: -Wait puts the elevated process in a job object, which can end it
+        $started = Get-Date
         while (Get-Process -Id $proc.Id -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }
+        if (((Get-Date) - $started).TotalSeconds -lt 15) {
+            Write-Host "`n  The panel closed right away. What happened:" -ForegroundColor Yellow
+            if (Test-Path -LiteralPath $log) {
+                # The transcript after its header (the block between the first two lines of asterisks)
+                $lines = @(Get-Content -LiteralPath $log)
+                $marks = @(for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^[*]{5,}') { $i } })
+                $from = if ($marks.Count -ge 2) { $marks[1] + 1 } else { 0 }
+                $lines | Select-Object -Skip $from | Where-Object { $_ -and $_ -notmatch '^[*]{5,}' } |
+                    Select-Object -Last 30 | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+            } else {
+                Write-Host '  Nothing was written: the administrator PowerShell did not run the launcher.' -ForegroundColor Gray
+            }
+        }
+        if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue }
         Write-Host "`n  Cya!`n" -ForegroundColor Cyan
         return
     }
