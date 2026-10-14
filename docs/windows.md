@@ -127,7 +127,7 @@ For when Windows acts strange. Creates a restore point, checks the Windows image
 
 In the [TidyWin panel](../README.md#quick-start): **Maintenance → Network**.
 
-For "connected, no internet", sites that don't open or a connection that keeps dropping. The page shows the network adapters (automatic or manual IP, and the DNS that will be kept) and how far to go, nothing picked:
+For "connected, no internet", sites that don't open or a connection that keeps dropping. The page shows the network adapters (connected or not, and the DNS set by hand that will be kept) and how far to go, nothing picked:
 
 | Option | What it does |
 |---|---|

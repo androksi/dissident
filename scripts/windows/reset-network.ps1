@@ -312,12 +312,11 @@ Write-Host '  Fixes common internet problems with Windows'' own commands. Your D
 $dns = @(Get-ManualDns)
 $adapters = @(Get-AdapterInfo $dns)
 $hasManualIp = [bool]($adapters | Where-Object ManualIp)
+# Connected or not, and the DNS set by hand that the reset keeps (a manual IP has its own note at the top)
 $adapterText = {
     param($a)
     $state = if ($a.Connected) { 'Connected' } else { 'Not connected' }
-    $ip    = if ($a.ManualIp) { 'manual IP' } else { 'automatic IP' }
-    $dnsTx = if ($a.Dns) { 'DNS ' + ($a.Dns -join ', ') + ', kept' } else { 'DNS from the router' }
-    "$state · $ip · $dnsTx"
+    if ($a.Dns) { "$state · DNS $($a.Dns -join ', '), kept" } else { $state }
 }
 
 # --- Options: the panel's page, or asked here
