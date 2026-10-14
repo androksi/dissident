@@ -190,14 +190,14 @@ In the [TidyWin panel](../README.md#quick-start): **Set up → Apps**. From a lo
 
 ## Moving apps to another PC
 
-In the [TidyWin panel](../README.md#quick-start): **Formatting the PC → Back up apps and drivers** and **Restore apps and drivers** (the apps step). From a local copy:
+In the [TidyWin panel](../README.md#quick-start): **Utils → Back up** and **Utils → Restore**, with **Apps** on. [How the backup works](backup.md). From a local copy:
 
 ```powershell
 .\scripts\apps\backup-apps.ps1 -Export   # before formatting
 .\scripts\apps\backup-apps.ps1 -Import   # after formatting
 ```
 
-Export saves `tidywin-apps-<PC>-<date>.json` with every app WinGet knows, where you choose: a USB drive, another disk, Desktop, Documents, Downloads, OneDrive or another folder. Import lists the files it finds in those places, nothing picked, and installs the apps of the one you pick that are missing. Only apps are saved, not their settings.
+Export saves `apps.json`, with every app WinGet knows, in the `tidywin-backup-<PC>-<date>` folder. Import finds that folder and installs the apps that are missing. Only apps are saved, not their settings.
 
 ## Uninstalling
 

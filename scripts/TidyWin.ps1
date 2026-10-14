@@ -65,7 +65,7 @@ function New-MenuEntry($Group, $Id, $Icon, $Name, $Title, $Desc, [string[]]$Poin
 }
 
 function Get-Menu {
-    $setup = 'Set up'; $care = 'Maintenance'; $format = 'Formatting the PC'; $undo = 'Undo'
+    $setup = 'Set up'; $care = 'Maintenance'; $utils = 'Utils'; $undo = 'Undo'
     @(
         New-MenuEntry $setup 'windows' 'E770' 'Windows' 'Windows' 'Clean up Windows and set it up the way you like.' @(
             'Turns off telemetry, ads and suggestions.'
@@ -115,18 +115,15 @@ function Get-Menu {
             'Your DNS settings stay.'
         ) 'Reset' @(New-Step 'windows/reset-network.ps1') -Form
 
-        # Backup: apps, then drivers. Restore: drivers first (network, video), then the apps, which need the internet.
-        New-MenuEntry $format 'backup' 'E74E' 'Back up apps and drivers' 'Back up apps and drivers' 'Save your apps and drivers before formatting.' @(
-            'Saves the list of your installed apps.'
-            'Saves the drivers you pick.'
-            'Save them to a USB drive or another disk.'
-        ) 'Back up' @((New-Step 'apps/backup-apps.ps1' '-Export' 'App list'), (New-Step 'drivers/backup-drivers.ps1' '-Export' 'Drivers')) -Form
+        # Before formatting and after: drivers, apps and Wi-Fi in one tidywin-backup folder. Restore goes
+        # drivers first (the Wi-Fi adapter may need one), then Wi-Fi, then the apps, which need the internet.
+        New-MenuEntry $utils 'backup' 'E74E' 'Back up' 'Back up' 'Save your drivers, apps and Wi-Fi networks before formatting.' @(
+            'Pick what to save and where: a USB drive or another disk.'
+        ) 'Back up' @((New-Step 'drivers/backup-drivers.ps1' '-Export' 'Drivers'), (New-Step 'apps/backup-apps.ps1' '-Export' 'Apps'), (New-Step 'windows/backup-wifi.ps1' '-Export' 'Wi-Fi')) -Form
 
-        New-MenuEntry $format 'restore' 'E896' 'Restore apps and drivers' 'Restore apps and drivers' 'Put your apps and drivers back after formatting.' @(
-            'Installs the saved drivers Windows didn''t install by itself.'
-            'Then installs your saved apps.'
-            'Run it after Windows Update has finished.'
-        ) 'Restore' @((New-Step 'drivers/backup-drivers.ps1' '-Import' 'Drivers'), (New-Step 'apps/backup-apps.ps1' '-Import' 'App list')) -Form
+        New-MenuEntry $utils 'restore' 'E896' 'Restore' 'Restore' 'Put your drivers, Wi-Fi networks and apps back after formatting.' @(
+            'Finds the backup on your drives by itself.'
+        ) 'Restore' @((New-Step 'drivers/backup-drivers.ps1' '-Import' 'Drivers'), (New-Step 'windows/backup-wifi.ps1' '-Import' 'Wi-Fi'), (New-Step 'apps/backup-apps.ps1' '-Import' 'Apps')) -Form
 
         New-MenuEntry $undo 'windows-revert' 'E7A7' 'Windows' 'Undo Windows' 'Pick what to put back the way Windows had it.' @(
             'Telemetry, suggestions, File Explorer, DNS and the other settings, one by one.'
@@ -140,7 +137,7 @@ function Get-Menu {
         New-MenuEntry $undo 'fonts-revert' 'E7A7' 'Fonts' 'Undo fonts' 'Pick which of the fonts TidyWin installed to remove.' @(
             'Fonts you installed another way stay.'
         ) 'Undo' @(New-Step 'fonts/install-fonts.ps1' '-Revert') -Form
-    ) | Where-Object Group -ne $format     # Formatting the PC: hidden for now, while its pages are rethought
+    )
 }
 
 #endregion
@@ -1855,7 +1852,7 @@ function Get-FormChanges($Form) {
             { $_ -in 'text', 'path' } { if ($value) { $text = "${label}: $value" } }
             { $_ -in 'choice', 'select' } { if ($value) { $text = "${label}: $(Get-OptionLabel $Form $f $value)" } }
         }
-        $count = if ($f.footer) { 0 } elseif ($f.kind -eq 'checklist') { @($value).Count } else { 1 }
+        $count = if ($f.footer -or $f.setting) { 0 } elseif ($f.kind -eq 'checklist') { @($value).Count } else { 1 }
         if (@($text).Count -gt 1) { $count = 1 }
         foreach ($line in @($text | Where-Object { $_ })) { [pscustomobject]@{ Tab = $(if ($f.group) { "$($f.group)" } else { "$($f.tab)" }); Text = $line; Footer = [bool]$f.footer; Count = $count } }
     }
@@ -1888,7 +1885,7 @@ function Update-FormFooter($Form) {
     $ui.Status.Text = if ($S.Active) { "Wait for $($S.Item.Title) to finish before applying." }
                       elseif ($n -eq 0) { 'Nothing selected' } else { "$n selected" }
     # The footer option only goes with something else (leftovers without programs do nothing)
-    $ui.ReviewBtn.IsEnabled = @($Form.Changes | Where-Object { -not $_.Footer }).Count -gt 0 -and -not $S.Active
+    $ui.ReviewBtn.IsEnabled = @($Form.Changes | Where-Object { $_.Count -gt 0 }).Count -gt 0 -and -not $S.Active
     $ui.ApplyBtn.IsEnabled = -not $S.Active
 }
 

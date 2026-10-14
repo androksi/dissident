@@ -23,7 +23,7 @@ irm androksi.github.io/tidywin/run | iex
 It asks for administrator rights, then opens the TidyWin window: pick an option in the sidebar and its options show up right away, nothing selected. Turn on what you want, review and apply; the progress shows in the same window.
 
 > [!TIP]
-> Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the options in the right order.
+> Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the options in the right order. Your drivers, apps and Wi-Fi networks go with [Back up and Restore](docs/backup.md).
 
 ## Good to know
 
