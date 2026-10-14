@@ -20,7 +20,7 @@
         2. System detection .......... Windows version and available features
         3. Privacy and cleanup ....... telemetry, suggestions, apps, OneDrive, Edge, Windows Security, C:\ root folders, device apps
         4. Personalization ........... theme, taskbar (alignment, search, Task View, pins, battery %), File Explorer (hidden files, folder discovery, Home/Gallery), window border
-        5. Everyday use .............. long paths, End task, sudo, Win+V, mouse, Sticky Keys, verbose BSoD, screen/sleep times
+        5. System .................... long paths, End task, sudo, Win+V, mouse, Sticky Keys, verbose BSoD, screen/sleep times
         6. Network ................... DNS with DNS over HTTPS
         7. Options ................... every option (the panel's page) and what you chose
         8. Execution ................. applies the chosen options, in order
@@ -1311,7 +1311,7 @@ function Set-DisplayChoice($Change) {
 #endregion
 
 
-#region ==================== 5. EVERYDAY USE ====================
+#region ==================== 5. SYSTEM ====================
 
 function Enable-LongPaths {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPathsEnabled' 1
@@ -1598,7 +1598,7 @@ function Get-PowerFields {
 }
 
 function Get-Fields {
-    $T = 'Privacy'; $A = 'Apps'; $L = 'Appearance'; $E = 'File Explorer'; $U = 'Everyday'; $N = 'Network'; $M = 'Misc'
+    $T = 'Privacy'; $A = 'Apps'; $L = 'Appearance'; $E = 'File Explorer'; $U = 'System'; $N = 'Network'; $M = 'Misc'
 
     New-Field $T 'Telemetry' 'toggle' 'Turn off telemetry' 'Windows stops sending usage and diagnostic data to Microsoft. Widgets are turned off too.' $false
     New-Field $T 'Suggestions' 'toggle' 'Turn off ads and suggestions' 'No tips, no suggestions in Start and Settings, and no apps like Candy Crush installed without asking.' $false
@@ -1910,9 +1910,9 @@ if ($opt.ClassicMenu) { Invoke-Step 'Classic context menu' { Enable-ClassicConte
 if ($opt.NoSnap) { Invoke-Step 'Snap windows' { Disable-SnapWindows } }
 if ($opt.ThinBorder) { Invoke-Step 'Window resize border' { Set-ThinBorder } }
 
-# --- Everyday use
+# --- System
 if ($opt.LongPaths -or $opt.EndTask -or $opt.Sudo -or $opt.ClipboardHistory -or $opt.NoMouseAccel -or $opt.NoStickyKeys) {
-    Invoke-Step 'Everyday use tweaks' {
+    Invoke-Step 'System tweaks' {
         if ($opt.LongPaths)        { Enable-LongPaths }
         if ($opt.EndTask)          { Enable-EndTask }
         if ($opt.Sudo)             { Enable-Sudo }

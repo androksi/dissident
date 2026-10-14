@@ -53,7 +53,7 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 | Classic menu | Windows 11: the full right-click menu, without "Show more options". |
 | No Snap | Turns off "Snap windows": no snapping to the screen edges and no Snap layouts. |
 
-## Everyday use
+## System
 | Feature | What it does |
 |---|---|
 | Long paths | Allows paths longer than 260 characters. |
