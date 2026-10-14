@@ -132,17 +132,10 @@ function Get-Menu {
             'Telemetry, suggestions, File Explorer, DNS and the other settings, one by one.'
         ) 'Undo' @(New-Step 'windows/revert-configure-windows.ps1') -Form
 
-        New-MenuEntry $undo 'chrome-revert' 'E7A7' 'Chrome' 'Undo Chrome' 'Pick which TidyWin settings to remove from Chrome.' @(
-            'Only the settings that are on this PC show up.'
-        ) 'Undo' @(New-Step 'browsers/configure-chrome.ps1' '-Revert') -Form
-
-        New-MenuEntry $undo 'brave-revert' 'E7A7' 'Brave' 'Undo Brave' 'Pick which TidyWin settings to remove from Brave.' @(
-            'Only the settings that are on this PC show up.'
-        ) 'Undo' @(New-Step 'browsers/configure-brave.ps1' '-Revert') -Form
-
-        New-MenuEntry $undo 'firefox-revert' 'E7A7' 'Firefox' 'Undo Firefox' 'Pick which TidyWin settings to remove from Firefox.' @(
-            'Only the settings that are on this PC show up.'
-        ) 'Undo' @(New-Step 'browsers/configure-firefox.ps1' '-Revert') -Form
+        # One page for the three browsers, like Set up → Browsers
+        New-MenuEntry $undo 'browsers-revert' 'E7A7' 'Browsers' 'Undo browsers' 'Pick which TidyWin settings to remove from each browser.' @(
+            'Turn on a browser to see what can be undone.'
+        ) 'Undo' @((New-Step 'browsers/configure-chrome.ps1' '-Revert' 'Chrome'), (New-Step 'browsers/configure-brave.ps1' '-Revert' 'Brave'), (New-Step 'browsers/configure-firefox.ps1' '-Revert' 'Firefox')) -Form
 
         New-MenuEntry $undo 'fonts-revert' 'E7A7' 'Fonts' 'Undo fonts' 'Pick which of the fonts TidyWin installed to remove.' @(
             'Fonts you installed another way stay.'

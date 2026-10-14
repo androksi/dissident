@@ -363,7 +363,17 @@ function Get-UndoFields([string]$Root, [object[]]$Groups, [string]$Browser) {
 
 function Invoke-Undo([string]$Root, [object[]]$Groups, [string]$Browser) {
     $fields = Get-UndoFields $Root $Groups $Browser
-    if ($Describe) { Write-OptionsPage $Describe $fields; return }
+    # The panel's Undo → Browsers page: a switch for this browser and, under it, what can be undone
+    if ($Describe) {
+        $page = if ($script:UndoGroups) { Get-BrowserFields $fields $Browser 'Only the TidyWin settings on this PC show up.' }
+                else { @(New-Field 'Browsers' $Browser.ToLower() 'info' $Browser 'No settings from TidyWin on this PC.' $null) }
+        Write-OptionsPage $Describe $page
+        return
+    }
+    if ($Answers) {
+        $Answers = Get-BrowserAnswers $Answers $Browser
+        if (-not $Answers) { Write-Host '  Not selected.' -ForegroundColor DarkGray; return }
+    }
     if (-not $script:UndoGroups) { Write-Host "$Browser has no settings from TidyWin on this PC, so there is nothing to undo."; return }
     $v = Read-Options $fields $Answers
     $chosen = @($script:UndoGroups | Where-Object { $v[$_.Id] })

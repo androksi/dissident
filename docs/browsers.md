@@ -6,7 +6,7 @@ All three use each browser's official policies: they apply to every profile, eve
 
 In the panel: **Set up → Browsers**, one page for the three. Turn on a browser and its options show up under it, each row below as a switch, all off at first: only what you turn on is applied. Review lists the changes by browser.
 
-To undo: panel → **Undo → Chrome**, **Brave** or **Firefox**, or run the same script with `-Revert`. It shows a switch for each group above that is on this PC, all off, and one more for policies TidyWin doesn't know about (from an older version or another program); only what you turn on is removed.
+To undo: panel → **Undo → Browsers**, or run the same script with `-Revert`. Turn on a browser and it shows a switch for each group above that is on this PC, all off, and one more for policies TidyWin doesn't know about (from an older version or another program); only what you turn on is removed.
 
 ## Brave
 
