@@ -30,7 +30,7 @@
        background: linear-gradient(180deg, #fff 30%, #b9c3d6); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .tagline { margin: 14px 0 40px; color: var(--fg2); font-size: clamp(15px, 2.4vw, 18px); max-width: 30em; }
 
-  .run { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 14px;
+  .run { box-sizing: border-box; cursor: text; display: inline-flex; align-items: center; gap: 14px;
          max-width: 100%; padding: 18px 24px; border: 1px solid var(--line); border-radius: 14px;
          background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
          box-shadow: 0 10px 40px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .08);
@@ -38,14 +38,17 @@
          transition: border-color .2s, transform .2s, background .2s; }
   .run:hover, .run:focus-visible { border-color: rgba(255, 255, 255, .32); background: rgba(255, 255, 255, .09); transform: translateY(-1px); }
   .run .prompt { color: var(--fg2); user-select: none; }
-  .run code { font: inherit; overflow-wrap: anywhere; text-align: left; }
-  .run svg { flex: none; width: 18px; height: 18px; color: var(--fg2); }
+  .run:focus { outline: none; }
+  /* One click selects the whole command: the page never writes to the clipboard (blockers flag that, see ClickFix) */
+  .run code { font: inherit; overflow-wrap: anywhere; text-align: left; -webkit-user-select: all; user-select: all; }
+  .run code::selection { background: rgba(76, 194, 255, .35); }
   .run.copied { border-color: var(--ok); }
-  .run.copied code, .run.copied svg { color: var(--ok); }
+  .run.copied code { color: var(--ok); }
   .hint { margin: 14px 0 0; color: var(--fg2); font-size: 13px; min-height: 1.5em; }
 
   footer { position: fixed; z-index: 2; left: 0; right: 0; bottom: 20px; text-align: center; font-size: 13px; }
-  footer a { color: var(--fg2); text-decoration: none; }
+  footer a { color: var(--fg2); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  footer svg { width: 16px; height: 16px; fill: currentColor; }
   footer a:hover, footer a:focus-visible { color: var(--fg); }
 
   @media (prefers-reduced-motion: reduce) { .glow span { animation: none; } .run { transition: none; } }
@@ -58,30 +61,43 @@
 <main>
   <img class="logo" src="https://raw.githubusercontent.com/androksi/tidywin/main/assets/logo.svg" alt="">
   <h1>TidyWin</h1>
-  <p class="tagline">Set up and look after your Windows PC from one window.</p>
-  <button class="run" id="run" type="button" aria-label="Copy the command">
+  <p class="tagline">Set up and look after your Windows 10 or 11 PC from one window.</p>
+  <div class="run" id="run" tabindex="0" aria-label="The command">
     <span class="prompt">PS&gt;</span>
     <code id="cmd"></code>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>
-    </svg>
-  </button>
-  <p class="hint" id="hint">Click to copy, then paste it in PowerShell. Windows 10 and 11.</p>
+  </div>
+  <p class="hint" id="hint">Copy the command, paste it into Terminal and press Enter.</p>
 </main>
-<footer><a href="https://github.com/androksi/tidywin">Documentation on GitHub</a></footer>
+<footer>
+  <a href="https://github.com/androksi/tidywin">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    androksi/tidywin
+  </a>
+</footer>
 <script>
-  // The one command: copy on click
+  // The one command. A click selects it (user-select: all); copying is up to you, with Ctrl+C or the
+  // right-click menu: a page that writes a command to the clipboard looks like ClickFix to blockers.
   const cmd = "irm __SHORT__/run | iex";
   const run = document.getElementById("run");
   const code = document.getElementById("cmd");
   const hint = document.getElementById("hint");
   const hintText = hint.textContent;
   code.textContent = cmd;
-  run.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(cmd); } catch { return; }
+  const select = () => {
+    const range = document.createRange();
+    range.selectNodeContents(code);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    hint.textContent = "Selected. Press Ctrl+C, paste it into Terminal and press Enter.";
+  };
+  run.addEventListener("click", select);
+  run.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } });
+  document.addEventListener("copy", () => {
+    if (!window.getSelection().toString().includes("irm")) return;
     run.classList.add("copied");
-    hint.textContent = "Copied. Paste it in PowerShell and press Enter.";
-    setTimeout(() => { run.classList.remove("copied"); hint.textContent = hintText; }, 2000);
+    hint.textContent = "Copied. Paste it into Terminal and press Enter.";
+    setTimeout(() => { run.classList.remove("copied"); hint.textContent = hintText; }, 3000);
   });
 </script>
 </body>
