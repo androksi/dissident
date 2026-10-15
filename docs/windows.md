@@ -148,6 +148,24 @@ For "connected, no internet", sites that don't open or a connection that keeps d
 
 Full: DNS servers set by hand and DNS over HTTPS are saved to `%ProgramData%\TidyWin\network-reset` first and put back right after the reset. Not used: Settings' *Network reset* (it removes the adapters and VPNs) and proxy resets. The connection drops for a few seconds; the internet is tested at the end.
 
+## Firewall
+
+In the [TidyWin panel](../README.md#quick-start): **Maintenance → Firewall**. From a local copy:
+
+```powershell
+.\scripts\windows\manage-firewall.ps1
+```
+
+One tab per task, nothing selected:
+
+| Tab | What it does |
+|---|---|
+| Delete rules | The apps that added rules to the Windows Firewall (games, torrent and remote control apps, for example), one row per app, without Windows' own rules. Each row has how many rules the app has, in yellow next to its name, and one line on what they allow ("Open to other devices, even on public Wi-Fi"); apps no longer installed say so. **Every rule of each checked app is deleted for good**; the app stays installed, and if it needs a rule again Windows asks for permission. |
+| Block an app | Pick an `.exe`: a rule in the `TidyWin` group stops it from using the internet, on any network. It shows up in *Delete rules* as *Blocked from the internet by TidyWin*, to undo it. |
+| Networks | A card at the top explains each choice in color and when it fits (not sure: Public). Then each connected network, with its type now highlighted next to its name, as **Home** (your printer and other devices can see this PC) or **Public** (hidden, anywhere else). *Extra protection on public Wi-Fi*: no app receives connections on public networks, not even the allowed ones; browsing, games and calls keep working. *Turn the firewall back on* shows up only when it is off somewhere. |
+| Backup | Puts one of the saved copies back: every rule as it was then, deleted ones included. The other choices are not applied. |
+
+Before any change every rule is saved with `netsh advfirewall export` to `%ProgramData%\TidyWin\firewall`, and the last 5 copies are kept. If the backup fails, nothing is changed.
 ## Revert
 
 In the [TidyWin panel](../README.md#quick-start): **Undo → Windows**. From a local copy:

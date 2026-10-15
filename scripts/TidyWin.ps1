@@ -121,6 +121,12 @@ function Get-Menu {
             'Your DNS settings stay.'
         ) 'Reset' @(New-Step 'windows/reset-network.ps1') -Form
 
+        New-MenuEntry $care 'firewall' 'EA18' 'Firewall' 'Firewall' 'Review what your apps opened in the firewall.' @(
+            'Lists the rules your apps added, without Windows'' own, to close on public networks or remove.'
+            'Blocks a program from the internet, and sets each network as Public or Private.'
+            'Saves every rule first, so a backup can be put back.'
+        ) 'Review' @(New-Step 'windows/manage-firewall.ps1') -Form
+
         # Before formatting and after: drivers, apps and Wi-Fi in one tidywin-backup folder. Restore goes
         # drivers first (the Wi-Fi adapter may need one), then Wi-Fi, then the apps, which need the internet.
         New-MenuEntry $backup 'backup' 'E74E' 'Create' 'Create' 'Save your drivers, apps and Wi-Fi networks before formatting.' @(
@@ -1624,6 +1630,49 @@ function New-FieldRow($Form, $F) {
         return $box
     }
 
+    if ($F.kind -eq 'guide') {
+        # A card that explains the options around it: a title, then one line per option with a colored bar,
+        # its name in that color and when it fits (items: label, text, brush). Nothing to pick in it.
+        $card = New-Object Windows.Controls.Border
+        $card.Style = $W.Resources['CardBox']
+        $card.Margin = New-Object Windows.Thickness 0, 0, 0, 12
+        $stack = New-Object Windows.Controls.StackPanel
+        $title = New-Text "$($F.label)" 14 'SemiBold'
+        $title.Margin = New-Object Windows.Thickness 0, 0, 0, $(if ($F.desc) { 2 } else { 10 })
+        $stack.Children.Add($title) | Out-Null
+        if ($F.desc) {
+            $intro = New-Text "$($F.desc)" 13 'Normal' 'Fg2'
+            $intro.Margin = New-Object Windows.Thickness 0, 0, 0, 10
+            $stack.Children.Add($intro) | Out-Null
+        }
+        foreach ($g in @($F.items)) {
+            $brush = $W.Resources[$(if ($g.brush) { "$($g.brush)" } else { 'Accent' })]
+            $line = New-Grid 'Auto', 'Star'
+            $line.Margin = New-Object Windows.Thickness 0, 6, 0, 6
+            $bar = New-Object Windows.Controls.Border
+            $bar.Width = 4; $bar.CornerRadius = New-Object Windows.CornerRadius 2
+            $bar.Background = $brush
+            $bar.Margin = New-Object Windows.Thickness 0, 2, 12, 2
+            $words = New-Object Windows.Controls.StackPanel
+            $name = New-Text "$($g.label)" 13 'SemiBold'
+            $name.Foreground = $brush
+            $words.Children.Add($name) | Out-Null
+            $words.Children.Add((New-Text "$($g.text)" 13 'Normal' 'Fg2')) | Out-Null
+            [Windows.Controls.Grid]::SetColumn($words, 1)
+            $line.Children.Add($bar) | Out-Null
+            $line.Children.Add($words) | Out-Null
+            $stack.Children.Add($line) | Out-Null
+        }
+        if ($F.tip) {
+            $tip = New-Text "$($F.tip)" 13 'SemiBold' 'Fg'
+            $tip.Margin = New-Object Windows.Thickness 16, 8, 0, 0
+            $stack.Children.Add($tip) | Out-Null
+        }
+        $card.Child = $stack
+        $info.Row = $card
+        return $card
+    }
+
     $row = New-Object Windows.Controls.Border
     $row.Style = $W.Resources['RowBox']
     if ($F.indent) { $m = $row.Margin; $row.Margin = New-Object Windows.Thickness ($m.Left + 28), $m.Top, $m.Right, $m.Bottom }
@@ -1634,8 +1683,9 @@ function New-FieldRow($Form, $F) {
     $name.TextWrapping = 'Wrap'
     $name.Inlines.Add((New-Object Windows.Documents.Run "$($F.label)"))
     if ("$($F.badge)") {
+        # badgeBrush: a color for a detail worth seeing (Firewall: the network's type now)
         $badge = New-Object Windows.Documents.Run "  ·  $($F.badge)"
-        $badge.Foreground = $W.Resources['Fg2']; $badge.FontSize = 12
+        $badge.Foreground = $W.Resources[$(if ($F.badgeBrush) { "$($F.badgeBrush)" } else { 'Fg2' })]; $badge.FontSize = 12
         $name.Inlines.Add($badge)
     }
     $text.Children.Add($name) | Out-Null
@@ -1701,13 +1751,13 @@ function New-FieldRow($Form, $F) {
                 })
                 $info.Groups.Add($g)
             }
-            # The name, "• Installed" next to it, and the description below
+            # The name, "• Installed" next to it (green, or the item's statusBrush), and the description below
             $name = New-Object Windows.Controls.TextBlock
             $name.TextWrapping = 'Wrap'
             $name.Inlines.Add((New-Object Windows.Documents.Run "$($item.label)"))
             if ("$($item.status)") {
                 $tag = New-Object Windows.Documents.Run "  •  $($item.status)"
-                $tag.Foreground = $W.Resources['Ok']; $tag.FontSize = 12
+                $tag.Foreground = $W.Resources[$(if ($item.statusBrush) { "$($item.statusBrush)" } else { 'Ok' })]; $tag.FontSize = 12
                 $name.Inlines.Add($tag)
             }
             $content = New-Object Windows.Controls.StackPanel
@@ -2191,7 +2241,7 @@ function Invoke-Apply {
     if ($S.Active -or -not $form) { return }
     $answers = [ordered]@{}
     foreach ($f in $form.Fields) {
-        if ($f.kind -in 'header', 'info') { continue }
+        if ($f.kind -in 'header', 'info', 'guide') { continue }
         $answers["$($f.id)"] = Get-FieldValue $form "$($f.id)"
         if ($f.flagLabel) { $answers["$($f.id).flags"] = Get-FlagValues $form "$($f.id)" }
     }
