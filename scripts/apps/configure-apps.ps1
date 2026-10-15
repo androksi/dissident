@@ -14,6 +14,8 @@
     Apps already installed are just skipped (or updated, if a newer version exists).
 
     To add an app: one line in $Apps (section 2). Find the ID with:  winget search <name>
+    In the panel, the Search tab finds apps that are not in the list (-Search, section 3): only the app
+    itself and others from its publisher show up, not the many apps that just mention it in their tags.
 
     FILE LAYOUT
         1. Helpers
@@ -25,7 +27,9 @@
 #>
 param(
     [string]$Describe,      # the panel: write the app list to this file and stop
-    [string]$Answers        # the panel: install the apps in this file, without asking
+    [string]$Answers,       # the panel: install the apps in this file, without asking
+    [string]$Search,        # the panel's Search tab: look for this app in WinGet and the Microsoft Store...
+    [string]$SearchOut      # ...and write the trusted matches to this file
 )
 
 $ErrorActionPreference = 'Continue'
@@ -364,6 +368,116 @@ function Install-WinGet {
     return (Test-WinGet)
 }
 
+# --- Search: apps that are not in the list ---------------------------------------------------------------
+# "winget search" also lists every app that only has the word in its tags (for "discord": Beeper, Rambox
+# and 20 more), and others that just mention it ("Discord Media Loader"). Only trusted matches are kept:
+#   the app itself ..... its name is the search ("Steam", "7-Zip"), its ID ends in it (Valve.Steam,
+#                        Microsoft.VisualStudioCode), its name is the publisher plus the search ("Microsoft
+#                        Visual Studio Code"), or its publisher is the search plus a generic word like Project
+#                        or Team (OBSProject → "OBS Studio"; SteamDatabase is someone else)
+#   its publisher's .... other packages of that publisher with the search in their name (Discord (x86),
+#                        Steam Link, VLC Nightly)
+# Everything else is left out. The Match column is not read: its words are translated.
+
+# Display width of a character: WinGet's table gives East Asian wide characters two columns
+function Get-CharWidth([char]$Char) {
+    $n = [int]$Char
+    if (($n -ge 0x1100 -and $n -le 0x115F) -or ($n -ge 0x2E80 -and $n -le 0xA4CF) -or ($n -ge 0xAC00 -and $n -le 0xD7A3) -or
+        ($n -ge 0xF900 -and $n -le 0xFAFF) -or ($n -ge 0xFE30 -and $n -le 0xFE4F) -or ($n -ge 0xFF00 -and $n -le 0xFF60) -or
+        ($n -ge 0xFFE0 -and $n -le 0xFFE6)) { return 2 }
+    return 1
+}
+
+# The cells of a table row, cut at the columns where the header's words start (in display columns)
+function Split-TableRow([string]$Line, [int[]]$Starts) {
+    $cells = @(foreach ($s in $Starts) { New-Object Text.StringBuilder })
+    $col = 0
+    foreach ($ch in $Line.ToCharArray()) {
+        $k = 0
+        for ($i = $Starts.Count - 1; $i -ge 0; $i--) { if ($col -ge $Starts[$i]) { $k = $i; break } }
+        [void]$cells[$k].Append($ch)
+        $col += Get-CharWidth $ch
+    }
+    return @($cells | ForEach-Object { $_.ToString().Trim() })
+}
+
+# Name, Id and Version of what "winget search" finds in one source (with --source there is no Source column)
+function Invoke-WinGetSearch([string]$Query, [string]$Source) {
+    $encoding = [Console]::OutputEncoding
+    try {
+        [Console]::OutputEncoding = [Text.Encoding]::UTF8
+        $lines = @(& winget search --query $Query --source $Source --count 40 --accept-source-agreements --disable-interactivity 2>$null |
+                   ForEach-Object { ("$_" -split "`r")[-1] })
+    } catch { $lines = @() } finally { [Console]::OutputEncoding = $encoding }
+    $dash = [array]::FindIndex([string[]]$lines, [Predicate[string]]{ param($l) $l -match '^-{10,}' })
+    if ($dash -lt 1) { return @() }
+    # Where each header word starts, in display columns
+    $header = $lines[$dash - 1]
+    $starts = @(foreach ($m in [regex]::Matches($header, '\S+')) {
+        $w = 0; foreach ($ch in $header.Substring(0, $m.Index).ToCharArray()) { $w += Get-CharWidth $ch }; $w
+    })
+    if ($starts.Count -lt 3) { return @() }
+    foreach ($line in $lines[($dash + 1)..($lines.Count - 1)]) {
+        if (-not $line.Trim()) { continue }
+        $cells = Split-TableRow $line $starts
+        $id = $cells[1]
+        if (-not $id -or $id -match '\s' -or $id.Contains([string][char]0x2026)) { continue }   # cut short ("…"): not safe to install
+        [pscustomobject]@{ Name = $cells[0]; Id = $id; Version = $cells[2]; Source = $Source }
+    }
+}
+
+# Lower-case words (letters, digits, + and #): "Notepad++" -> notepad++, "7-Zip" -> 7, zip
+function Get-Words([string]$Text) { @([regex]::Matches("$Text".ToLowerInvariant(), '[\p{L}\p{Nd}+#]+') | ForEach-Object { $_.Value }) }
+
+# Where the words of $Phrase start, together and in order, inside $Words; -1 when they are not there
+function Find-Phrase([string[]]$Words, [string[]]$Phrase) {
+    for ($i = 0; $i -le $Words.Count - $Phrase.Count; $i++) {
+        $ok = $true
+        for ($j = 0; $j -lt $Phrase.Count; $j++) { if ($Words[$i + $j] -ne $Phrase[$j]) { $ok = $false; break } }
+        if ($ok) { return $i }
+    }
+    return -1
+}
+
+# Words a publisher adds to its own name: OBS + Project = OBSProject
+$PublisherSuffixes = 'project', 'team', 'software', 'soft', 'inc', 'labs', 'lab', 'studio', 'studios', 'dev', 'devs', 'org',
+                     'foundation', 'app', 'apps', 'hq', 'corp', 'corporation', 'ltd', 'llc', 'gmbh', 'official', 'community', 'io'
+
+# The trusted matches, best first (at most 12)
+function Find-TrustedApps([string]$Query) {
+    $q = @(Get-Words $Query); $qJoined = $q -join ''
+    if (-not $qJoined) { return @() }
+    $found = @(Invoke-WinGetSearch $Query 'winget') + @(Invoke-WinGetSearch $Query 'msstore')
+    # One package per language (Mozilla.Firefox.pt-BR): only the main one, when it is there too
+    $ids = @($found | ForEach-Object Id)
+    $found = @($found | Where-Object { -not ($_.Id -match '^(.+)\.([^.]+)$' -and $FirefoxLocales -ccontains $Matches[2] -and $ids -contains $Matches[1]) })
+    $scored = foreach ($r in $found) {
+        # Compared without what comes in parentheses at the end: "Mozilla Firefox (en-US)" is Mozilla Firefox
+        $words = @(Get-Words ($r.Name -replace '\s*\([^()]*\)\s*$', '')); $joined = $words -join ''
+        $at = Find-Phrase $words $q
+        $parts = $r.Id.Split('.')
+        $publisher = if ($r.Source -eq 'winget' -and $parts.Count -gt 1) { (Get-Words $parts[0]) -join '' } else { '' }
+        $last = if ($publisher) { (Get-Words $parts[-1]) -join '' } else { '' }
+        # The name starts with the search, or with the publisher and then the search ("Mozilla Firefox")
+        $afterPublisher = $at -gt 0 -and $publisher -and (($words[0..($at - 1)]) -join '') -eq $publisher
+        $exact = $joined -eq $qJoined -or ($publisher -and (
+                    # VideoLAN.VLC "VLC media player", Mozilla.Firefox, Bilibili.Bilibili (not GreycLab.GMIC-Qt.GIMP, a plugin)
+                    ($last -eq $qJoined -and ($at -eq 0 -or $afterPublisher -or $publisher -eq $qJoined)) -or
+                    # Microsoft.VisualStudioCode "Microsoft Visual Studio Code"
+                    ($afterPublisher -and $at + $q.Count -eq $words.Count) -or
+                    # Telegram.TelegramDesktop "Telegram Desktop", OBSProject.OBSStudio "OBS Studio"
+                    ($at -eq 0 -and $publisher.StartsWith($qJoined) -and ($publisher -eq $qJoined -or $PublisherSuffixes -contains $publisher.Substring($qJoined.Length)))))
+        [pscustomobject]@{ App = $r; Exact = [bool]$exact; Related = $at -ge 0 -or $joined.Contains($qJoined); Publisher = $publisher }
+    }
+    $exactOnes = @($scored | Where-Object Exact)
+    $publishers = @($exactOnes | Where-Object Publisher | ForEach-Object Publisher | Select-Object -Unique)
+    $family = @($scored | Where-Object { -not $_.Exact -and $_.Related -and $_.Publisher -and $publishers -contains $_.Publisher })
+    $seen = @{}
+    @(@($exactOnes | Where-Object { $_.App.Source -eq 'winget' }) + @($exactOnes | Where-Object { $_.App.Source -ne 'winget' }) + $family |
+        Where-Object { -not $seen.ContainsKey($_.App.Id) -and ($seen[$_.App.Id] = $true) } |
+        Select-Object -First 12 | ForEach-Object { $_.App })
+}
+
 # IDs of the packages WinGet sees as installed (WinGet and Microsoft Store sources), via "winget export".
 # One call for the whole list. If it fails, nothing is marked as installed.
 function Get-InstalledAppIds {
@@ -584,6 +698,29 @@ function Install-Apps {
 
 #region ==================== 6. EXECUTION ====================
 
+# --- The panel's Search tab: the trusted matches, as rows to check, then stop. Each one's value is
+# "source|id|name", so Apply knows how to install it; apps that are already in a tab say which.
+if ($Search) {
+    $result = [ordered]@{ items = @(); message = '' }
+    if (-not (Test-WinGet)) {
+        $result.message = 'WinGet is not on this PC yet: install an app from the list first, and WinGet comes with it.'
+    } else {
+        $listed = @{}
+        foreach ($app in $Apps) { foreach ($id in @($app.Id)) { $listed[$id] = $app.Category } }
+        $result.items = @(Find-TrustedApps $Search | ForEach-Object {
+            $where = if ($_.Source -eq 'msstore') { 'Microsoft Store' } else { 'WinGet' }
+            [ordered]@{
+                value = "$($_.Source)|$($_.Id)|$($_.Name)"; label = $_.Name; group = ''
+                note = (@($_.Id, $(if ($_.Version -and $_.Version -ne 'Unknown') { $_.Version }), $where) | Where-Object { $_ }) -join ' · '
+                status = $(if ($listed.ContainsKey($_.Id)) { "Also in $($listed[$_.Id])" } else { '' })
+            }
+        })
+        if (-not $result.items) { $result.message = "No trusted match for ""$Search"". Try the app's full name, the way its maker writes it." }
+    }
+    [IO.File]::WriteAllText($SearchOut, (ConvertTo-Json $result -Depth 5), (New-Object Text.UTF8Encoding $false))
+    return
+}
+
 if (-not $script:Panel) { Write-Host "`nConfigure-Apps" -ForegroundColor Green }   # in the panel the page already has the title
 
 # --- WinGet first (only if missing). The panel's page reads the list without it; Apply installs it.
@@ -635,6 +772,14 @@ if ($Describe) {
             })
         }
     }
+    # Last tab: any other app, found with WinGet (the panel runs this script again with -Search)
+    if ($hasWinGet) {
+        $fields = @($fields) + [ordered]@{
+            tab = 'Search'; id = 'found'; kind = 'search'; label = 'Find another app'; default = @()
+            desc = 'Search WinGet and the Microsoft Store for an app that is not in the list. Only trusted matches show up: the app itself and others from its publisher, not the apps that just mention it.'
+            placeholder = 'App name, like Telegram or GIMP'
+        }
+    }
     $notes = @(if (-not $hasWinGet) { 'WinGet, the Windows app installer, is not on this PC. It is installed first when you apply.' })
     $page = [ordered]@{ tabs = @($fields | ForEach-Object { $_.tab }); notes = $notes; fields = @($fields) }
     [IO.File]::WriteAllText($Describe, (ConvertTo-Json $page -Depth 10), (New-Object Text.UTF8Encoding $false))
@@ -644,14 +789,25 @@ if ($Describe) {
 if ($Answers) {
     # --- From the panel: what was picked in each tab, and which ones open their own installer
     $json = [IO.File]::ReadAllText($Answers) | ConvertFrom-Json
-    $picked = @(); $interactive = @()
+    $picked = @(); $interactive = @(); $found = @()
     foreach ($prop in $json.PSObject.Properties) {
-        if ($prop.Name -like '*.flags') { $interactive += @($prop.Value) } else { $picked += @($prop.Value) }
+        if ($prop.Name -eq 'found') { $found += @($prop.Value | Where-Object { $_ }) }      # the Search tab: "source|id|name"
+        elseif ($prop.Name -like '*.flags') { $interactive += @($prop.Value) } else { $picked += @($prop.Value) }
     }
     foreach ($app in $Apps) {
         $key = @($app.Id)[0]
         $app.Selected = $picked -contains $key
         $app.Interactive = $app.Source -ne 'msstore' -and $interactive -contains $key
+    }
+    # What was found with Search: an app of the list is just checked there; the others join the list
+    foreach ($f in $found) {
+        $source, $id, $name = "$f" -split '\|', 3
+        if ($source -notin 'winget', 'msstore' -or -not $id) { continue }
+        $inList = @($Apps | Where-Object { @($_.Id) -contains $id })[0]
+        if ($inList) { $inList.Selected = $true; continue }
+        $app = New-App 'Search' $(if ($name) { $name } else { $id }) $id $source $false ''
+        $app.Selected = $true
+        $Apps += $app
     }
     if (-not @($Apps | Where-Object Selected)) { Write-Host 'Nothing was selected, so nothing was installed.'; return }
 } else {

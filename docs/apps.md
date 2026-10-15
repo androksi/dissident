@@ -17,7 +17,24 @@ In the [TidyWin panel](../README.md#quick-start): **Set up → Apps**. From a lo
 | Install WinGet | If WinGet is missing (usually on Windows 10), it is installed first. |
 | Summary | Shows what was installed, what was already installed and what failed. |
 | Adding apps | One line in the script's `$Apps` list (find the ID with `winget search <name>`). |
+| Search | The last tab, in the panel: finds any other app in WinGet and the Microsoft Store (see below). |
 | Firefox and Thunderbird | Installed in the Windows display language (`Mozilla.Firefox.pt-BR`, `Mozilla.Firefox.de`...). English (US) when Mozilla has no version in that language. Already installed in any language counts as installed. |
+
+## Search
+
+For an app that is not in the list. Type its name and press **Search** (or Enter): WinGet and the Microsoft Store are searched, and only trusted matches show up, to check and install with the rest. What you check stays checked when you search for something else.
+
+`winget search` also returns every app that only has the word in its tags (for *discord*: Beeper, Rambox and twenty more) and others that just mention it (*Discord Media Loader*). Those are left out. A match is kept when:
+
+| Kept | Example |
+|---|---|
+| Its name is the search | *Steam*, *7-Zip*, *Notepad++* |
+| Its ID ends in the search, and its name starts with it or with its publisher | `VideoLAN.VLC` *VLC media player*, `Mozilla.Firefox` |
+| Its name is the publisher plus the search | `Microsoft.VisualStudioCode` *Microsoft Visual Studio Code* |
+| Its publisher is the search (alone or with a word like Project or Team) and its name starts with it | `Telegram.TelegramDesktop`, `OBSProject.OBSStudio` |
+| It is from the same publisher as one of the above and has the search in its name | *Discord (x86)*, *Steam Link*, *VLC Nightly* |
+
+Language packages (`Mozilla.Firefox.pt-BR`) are hidden when the main package is there, and at most 12 matches show up. No trusted match (WhatsApp, for example, which WinGet doesn't find in the Store) says so. An app that is also in a tab is marked **Also in** that tab, and choosing it in either place installs it once.
 
 ## Keys, when run directly
 

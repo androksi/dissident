@@ -884,6 +884,7 @@ function Complete-Item {
 function Update-Run {
     $S.Ticks++
     if ($Describes.Count) { Update-Describes }
+    if ($ActiveSearches.Count) { Update-Searches }
     if ($S.Running) {
         $follow = Test-LogAtEnd
         $line = $null; $count = 0
@@ -1474,6 +1475,8 @@ function Update-LoadBar($D) {
 # in Undo): when one is applied, and when it finishes, every page is dropped and read again when opened.
 # Pages still being read are stopped: they could have read the PC halfway through the change.
 function Reset-Pages {
+    foreach ($info in $ActiveSearches.ToArray()) { try { $info.Search.Runner.Stop() } catch { }; $info.Search = $null }
+    $ActiveSearches.Clear()
     foreach ($id in @($Describes.Keys)) {
         $d = $Describes[$id]
         try { $d.Runner.Stop() } catch { }
@@ -1481,6 +1484,91 @@ function Reset-Pages {
         $Describes.Remove($id)
     }
     $Forms.Clear()
+}
+
+# --- A search field (Apps → Search: any other app, with WinGet). The page's own script runs again with
+# -Search and -SearchOut, and its rows show below the box, to check. What is checked stays while you search
+# for something else: it is listed first, still checked, and that is what Apply gets ("source|id|name").
+$ActiveSearches = New-Object System.Collections.Generic.List[object]      # the search fields waiting for an answer
+
+function Start-AppSearch($Form, $Info) {
+    $q = $Info.SearchBox.Text.Trim()
+    if ($q.Length -lt 2) { Set-SearchStatus $Info 'Type at least two letters.' 'Warn'; return }
+    if ($Info.Search) { try { $Info.Search.Runner.Stop() } catch { }; [void]$ActiveSearches.Remove($Info) }
+    $file = Join-Path $env:TEMP "tidywin-$($Form.Item.Id)-search.json"
+    Remove-Item -LiteralPath $file -ErrorAction SilentlyContinue
+    $quote = { param($value) "'" + ($value -replace "'", "''") + "'" }
+    $runner = New-Object TidyWinPanel.Runner
+    try { $runner.Start((Get-StepCommand $Form.Item.Steps[0] "-Search $(& $quote $q) -SearchOut $(& $quote $file)")) }
+    catch { Set-SearchStatus $Info "Could not search: $($_.Exception.Message)" 'Err'; return }
+    $Info.Search = @{ Runner = $runner; File = $file; Query = $q }
+    $ActiveSearches.Add($Info)
+    $Info.Button.IsEnabled = $false
+    Set-SearchStatus $Info "Searching WinGet and the Microsoft Store for ""$q""…" 'Fg2'
+}
+
+function Set-SearchStatus($Info, [string]$Text, [string]$Brush) {
+    $Info.SearchStatus.Text = $Text
+    $Info.SearchStatus.Foreground = $W.Resources[$Brush]
+    $Info.SearchStatus.Visibility = if ($Text) { 'Visible' } else { 'Collapsed' }
+}
+
+# On the timer: a search that has finished shows its rows. (A copy with ToArray: @() on a list that holds
+# hashtables fails with "argument types do not match".)
+function Update-Searches {
+    foreach ($info in $ActiveSearches.ToArray()) {
+        $s = $info.Search
+        $line = $null
+        while ($s.Runner.Lines.TryDequeue([ref]$line)) { }          # its output is not shown
+        if (-not $s.Runner.Done) { continue }
+        [void]$ActiveSearches.Remove($info)
+        $info.Search = $null
+        $info.Button.IsEnabled = $true
+        $data = $null
+        try { $data = [IO.File]::ReadAllText($s.File) | ConvertFrom-Json } catch { }
+        Remove-Item -LiteralPath $s.File -ErrorAction SilentlyContinue
+        if (-not $data) { Set-SearchStatus $info 'The search did not finish. Try again.' 'Err'; continue }
+        $items = @($data.items | Where-Object { $_ })
+        Show-SearchResults $info $items
+        $n = $items.Count
+        if ($data.message) { Set-SearchStatus $info "$($data.message)" 'Fg2' }
+        else { Set-SearchStatus $info "$n trusted $(if ($n -eq 1) { 'match' } else { 'matches' }) for ""$($s.Query)""." 'Fg2' }
+    }
+}
+
+# The rows: the ones already checked first, then the new matches
+function Show-SearchResults($Info, [object[]]$Items) {
+    $Info.Results.Children.Clear()
+    $shown = @{}
+    foreach ($item in @(@($Info.Picked.Values) + @($Items))) {
+        $value = "$($item.value)"
+        if (-not $value -or $shown.ContainsKey($value)) { continue }
+        $shown[$value] = $true
+        $name = New-Object Windows.Controls.TextBlock
+        $name.TextWrapping = 'Wrap'
+        $name.Inlines.Add((New-Object Windows.Documents.Run "$($item.label)"))
+        if ("$($item.status)") {
+            $tag = New-Object Windows.Documents.Run "  •  $($item.status)"
+            $tag.Foreground = $W.Resources['Ok']; $tag.FontSize = 12
+            $name.Inlines.Add($tag)
+        }
+        $content = New-Object Windows.Controls.StackPanel
+        $content.Children.Add($name) | Out-Null
+        if ("$($item.note)") { $content.Children.Add((New-Text "$($item.note)" 12 'Normal' 'Fg2')) | Out-Null }
+        $box = New-Object Windows.Controls.CheckBox
+        $box.Content = $content
+        $box.VerticalAlignment = 'Center'
+        $box.IsChecked = $Info.Picked.Contains($value)
+        $box.Tag = @{ Info = $Info; Item = $item }
+        $box.Add_Checked({ $this.Tag.Info.Picked["$($this.Tag.Item.value)"] = $this.Tag.Item; Update-CurrentForm })
+        $box.Add_Unchecked({ $this.Tag.Info.Picked.Remove("$($this.Tag.Item.value)"); Update-CurrentForm })
+        $line = New-Object Windows.Controls.Border
+        $line.BorderBrush = $W.Resources['Line']
+        $line.BorderThickness = New-Object Windows.Thickness 0, 1, 0, 0
+        $line.Padding = New-Object Windows.Thickness 0, 9, 0, 9
+        $line.Child = $box
+        $Info.Results.Children.Add($line) | Out-Null
+    }
 }
 
 function Get-CurrentForm { if ($script:Page) { $Forms[$script:Page.Id] } }
@@ -1670,6 +1758,41 @@ function New-FieldRow($Form, $F) {
         return $row
     }
 
+    if ($F.kind -eq 'search') {
+        # The text, then the box with its button (Enter searches too), a status line and the rows to check
+        $stack = New-Object Windows.Controls.StackPanel
+        $stack.Children.Add($text) | Out-Null
+        $bar = New-Object Windows.Controls.StackPanel
+        $bar.Orientation = 'Horizontal'
+        $bar.Margin = New-Object Windows.Thickness 0, 12, 0, 0
+        $find = New-Object Windows.Controls.Grid
+        $find.Width = 340
+        $box = New-Object Windows.Controls.TextBox
+        $hint = New-Text "$(if ($F.placeholder) { $F.placeholder } else { 'Search' })" 13 'Normal' 'Fg3'
+        $hint.Margin = New-Object Windows.Thickness 11, 0, 0, 0
+        $hint.VerticalAlignment = 'Center'; $hint.IsHitTestVisible = $false
+        $find.Children.Add($box) | Out-Null
+        $find.Children.Add($hint) | Out-Null
+        $go = New-Button 'Search'
+        $bar.Children.Add($find) | Out-Null
+        $bar.Children.Add($go) | Out-Null
+        $status = New-Text '' 12 'Normal' 'Fg2'
+        $status.Margin = New-Object Windows.Thickness 0, 10, 0, 0
+        $status.Visibility = 'Collapsed'
+        $results = New-Object Windows.Controls.StackPanel
+        $results.Margin = New-Object Windows.Thickness 0, 8, 0, 0
+        foreach ($c in $bar, $status, $results) { $stack.Children.Add($c) | Out-Null }
+        $info.SearchBox = $box; $info.Button = $go; $info.SearchStatus = $status; $info.Results = $results
+        $info.Picked = [ordered]@{}; $info.Search = $null
+        $box.Tag = @{ Hint = $hint; Form = $Form; Info = $info }
+        $box.Add_TextChanged({ $this.Tag.Hint.Visibility = if ($this.Text) { 'Collapsed' } else { 'Visible' } })
+        $box.Add_KeyDown({ if ($_.Key -eq 'Return') { $_.Handled = $true; Start-AppSearch $this.Tag.Form $this.Tag.Info } })
+        $go.Tag = $box.Tag
+        $go.Add_Click({ Start-AppSearch $this.Tag.Form $this.Tag.Info })
+        $row.Child = $stack
+        return $row
+    }
+
     $grid = New-Grid 'Star', 'Auto'
     $grid.Children.Add($text) | Out-Null
     $control = $null
@@ -1841,6 +1964,7 @@ function Get-FieldValue($Form, [string]$Id) {
         'select'    { if ($c.Control.SelectedItem) { return "$($c.Control.SelectedItem.Tag)" }; return '' }
         { $_ -in 'text', 'path' } { return $c.Box.Text.Trim() }
         'checklist' { return ,@($c.Items | Where-Object { $_.IsChecked } | ForEach-Object { "$($_.Tag)" }) }
+        'search'    { return ,@($c.Picked.Keys | ForEach-Object { "$_" }) }
     }
     return $null
 }
@@ -1902,8 +2026,9 @@ function Get-FormChanges($Form) {
             }
             { $_ -in 'text', 'path' } { if ($value) { $text = "${label}: $value" } }
             { $_ -in 'choice', 'select' } { if ($value) { $text = "${label}: $(Get-OptionLabel $Form $f $value)" } }
+            'search'    { $names = @($Form.Ctl["$($f.id)"].Picked.Values | ForEach-Object { "$($_.label)" }); if ($names) { $text = "$($f.tab): $($names -join ', ')" } }
         }
-        $count = if ($f.footer -or $f.setting) { 0 } elseif ($f.kind -eq 'checklist') { @($value).Count } else { 1 }
+        $count = if ($f.footer -or $f.setting) { 0 } elseif ($f.kind -in 'checklist', 'search') { @($value).Count } else { 1 }
         if (@($text).Count -gt 1) { $count = 1 }
         foreach ($line in @($text | Where-Object { $_ })) { [pscustomobject]@{ Tab = $(if ($f.group) { "$($f.group)" } else { "$($f.tab)" }); Text = $line; Footer = [bool]$f.footer; Count = $count } }
     }
