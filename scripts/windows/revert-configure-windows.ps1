@@ -381,6 +381,16 @@ function Restore-FastStartup {
     }
 }
 
+# Hibernation back on (Windows default): hiberfil.sys is created again, and Fast Startup works again
+function Test-HibernationOff {
+    (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name HibernateEnabled -ErrorAction SilentlyContinue).HibernateEnabled -eq 0
+}
+function Restore-Hibernation {
+    & powercfg.exe /hibernate on
+    if ($LASTEXITCODE -ne 0) { Write-Host "  [ERROR] powercfg ended with code ${LASTEXITCODE}: hibernation is still off." -ForegroundColor Red; return }
+    Write-Done 'Back to the Windows default'
+}
+
 # Num Lock at startup back off (only bit 2; the other bits are kept)
 function Restore-NumLock {
     foreach ($k in 'Registry::HKEY_USERS\.DEFAULT\Control Panel\Keyboard', 'HKCU:\Control Panel\Keyboard') {
@@ -438,6 +448,7 @@ $fields += @(
     New-Field $Lk 'Border' 'toggle' 'Bring the window border back' 'The default border around windows comes back after signing out.' $false
     New-Field $Lk 'Snap' 'toggle' 'Turn Snap windows back on' 'Dragging a window to the edge of the screen arranges it again, after signing out.' $false
     New-Field $Sy 'FastStartup' 'toggle' 'Turn Fast Startup back on' 'Windows starts faster after being shut down, the Windows default.' $false
+    if (Test-HibernationOff) { New-Field $Sy 'Hibernation' 'toggle' 'Turn hibernation back on' 'The Hibernate option comes back, and Fast Startup works again. hiberfil.sys takes space on drive C: again.' $false }
     New-Field $Sy 'NumLock' 'toggle' 'Num Lock off at startup' 'Num Lock starts off again, the Windows default.' $false
     New-Field $Sy 'BlueScreen' 'toggle' 'Simple blue screen' 'The blue screen stops showing the technical details of the error.' $false
     New-Field $Sy 'DeviceApps' 'toggle' 'Download device apps again' 'Windows can download the manufacturer''s apps and icons for your devices again.' $false
@@ -473,7 +484,8 @@ if ($v.FolderTypes)          { Write-Step 'Folder views back to default';       
 if ($v.Inetpub)              { Write-Step 'Inetpub folder visible again';           Show-Inetpub }
 if ($v.Border)               { Write-Step 'Window border back to default';          Restore-Border }
 if ($v.Snap)                 { Write-Step 'Snap windows back on';                   Restore-SnapWindows }
-if ($v.FastStartup)          { Write-Step 'Fast Startup back on';                   Restore-FastStartup; Write-Done 'Back to the Windows default' }
+if ($v.Hibernation)          { Write-Step 'Hibernation back on';                    Restore-Hibernation }      # before Fast Startup, which needs it
+if ($v.FastStartup)          { Write-Step 'Fast Startup back on';                  Restore-FastStartup; Write-Done 'Back to the Windows default' }
 if ($v.NumLock)              { Write-Step 'Num Lock off at startup';                Restore-NumLock; Write-Done 'Back to the Windows default' }
 if ($v.BlueScreen)           { Write-Step 'Simple blue screen';                     Restore-BlueScreen; Write-Done 'Back to the Windows default' }
 if ($v.DeviceApps)           { Write-Step 'Device apps download again';             Restore-DeviceApps; Write-Done 'Back to the Windows default' }

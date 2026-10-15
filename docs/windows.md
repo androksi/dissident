@@ -67,6 +67,7 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 ## Power
 | Feature | What it does |
 |---|---|
+| No hibernation | Only shown when hibernation is on. Turns it off with `powercfg /hibernate off`: `hiberfil.sys` is deleted (often several GB on C:), and Fast Startup and the Hibernate option go away too. Sleep keeps working. On laptops, an empty battery shuts the PC down instead of hibernating. While it is on, the hibernation times are hidden. |
 | Screen, sleep and hibernation | Choose when to turn off the screen, sleep and hibernate, plugged in and (laptops) on battery, from 1 minute to never. Each one shows the current value; the ones you leave empty stay as they are. Hibernation is only asked if it is turned on. Applies to the active power plan, like Settings → System → Power. |
 
 ## Network
@@ -139,5 +140,5 @@ In the [TidyWin panel](../README.md#quick-start): **Undo → Windows**. From a l
 
 | Feature | What it does |
 |---|---|
-| Revert | A page with one switch per subject, all off: only what you turn on is undone. Covers telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen, `inetpub` and update sharing. |
+| Revert | A page with one switch per subject, all off: only what you turn on is undone. Covers telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, hibernation (when it is off), Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen, `inetpub` and update sharing. |
 | Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, screen resolution, refresh rate and scale, screen and sleep times, theme, taskbar, extensions, hidden files and battery (undo through Settings). |

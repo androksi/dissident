@@ -1382,6 +1382,14 @@ function Disable-FastStartup {
 }
 
 # Blue screen (BSoD) also shows the technical parameters of the error, which helps to look up the cause.
+# Hibernation off: Windows deletes hiberfil.sys (about 40% of the RAM, on drive C:). Fast Startup and the
+# Hibernate option in the power menu need it, so they go away too. Sleep is not affected.
+function Disable-Hibernation {
+    & powercfg.exe /hibernate off
+    if ($LASTEXITCODE -ne 0) { throw "powercfg ended with code $LASTEXITCODE" }
+    Write-Done 'Hibernation: off'; Write-Host '  hiberfil.sys was deleted. Fast Startup and the Hibernate option are gone too.' -ForegroundColor DarkGray
+}
+
 function Enable-VerboseBsod {
     Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' 1
     Write-Done 'Detailed blue screen: on'; Write-Host '  Only shows up if the PC crashes.' -ForegroundColor DarkGray
@@ -1595,6 +1603,12 @@ $powerModes = @(@{ Key = 'ac'; Battery = $false; Label = 'Plugged in' })
 if ($hasBattery) { $powerModes += @{ Key = 'dc'; Battery = $true; Label = 'On battery' } }
 
 function Get-PowerFields {
+    # Only when hibernation is on; while this is on, the "Hibernate after" times hide
+    if ($canHibernate) {
+        $warn = if ($hasBattery) { 'On a laptop, when the battery runs out the PC shuts down instead of hibernating: save your work before it does.' } else { '' }
+        New-Field 'Power' 'NoHibernate' 'toggle' 'Turn off hibernation' 'Frees the space hiberfil.sys takes on drive C:, often several GB. Fast Startup and the Hibernate option go away too; sleep keeps working.' $false @{ warn = $warn }
+    }
+    $hibernateShown = @{ field = 'NoHibernate'; is = 'False' }
     foreach ($m in $powerModes) {
         if ($hasBattery) { New-Field 'Power' "power-$($m.Key)" 'header' $m.Label '' $null }
         $cur = Get-PowerTimeout SUB_VIDEO VIDEOIDLE $m.Battery
@@ -1604,7 +1618,7 @@ function Get-PowerFields {
         # Only when hibernation is on: turning it on (hiberfil.sys) is not this script's call
         if ($canHibernate) {
             $cur = Get-PowerTimeout SUB_SLEEP HIBERNATEIDLE $m.Battery
-            New-Field 'Power' "hibernate-timeout-$($m.Key)" 'select' 'Hibernate after' "Now: $(Format-Minutes $cur)" '' @{ options = (Get-MinuteOptions $HibernateChoices $cur) }
+            New-Field 'Power' "hibernate-timeout-$($m.Key)" 'select' 'Hibernate after' "Now: $(Format-Minutes $cur)" '' @{ options = (Get-MinuteOptions $HibernateChoices $cur); when = $hibernateShown }
         }
     }
 }
@@ -1763,6 +1777,7 @@ foreach ($m in $powerModes) {
     foreach ($kind in @('monitor', 'standby', 'hibernate')) {
         $id = "$kind-timeout-$($m.Key)"
         if ("$($values[$id])" -notmatch '^\d+$') { continue }        # nothing picked: stays as it is
+        if ($kind -eq 'hibernate' -and $values.NoHibernate) { continue }   # hibernation is being turned off
         $power[$id] = [int]$values[$id]
         $text += @{ monitor = 'screen'; standby = 'sleep'; hibernate = 'hibernation' }[$kind] + ' ' + (Format-Minutes $power[$id])
     }
@@ -1793,6 +1808,7 @@ $opt = [ordered]@{
     LongPaths = & $flag 'LongPaths'; EndTask = & $flag 'EndTask'; Sudo = & $flag 'Sudo'; ClipboardHistory = & $flag 'ClipboardHistory'
     NoMouseAccel = & $flag 'NoMouseAccel'; NoStickyKeys = & $flag 'NoStickyKeys'; NumLock = & $flag 'NumLock'
     NoFastStartup = & $flag 'NoFastStartup'; VerboseBsod = & $flag 'VerboseBsod'
+    NoHibernate = & $flag 'NoHibernate'
     Power = $powerText
     DNS = $(if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' })
 }
@@ -1812,7 +1828,7 @@ $labels = @{
     LongPaths = 'Long paths'; EndTask = 'End task'; Sudo = 'Sudo'; ClipboardHistory = 'Win+V history'
     NoMouseAccel = 'No acceleration'; NoStickyKeys = 'No Sticky Keys'; DNS = 'DNS'
     NoDeviceApps = 'No device apps'; NoWpbt = 'No WPBT'; NoRecall = 'No Recall'; NoEdgeShortcut = 'No Edge shortcut'; NumLock = 'Num Lock'; NoFastStartup = 'No Fast Startup'; BatteryPercent = 'Battery %'; ShowHidden = 'Hidden files'
-    NoFolderSniff = 'No folder discovery'; VerboseBsod = 'Detailed blue screen'; Power = 'Power'
+    NoFolderSniff = 'No folder discovery'; VerboseBsod = 'Detailed blue screen'; NoHibernate = 'No hibernation'; Power = 'Power'
 }
 $answerLines = @()      # also written to the log file
 if ($chosen) {
@@ -1937,6 +1953,7 @@ if ($opt.LongPaths -or $opt.EndTask -or $opt.Sudo -or $opt.ClipboardHistory -or 
 if ($opt.NumLock)       { Invoke-Step 'Num Lock' { Enable-NumLockAtStartup } }
 if ($opt.NoFastStartup) { Invoke-Step 'Fast Startup' { Disable-FastStartup } }
 if ($opt.VerboseBsod) { Invoke-Step 'Detailed blue screen' { Enable-VerboseBsod } }
+if ($opt.NoHibernate) { Invoke-Step 'Hibernation' { Disable-Hibernation } }
 if ($power.Count) { Invoke-Step 'Screen, sleep and hibernation times' { Set-PowerTimeouts $power } }
 
 # --- Network
