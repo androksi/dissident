@@ -2253,6 +2253,9 @@ $W.Add_Closing({
         Stop-Run
     }
     $timer.Stop()
+    # Pages still being read only read the PC: stopped now, so nothing of TidyWin keeps running after it closes
+    Reset-Pages
+    if ($S.AnswersFile) { Remove-Item -LiteralPath $S.AnswersFile -ErrorAction SilentlyContinue }
 })
 $W.Dispatcher.Add_UnhandledException({
     param($sender, $e)

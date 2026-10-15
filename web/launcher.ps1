@@ -99,11 +99,17 @@
     }
 
     # --- Run it in Windows PowerShell 5.1 (the scripts target it), with Bypass only for this process
-    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', $file)
+    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', "`"$file`"")
     if ($Extra) { $argv += $Extra }
-    # Its errors go to this hidden console: when it stops with one, show it (PowerShell may send it as CLIXML)
-    $errors = & powershell.exe @argv 2>&1 | Where-Object { $_ -is [Management.Automation.ErrorRecord] } | Out-String
-    if ($LASTEXITCODE -ne 0 -and $errors.Trim()) {
+    # Its errors go to a file: when it stops with one, show it (PowerShell may write it as CLIXML).
+    # Waits for the panel itself, not for its output to end: a program the scripts started (an app an
+    # installer opened) can keep that output open long after the panel closed.
+    $errFile = Join-Path $temp 'errors.txt'
+    $panel = Start-Process powershell.exe -ArgumentList $argv -NoNewWindow -PassThru -RedirectStandardError $errFile
+    $null = $panel.Handle          # keeps the process handle, or ExitCode comes back empty
+    $panel.WaitForExit()
+    $errors = try { [IO.File]::ReadAllText($errFile) } catch { '' }
+    if ($panel.ExitCode -ne 0 -and $errors.Trim()) {
         if ($errors -match '<S S="Error">') {
             $errors = (([regex]::Matches($errors, '<S S="Error">(.*?)</S>') | ForEach-Object { $_.Groups[1].Value }) -join '') -replace '_x000D__x000A_', "`n"
         }
