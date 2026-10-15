@@ -1726,7 +1726,7 @@ function New-FieldRow($Form, $F) {
         }
         'text' {
             $control = New-Object Windows.Controls.Grid
-            $control.Width = 260
+            $control.Width = if ($F.validate -eq 'url') { 340 } else { 260 }      # an https:// address is longer than an IP
             $box = New-Object Windows.Controls.TextBox
             $box.Text = "$($F.default)"
             $hint = New-Text "$($F.placeholder)" 13 'Normal' 'Fg3'
@@ -1865,6 +1865,8 @@ function Test-FieldValid($Form, $Field) {
     if ($Field.kind -ne 'text') { return $true }
     $v = Get-FieldValue $Form "$($Field.id)"
     if (-not $v) { return [bool]$Field.optional }
+    # An https:// address (DNS over HTTPS); the same pattern as configure-windows.ps1
+    if ($Field.validate -eq 'url') { return $v -match '^https://[^\s/:]+\.[^\s/:]+(:\d+)?(/\S*)?$' }
     $ip = $null
     if (-not [Net.IPAddress]::TryParse($v, [ref]$ip)) { return $false }
     if ($Field.validate -eq 'ipv4') { return $ip.AddressFamily -eq 'InterNetwork' -and $v -match '^\d{1,3}(\.\d{1,3}){3}$' }

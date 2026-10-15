@@ -75,6 +75,7 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 | Feature | What it does |
 |---|---|
 | DNS | Sets IPv4 and IPv6 DNS manually, with DNS over HTTPS (automatic template) on Windows 11. |
+| DNS over HTTPS address | Windows 11. Optional: for servers Windows doesn't know (NextDNS, AdGuard, Control D…), their `https://` address is added to Windows' table of DoH servers, so they are encrypted too. Empty: Cloudflare, Google and Quad9 use Windows' own addresses. What the table had is saved to `%ProgramData%\TidyWin\doh-servers.json`, and *DNS back to automatic* in Revert puts it back. |
 
 ## Misc
 | Feature | What it does |

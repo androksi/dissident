@@ -317,6 +317,17 @@ function Read-IP([string]$Question, [string]$Family, [bool]$Optional) {
     }
 }
 
+# Reads a typed https:// address (the DNS over HTTPS one). The panel checks it with the same pattern.
+$UrlPattern = '^https://[^\s/:]+\.[^\s/:]+(:\d+)?(/\S*)?$'
+function Read-Url([string]$Question, [bool]$Optional) {
+    while ($true) {
+        $answer = "$(Read-Host "    $Question")".Trim()
+        if ($answer -eq '' -and $Optional) { return $null }
+        if ($answer -match $UrlPattern) { return $answer }
+        Write-Host '    Invalid address. Example: https://dns.example.com/dns-query' -ForegroundColor DarkYellow
+    }
+}
+
 # Runs a step. If it fails, records the failure and moves on to the next one.
 $script:Failures = @()
 $script:StepCount = 0
@@ -1465,9 +1476,30 @@ function Set-PowerTimeouts($Values) {
 # Sets DNS on every physical adapter (Wi-Fi and Ethernet, even disconnected ones; skips VPNs and
 # virtual adapters). On Windows 11 turns on "On (automatic template)" for each server:
 # DohFlags = 1 per adapter — Windows cmdlets don't write this; it is the same value the Settings page uses.
-function Set-DNS([string[]]$V4, [string[]]$V6) {
+# $Template: the server's DNS over HTTPS address, for servers Windows doesn't know (NextDNS, AdGuard...).
+# It goes in Windows' own table of DoH servers, which the "automatic template" reads, for each address.
+# What the table had for those addresses is saved first, so Undo → Windows → DNS can put it back.
+$DohStateFile = Join-Path $env:ProgramData 'TidyWin\doh-servers.json'
+function Set-DohTemplate([string[]]$Servers, [string]$Template) {
+    $saved = @{}
+    if (Test-Path $DohStateFile) { try { (Get-Content $DohStateFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $saved[$_.Name] = $_.Value } } catch { } }
+    foreach ($ip in $Servers) {
+        $now = Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue
+        if (-not $saved.ContainsKey($ip)) {        # only the first time: the table as Windows had it
+            $saved[$ip] = if ($now) { [ordered]@{ Template = $now.DohTemplate; Fallback = [bool]$now.AllowFallbackToUdp; AutoUpgrade = [bool]$now.AutoUpgrade } } else { $null }
+        }
+        if ($now) { Set-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $Template -AllowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop | Out-Null }
+        else      { Add-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $Template -AllowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop | Out-Null }
+    }
+    New-Item -ItemType Directory -Path (Split-Path $DohStateFile) -Force | Out-Null
+    ConvertTo-Json $saved | Set-Content $DohStateFile -Encoding UTF8
+    Write-Done "DNS over HTTPS: $Template"
+}
+
+function Set-DNS([string[]]$V4, [string[]]$V6, [string]$Template) {
     $base = 'HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\InterfaceSpecificParameters'
     $all = @($V4) + @($V6)
+    if ($isWin11 -and $Template) { Set-DohTemplate $all $Template }
     $adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -ne 'Disabled')
     if (-not $adapters) { throw 'no physical network adapter found' }
     foreach ($adapter in $adapters) {
@@ -1708,6 +1740,10 @@ function Get-Fields {
     New-Field $N 'Dns4b' 'text' 'Alternate IPv4 DNS' '' '' @{ placeholder = '1.0.0.1'; validate = 'ipv4'; optional = $true; when = $dns }
     New-Field $N 'Dns6a' 'text' 'Preferred IPv6 DNS' 'Leave it empty to keep the router''s IPv6 DNS.' '' @{ placeholder = '2606:4700:4700::1111'; validate = 'ipv6'; optional = $true; when = $dns }
     New-Field $N 'Dns6b' 'text' 'Alternate IPv6 DNS' '' '' @{ placeholder = '2606:4700:4700::1001'; validate = 'ipv6'; optional = $true; when = $dns }
+    if ($isWin11) {
+        New-Field $N 'DohTemplate' 'text' 'DNS over HTTPS address' 'Leave it empty for Cloudflare, Google and Quad9: Windows already knows them. For another server, like NextDNS, AdGuard or Control D, paste its https:// address so it is encrypted too.' '' @{
+            placeholder = 'https://dns.example.com/dns-query'; validate = 'url'; optional = $true; when = $dns }
+    }
 
     if ($isWin11 -and $hasBattery) { New-Field $M 'BatteryPercent' 'toggle' 'Show the battery percentage' 'Next to the battery icon on the taskbar.' $false }
     New-Field $M 'ThinBorder' 'toggle' 'Thinner resize border' 'The invisible edge used to resize windows gets smaller, so you resize less by accident. Applies after signing out.' $false
@@ -1747,8 +1783,12 @@ function Read-FieldsFromConsole($Fields, $Values) {
                 $Values[$f.id] = @(Select-Many $f.label $rows | ForEach-Object { $_.Value })
             }
             'text' {
-                $family = if ($f.validate -eq 'ipv6') { 'InterNetworkV6' } else { 'InterNetwork' }
-                $Values[$f.id] = "$(Read-IP "$($f.label)$(if ($f.optional) { ', Enter skips' }):" $family ([bool]$f.optional))"
+                $question = "$($f.label)$(if ($f.optional) { ', Enter skips' }):"
+                if ($f.validate -eq 'url') { $Values[$f.id] = "$(Read-Url $question ([bool]$f.optional))" }
+                else {
+                    $family = if ($f.validate -eq 'ipv6') { 'InterNetworkV6' } else { 'InterNetwork' }
+                    $Values[$f.id] = "$(Read-IP $question $family ([bool]$f.optional))"
+                }
             }
             default {
                 # choice and select; "Skip" leaves the setting as it is
@@ -1814,6 +1854,8 @@ if ($values.Dns) {
     foreach ($id in 'Dns4a', 'Dns4b') { $ip = ConvertTo-IPText $values[$id] 'InterNetwork'; if ($ip) { $dnsV4 += $ip } }
     if ($dnsV4) { foreach ($id in 'Dns6a', 'Dns6b') { $ip = ConvertTo-IPText $values[$id] 'InterNetworkV6'; if ($ip) { $dnsV6 += $ip } } }
 }
+$dohTemplate = "$($values.DohTemplate)".Trim()
+if ($dohTemplate -and ($dohTemplate -notmatch $UrlPattern -or -not $isWin11)) { $dohTemplate = '' }
 $flag = { param($id) [bool]$values[$id] }
 $opt = [ordered]@{
     Telemetry = & $flag 'Telemetry'; Suggestions = & $flag 'Suggestions'
@@ -1836,7 +1878,7 @@ $opt = [ordered]@{
     NoFastStartup = & $flag 'NoFastStartup'; VerboseBsod = & $flag 'VerboseBsod'
     NoHibernate = & $flag 'NoHibernate'
     Power = $powerText
-    DNS = $(if ($dnsV4) { ($dnsV4 + $dnsV6) -join ', ' } else { 'Keep' })
+    DNS = $(if ($dnsV4) { (($dnsV4 + $dnsV6) -join ', ') + $(if ($dohTemplate) { " (DNS over HTTPS: $dohTemplate)" }) } else { 'Keep' })
 }
 
 $chosen = @($opt.Keys | Where-Object {
@@ -1988,14 +2030,14 @@ if ($dnsV4) {
     Invoke-Step "DNS: $($opt.DNS)" {
         # The "automatic template" only exists for servers Windows knows (Cloudflare, Google, Quad9...)
         if (-not $isWin11) { Write-Host '  Windows 10 has no system-wide DNS over HTTPS: DNS is set unencrypted.' -ForegroundColor Yellow }
-        else {
+        elseif (-not $dohTemplate) {      # with an address of its own, every server is encrypted
             foreach ($ip in ($dnsV4 + $dnsV6)) {
                 if (-not (Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue)) {
-                    Write-Host "  Windows has no encryption template for ${ip}: that server is UNENCRYPTED." -ForegroundColor Yellow
+                    Write-Host "  Windows has no encryption template for ${ip}: that server is UNENCRYPTED. Fill in its DNS over HTTPS address to encrypt it." -ForegroundColor Yellow
                 }
             }
         }
-        Set-DNS $dnsV4 $dnsV6
+        Set-DNS $dnsV4 $dnsV6 $dohTemplate
     }
 }
 

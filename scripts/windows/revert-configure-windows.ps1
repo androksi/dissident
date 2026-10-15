@@ -340,7 +340,27 @@ function Restore-DNS {
         Remove-Item "$base\$($adapter.InterfaceGuid)\DohInterfaceSettings" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Done "$($adapter.Name): automatic"
     }
+    Restore-DohTable
     Clear-DnsClientCache
+}
+
+# The DNS over HTTPS addresses TidyWin put in Windows' table of DoH servers go back to what the table had:
+# servers Windows knows get their own address back, the others leave the table.
+function Restore-DohTable {
+    $file = Join-Path $env:ProgramData 'TidyWin\doh-servers.json'
+    if (-not (Test-Path $file)) { return }
+    try { $saved = Get-Content $file -Raw | ConvertFrom-Json } catch { return }
+    foreach ($p in $saved.PSObject.Properties) {
+        try {
+            if ($p.Value) {
+                Set-DnsClientDohServerAddress -ServerAddress $p.Name -DohTemplate $p.Value.Template -AllowFallbackToUdp ([bool]$p.Value.Fallback) -AutoUpgrade ([bool]$p.Value.AutoUpgrade) -ErrorAction Stop | Out-Null
+            } else {
+                Remove-DnsClientDohServerAddress -ServerAddress $p.Name -ErrorAction Stop
+            }
+        } catch { }
+    }
+    Remove-Item $file -Force -ErrorAction SilentlyContinue
+    Write-Done 'DNS over HTTPS addresses: back to the Windows list'
 }
 
 # Brings "Home" and "Gallery" back to the File Explorer sidebar and makes it open in Home again.
