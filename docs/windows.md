@@ -76,7 +76,7 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 |---|---|
 | DNS | Sets IPv4 and IPv6 DNS manually, with DNS over HTTPS (automatic template) on Windows 11. |
 | Adapters | *Every network adapter* comes on: every Wi-Fi and Ethernet adapter, connected or not. Turn it off to pick them from a list (with their model and whether they are connected); none picked leaves the DNS as it is. |
-| DNS over HTTPS address | Windows 11. Optional: for servers Windows doesn't know (NextDNS, AdGuard, Control D…), their `https://` address is added to Windows' table of DoH servers, so they are encrypted too. Empty: Cloudflare, Google and Quad9 use Windows' own addresses. What the table had is saved to `%ProgramData%\TidyWin\doh-servers.json`, and *DNS back to automatic* in Revert puts it back. |
+| DNS over HTTPS address | Windows 11. Optional: for servers Windows doesn't know (NextDNS, AdGuard, Control D…), their `https://` address is added to Windows' table of DoH servers, so they are encrypted too. It only goes to those servers: Cloudflare, Google and Quad9 always keep their own address, so you can mix them (1.1.1.1 with 8.8.8.8, or with a NextDNS address). With two unknown servers the log warns that they must be from the same provider. The servers TidyWin adds are listed in `%ProgramData%\TidyWin\doh-servers.json`, and *DNS back to automatic* in Revert removes them. |
 
 ## Misc
 | Feature | What it does |

@@ -1476,24 +1476,46 @@ function Set-PowerTimeouts($Values) {
 # Sets DNS on every physical adapter (Wi-Fi and Ethernet, even disconnected ones; skips VPNs and
 # virtual adapters). On Windows 11 turns on "On (automatic template)" for each server:
 # DohFlags = 1 per adapter — Windows cmdlets don't write this; it is the same value the Settings page uses.
-# $Template: the server's DNS over HTTPS address, for servers Windows doesn't know (NextDNS, AdGuard...).
-# It goes in Windows' own table of DoH servers, which the "automatic template" reads, for each address.
-# What the table had for those addresses is saved first, so Undo → Windows → DNS can put it back.
+# $Template: the DNS over HTTPS address for servers Windows doesn't know (NextDNS, AdGuard...). It goes in
+# Windows' own table of DoH servers, which the "automatic template" reads, but only for those servers: the
+# ones Windows knows (Cloudflare, Google, Quad9...) keep their own address, so 1.1.1.1 with 8.8.8.8, or with
+# a NextDNS address, each use their provider's. A server TidyWin added to the table counts as unknown.
+# The servers TidyWin added are listed in the state file (null), so Undo → Windows → DNS removes them; an
+# older TidyWin also changed known servers, and saved their address there: it goes back now.
 $DohStateFile = Join-Path $env:ProgramData 'TidyWin\doh-servers.json'
 function Set-DohTemplate([string[]]$Servers, [string]$Template) {
     $saved = @{}
     if (Test-Path $DohStateFile) { try { (Get-Content $DohStateFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $saved[$_.Name] = $_.Value } } catch { } }
+    $known = @(); $unknown = @()
     foreach ($ip in $Servers) {
         $now = Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue
-        if (-not $saved.ContainsKey($ip)) {        # only the first time: the table as Windows had it
-            $saved[$ip] = if ($now) { [ordered]@{ Template = $now.DohTemplate; Fallback = [bool]$now.AllowFallbackToUdp; AutoUpgrade = [bool]$now.AutoUpgrade } } else { $null }
+        $ours = $saved.ContainsKey($ip) -and $null -eq $saved[$ip]
+        if ($now -and -not $ours) {
+            if ($saved.ContainsKey($ip)) {
+                $o = $saved[$ip]
+                Set-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $o.Template -AllowFallbackToUdp ([bool]$o.Fallback) -AutoUpgrade ([bool]$o.AutoUpgrade) -ErrorAction Stop | Out-Null
+                $saved.Remove($ip)
+            }
+            $known += $ip
+            continue
         }
+        $saved[$ip] = $null
         if ($now) { Set-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $Template -AllowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop | Out-Null }
         else      { Add-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $Template -AllowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop | Out-Null }
+        $unknown += $ip
     }
-    New-Item -ItemType Directory -Path (Split-Path $DohStateFile) -Force | Out-Null
-    ConvertTo-Json $saved | Set-Content $DohStateFile -Encoding UTF8
-    Write-Done "DNS over HTTPS: $Template"
+    if ($saved.Count) {
+        New-Item -ItemType Directory -Path (Split-Path $DohStateFile) -Force | Out-Null
+        ConvertTo-Json $saved | Set-Content $DohStateFile -Encoding UTF8
+    } else { Remove-Item $DohStateFile -Force -ErrorAction SilentlyContinue }
+
+    if ($known) { Write-Host "  $($known -join ', '): a server Windows already knows, so it keeps its own encrypted address." -ForegroundColor DarkGray }
+    if (-not $unknown) { Write-Host '  The DNS over HTTPS address was not used: every server is one Windows already knows.' -ForegroundColor DarkYellow; return }
+    Write-Done "DNS over HTTPS: $Template, for $($unknown -join ', ')"
+    if ($unknown.Count -gt 1) {
+        Write-Host "  The same DNS over HTTPS address went to $($unknown -join ', '). They must be from the same provider," -ForegroundColor Yellow
+        Write-Host '  like the two addresses NextDNS gives you. A server from another provider would stop answering.' -ForegroundColor Yellow
+    }
 }
 
 # $Adapters: the InterfaceGuid of each adapter to change; none = every one.
@@ -1747,7 +1769,7 @@ function Get-Fields {
     New-Field $N 'Dns6a' 'text' 'Preferred IPv6 DNS' 'Leave it empty to keep the router''s IPv6 DNS.' '' @{ placeholder = '2606:4700:4700::1111'; validate = 'ipv6'; optional = $true; when = $dns }
     New-Field $N 'Dns6b' 'text' 'Alternate IPv6 DNS' '' '' @{ placeholder = '2606:4700:4700::1001'; validate = 'ipv6'; optional = $true; when = $dns }
     if ($isWin11) {
-        New-Field $N 'DohTemplate' 'text' 'DNS over HTTPS address' 'Leave it empty for Cloudflare, Google and Quad9: Windows already knows them. For another server, like NextDNS, AdGuard or Control D, paste its https:// address so it is encrypted too.' '' @{
+        New-Field $N 'DohTemplate' 'text' 'DNS over HTTPS address' 'For a server Windows doesn''t know, like NextDNS, AdGuard or Control D: paste its https:// address so it is encrypted too. Cloudflare, Google and Quad9 always keep their own, so you can mix them. Two unknown servers must be from the same provider.' '' @{
             placeholder = 'https://dns.example.com/dns-query'; validate = 'url'; optional = $true; when = $dns }
     }
     # Where: every adapter (on by default), or only the ones checked in the list below it
