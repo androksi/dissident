@@ -83,7 +83,7 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 | Thin border | Shrinks the invisible window resize area. |
 | No Music in Quick access | Unpins the Music folder from Quick access (the folder stays). |
 | C: folders | Hides `inetpub` and deletes `PerfLogs`. |
-| Num Lock | Num Lock on when Windows starts, sign-in screen included. |
+| Num Lock | Num Lock on when Windows starts, sign-in screen included. It is also turned on right away: Windows saves your Num Lock state when you sign out or shut down, so it has to be on then. |
 | Sudo | Turns on `sudo` in the terminal. |
 
 ## Cleanup

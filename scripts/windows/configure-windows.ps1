@@ -1373,13 +1373,29 @@ function Get-RegValue([string]$Path, [string]$Name) {
 
 # Num Lock on when Windows starts: on the sign-in screen (.DEFAULT) and for your user.
 # Only bit 2 (Num Lock) is turned on; the other bits of the value are kept.
+# Windows saves your user's Num Lock state over this value when you sign out or shut down: with Num Lock
+# off at that moment, it came back off after signing in. So it is also turned on now, and stays saved as on.
 $NumLockKeys = @('Registry::HKEY_USERS\.DEFAULT\Control Panel\Keyboard', 'HKCU:\Control Panel\Keyboard')
 function Enable-NumLockAtStartup {
     foreach ($k in $NumLockKeys) {
         $n = [int64]0; [void][int64]::TryParse([string](Get-RegValue $k 'InitialKeyboardIndicators'), [ref]$n)
         Set-Reg $k 'InitialKeyboardIndicators' ([string]($n -bor 2)) 'String'
     }
-    Write-Done 'Num Lock: on when Windows starts'
+    Add-Type -AssemblyName System.Windows.Forms
+    if (-not [Windows.Forms.Control]::IsKeyLocked('NumLock')) {
+        if (-not ('CfgWin.Keys' -as [type])) {
+            Add-Type -Namespace CfgWin -Name Keys -MemberDefinition @'
+[DllImport("user32.dll")]
+public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, System.UIntPtr dwExtraInfo);
+'@
+        }
+        # VK_NUMLOCK = 0x90 (scan code 0x45): pressed and released. KEYEVENTF_EXTENDEDKEY = 1, KEYUP = 2
+        [CfgWin.Keys]::keybd_event(0x90, 0x45, 1, [UIntPtr]::Zero)
+        [CfgWin.Keys]::keybd_event(0x90, 0x45, 3, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 100
+    }
+    $now = if ([Windows.Forms.Control]::IsKeyLocked('NumLock')) { 'on now too' } else { 'turn it on with the key once, so Windows saves it' }
+    Write-Done "Num Lock: on when Windows starts ($now)"
 }
 
 # Fast Startup makes "Shut down" a partial hibernation. Off = a real shutdown every time: drivers and
