@@ -58,6 +58,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -333,13 +340,16 @@ function Get-AppRow([string]$Id, [string]$Name, [string]$Source, [string]$Status
 
 function Invoke-Export {
     $hasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
+    Write-Loading 'Looking for drives to save to' 5
     $fields = @(Get-PlaceFields)
     $packages = @(); $names = @{}
     if ($hasWinget) {
+        Write-Loading 'Listing the apps WinGet can save' 20
         # What winget export would save, to show it (apps WinGet doesn't know are left out)
         $list = Join-Path $env:TEMP "tidywin-apps-$PID.json"
         & winget export -o $list --accept-source-agreements *> $null
         if (Test-Path -LiteralPath $list) { $packages = @(Get-ExportPackages $list | Sort-Object Id -Unique); Remove-Item -LiteralPath $list -Force -ErrorAction SilentlyContinue }
+        Write-Loading 'Reading the app names' 65
         $names = Get-InstalledApps
         $packages = @($packages | Sort-Object { if ($names[$_.Id]) { $names[$_.Id] } else { Get-NameFromId $_.Id } })
     }
@@ -393,10 +403,12 @@ function Get-SavedApps([string]$Root) {
 
 function Invoke-Import {
     $hasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
+    Write-Loading 'Looking for backups on your drives' 5
     $found = @(Find-Backups)
     $fields = @(Get-RestoreFields)
     if ($hasWinget) {
         $fields += New-SwitchField 'Restore' 'Apps' 'Apps' 'Pick the ones to install, with WinGet. The ones marked Installed are already on this PC.' ($found.Count -gt 0)
+        Write-Loading 'Checking which apps are already installed' 40
         $installed = if ($found) { Get-InstalledApps } else { @{} }
         for ($i = 0; $i -lt $found.Count; $i++) {
             $apps = @(Get-SavedApps $found[$i].FullName)

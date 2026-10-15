@@ -541,6 +541,42 @@ $Xaml = @'
       <Setter Property="CornerRadius" Value="8"/>
       <Setter Property="Padding" Value="20,18"/>
     </Style>
+
+    <!-- Under the loading ring: a thin bar that fills as the page is read; with nothing to measure, a
+         short piece glides across it -->
+    <Style x:Key="LoadBar" TargetType="ProgressBar">
+      <Setter Property="Height" Value="4"/>
+      <Setter Property="Minimum" Value="0"/>
+      <Setter Property="Maximum" Value="100"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ProgressBar">
+            <Grid x:Name="PART_Track" ClipToBounds="True">
+              <Border Background="{StaticResource Line}" CornerRadius="2"/>
+              <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{StaticResource Accent}" CornerRadius="2"/>
+              <Border x:Name="Glide" Width="80" HorizontalAlignment="Left" Background="{StaticResource Accent}" CornerRadius="2" Visibility="Collapsed">
+                <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
+              </Border>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsIndeterminate" Value="True">
+                <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Glide" Property="Visibility" Value="Visible"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard x:Name="GlideRun">
+                    <Storyboard RepeatBehavior="Forever">
+                      <DoubleAnimation Storyboard.TargetName="Glide" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                       From="-80" To="320" Duration="0:0:1.4"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions><StopStoryboard BeginStoryboardName="GlideRun"/></Trigger.ExitActions>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
 
   <Grid>
@@ -592,23 +628,26 @@ $Xaml = @'
 
         <!-- Options on a page (Windows...): read from the script, in tabs -->
         <TextBlock x:Name="Loading" Grid.Row="2" Margin="0,24,0,0" Foreground="{StaticResource Fg2}" TextWrapping="Wrap" Visibility="Collapsed"/>
-        <!-- Reading the options: a turning ring in the middle -->
-        <Grid x:Name="Spinner" Grid.Row="2" Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center"
-              RenderTransformOrigin="0.5,0.5" Visibility="Collapsed">
-          <Grid.RenderTransform><RotateTransform/></Grid.RenderTransform>
-          <Ellipse Stroke="{StaticResource Line}" StrokeThickness="3"/>
-          <Path Stroke="{StaticResource Accent}" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                Data="M20,1.5 A18.5,18.5 0 0 1 38.5,20"/>
-          <Grid.Triggers>
-            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-              <BeginStoryboard>
-                <Storyboard RepeatBehavior="Forever">
-                  <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:0.9"/>
-                </Storyboard>
-              </BeginStoryboard>
-            </EventTrigger>
-          </Grid.Triggers>
-        </Grid>
+        <!-- Reading the options: a turning ring in the middle, and under it a bar with what is being read -->
+        <StackPanel x:Name="Spinner" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+          <Grid Width="40" Height="40" HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform><RotateTransform/></Grid.RenderTransform>
+            <Ellipse Stroke="{StaticResource Line}" StrokeThickness="3"/>
+            <Path Stroke="{StaticResource Accent}" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                  Data="M20,1.5 A18.5,18.5 0 0 1 38.5,20"/>
+            <Grid.Triggers>
+              <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                <BeginStoryboard>
+                  <Storyboard RepeatBehavior="Forever">
+                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:0.9"/>
+                  </Storyboard>
+                </BeginStoryboard>
+              </EventTrigger>
+            </Grid.Triggers>
+          </Grid>
+          <ProgressBar x:Name="LoadBar" Style="{StaticResource LoadBar}" Width="320" Margin="0,24,0,0" IsIndeterminate="True"/>
+          <TextBlock x:Name="LoadText" Width="320" Margin="0,10,0,0" TextAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource Fg2}"/>
+        </StackPanel>
         <Grid x:Name="FormView" Grid.Row="2" Margin="0,18,0,0" Visibility="Collapsed">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -1349,14 +1388,16 @@ $Describes = @{}      # option id -> the script reading the options of this PC
 # An option with more than one script (Back up: apps, then drivers) describes each one in turn; the page
 # has the tabs and fields of all of them, a field id that comes again (where to save) only once.
 function Start-Describe($Item) {
-    $d = @{ Item = $Item; Step = -1; Pages = New-Object System.Collections.Generic.List[object]; Output = New-Object System.Collections.Generic.List[string]; Failed = $false }
+    $d = @{ Item = $Item; Step = -1; Pages = New-Object System.Collections.Generic.List[object]; Output = New-Object System.Collections.Generic.List[string]; Failed = $false
+            Percent = $null; Text = '' }
     $Describes[$Item.Id] = $d
     Start-DescribeStep $d
 }
 
 function Start-DescribeStep($D) {
     $D.Step++
-    $D.File = Join-Path $env:TEMP "tidywin-$($D.Item.Id)-options-$($D.Step).json"
+    $D.Percent = $null; $D.Text = ''
+    $D.File =Join-Path $env:TEMP "tidywin-$($D.Item.Id)-options-$($D.Step).json"
     Remove-Item -LiteralPath $D.File -ErrorAction SilentlyContinue
     $D.Runner = New-Object TidyWinPanel.Runner
     try { $D.Runner.Start((Get-StepCommand $D.Item.Steps[$D.Step] "-Describe '$($D.File -replace "'", "''")'")) }
@@ -1379,9 +1420,18 @@ function Update-Describes {
         $d = $Describes[$id]
         $line = $null
         while ($d.Runner.Lines.TryDequeue([ref]$line)) {
+            # What the script is reading now (Write-Loading): for the bar under the loading ring
+            if ($line.StartsWith('##TIDYWIN ')) {
+                try {
+                    $msg = ConvertFrom-Json $line.Substring(10)
+                    if ($msg.type -eq 'progress') { $d.Percent = if ($null -ne $msg.value) { [double]$msg.value } else { $null }; $d.Text = "$($msg.text)" }
+                } catch { }
+                continue
+            }
             $d.Output.Add(($line -replace '[\x01][A-Za-z]*[\x02]', ''))
             if ($d.Output.Count -gt 8) { $d.Output.RemoveAt(0) }
         }
+        if ($script:Page.Id -eq $id) { Update-LoadBar $d }
         if (-not $d.Failed -and -not $d.Runner.Done) { continue }
         $data = $null
         try { $data = [IO.File]::ReadAllText($d.File) | ConvertFrom-Json } catch { }
@@ -1393,6 +1443,25 @@ function Update-Describes {
                       else { @{ Item = $d.Item; Error = "Could not read the settings of this PC.`n`n$(@($d.Output | Where-Object { $_.Trim() }) -join "`n")" } }
         if ($script:Page.Id -eq $id) { Show-Page $d.Item }
     }
+}
+
+# The bar under the loading ring. A page with several scripts (Back up: drivers, apps, Wi-Fi) fills one part
+# per script, and each script fills its part as it reports how far it is (Write-Loading). A single script that
+# gives no number shows a gliding bar instead. The text says what is being read now.
+function Update-LoadBar($D) {
+    $steps = [Math]::Max(1, @($D.Item.Steps).Count)
+    $step  = [Math]::Max(0, $D.Step)
+    if ($null -eq $D.Percent -and $steps -eq 1) {
+        $ui.LoadBar.IsIndeterminate = $true
+    } else {
+        $part = if ($null -ne $D.Percent) { [Math]::Min(100, [Math]::Max(0, $D.Percent)) / 100 } else { 0 }
+        $ui.LoadBar.IsIndeterminate = $false
+        $ui.LoadBar.Value = 100 * ($step + $part) / $steps
+    }
+    $text = if ($D.Text) { $D.Text } else { 'Starting' }
+    $name = @($D.Item.Steps)[$step].Name
+    if ($steps -gt 1 -and $name) { $text = "$name ($($step + 1) of $steps) · $text" }
+    $ui.LoadText.Text = "$text…"
 }
 
 # What an option changes shows on other pages too (an app from Apps in Remove apps, a policy
@@ -2089,6 +2158,7 @@ function Show-Page($Item) {
         if (-not $form) {
             if (-not $Describes.ContainsKey($Item.Id)) { Start-Describe $Item }
             Set-View 'loading'
+            Update-LoadBar $Describes[$Item.Id]
         } elseif ($form.Error) {
             $ui.Loading.Text = $form.Error
             $ui.Loading.Foreground = $W.Resources['Err']
@@ -2132,7 +2202,7 @@ $W = [Windows.Markup.XamlReader]::Parse($text)
 $ui = @{}
 foreach ($name in 'Logo', 'OsLabel', 'Nav', 'PageTitle', 'Intro', 'Points', 'StartBtn', 'IntroNote', 'Run',
                   'QuestionRow', 'LogRow', 'Question', 'Log', 'Footer', 'Status', 'CopyBtn', 'StopBtn', 'DoneBtn',
-                  'Loading', 'Spinner', 'FormView', 'Tabs', 'FormScroll', 'ReviewView', 'ReviewList', 'RetryBtn', 'BackBtn', 'ReviewBtn', 'ApplyBtn', 'FooterSlot') {
+                  'Loading', 'Spinner', 'LoadBar', 'LoadText', 'FormView', 'Tabs', 'FormScroll', 'ReviewView', 'ReviewList', 'RetryBtn', 'BackBtn', 'ReviewBtn', 'ApplyBtn', 'FooterSlot') {
     $ui[$name] = $W.FindName($name)
 }
 

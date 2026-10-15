@@ -66,6 +66,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -355,6 +362,7 @@ $fields = @(
     New-Field $T 'DiskFix' 'toggle' 'Fix disk errors at the next restart' 'Only if the check finds errors. A quick fix takes seconds at startup; a full one can take several minutes.' $false @{ when = @{ field = 'Disk'; is = 'True' } }
     New-Field $T 'NoRestorePoint' 'toggle' 'Go on without a restore point' 'A restore point is created first. If Windows can''t create one, the repairs only run with this on. They only use Windows'' own tools.' $false
 )
+Write-Loading 'Checking for a pending restart'
 $notes = @(if (Test-PendingReboot) { 'An update is waiting for the PC to restart: restart first, the repairs may fail until then.' })
 if ($Describe) { Write-OptionsPage $Describe $fields $notes; return }
 

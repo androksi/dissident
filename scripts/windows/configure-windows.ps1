@@ -62,6 +62,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -403,6 +410,7 @@ if ($PSVersionTable.PSEdition -ne 'Desktop') {
 
 #region ==================== 2. SYSTEM DETECTION ====================
 
+Write-Loading 'Reading the Windows version' 5
 $build      = [Environment]::OSVersion.Version.Build
 $isWin11    = $build -ge 22000
 $cv         = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
@@ -416,6 +424,7 @@ $foldersInOneDrive = @('Desktop', 'MyDocuments', 'MyPictures') |
     Where-Object { $_ -match '\\OneDrive' }
 
 # Laptop (has a battery)? The battery percentage question only shows up on laptops.
+Write-Loading 'Checking for a battery and the account type' 10
 $hasBattery = [bool](Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue)
 
 # Local account (not a Microsoft account)? Sets the default of the Windows Security areas question.
@@ -1466,11 +1475,13 @@ $taskViewIds = @('Keep', 'Show', 'Hide');           $taskViewNames = @('Default'
 function Get-ChoiceOptions([string[]]$Ids, [string[]]$Names) { @(for ($i = 1; $i -lt $Ids.Count; $i++) { Opt $Ids[$i] $Names[$i] }) }   # without "Keep"
 
 # Preinstalled apps on this PC (see Get-AppCatalog); in the list by their first package name
+Write-Loading 'Listing the preinstalled apps' 20
 $presentApps = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name) +
                @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Select-Object -ExpandProperty DisplayName)
 $appRows = @(Get-AppCatalog | Where-Object { $row = $_; $row.Packages | Where-Object { $presentApps -contains $_ } })
 
 # --- Screen: the same reading of each display for the options and for applying them
+Write-Loading 'Reading the screens' 55
 $script:Displays = @()
 try { Initialize-DisplayApi; $script:Displays = @([CfgWin.DisplayApi]::GetDisplays()) } catch { }
 
@@ -1578,6 +1589,7 @@ function Get-MinuteOptions([int[]]$Choices, $Current) {
     @($values | ForEach-Object { Opt $_ ((Format-Minutes $_) + $(if ($_ -eq $Current) { ' · current' } else { '' })) })
 }
 
+Write-Loading 'Reading the power settings' 65
 $canHibernate = Test-HibernateEnabled
 $powerModes = @(@{ Key = 'ac'; Battery = $false; Label = 'Plugged in' })
 if ($hasBattery) { $powerModes += @{ Key = 'dc'; Battery = $true; Label = 'On battery' } }
@@ -1714,6 +1726,7 @@ if ($cv.EditionID -match 'Core' -and -not $Describe) {
     Write-Host '  Windows Home: some policies only work on Pro; the rest works normally.' -ForegroundColor DarkYellow
 }
 
+Write-Loading 'Reading the current settings' 75
 $fields = @(Get-Fields)
 
 # --- For the panel: every option and its default, then stop

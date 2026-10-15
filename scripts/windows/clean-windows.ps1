@@ -59,6 +59,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -335,7 +342,9 @@ if (-not $script:Panel) { Write-Host "`nClean-Windows" -ForegroundColor Green } 
 # --- Measure
 Write-Step 'Measuring what can be cleaned'
 $Items = @($Items | Where-Object { -not $_.Present -or (& $_.Present) })
-foreach ($item in $Items) {
+for ($i = 0; $i -lt $Items.Count; $i++) {
+    $item = $Items[$i]
+    Write-Loading "Measuring $($item.Name)" ([int](100 * $i / $Items.Count))
     $item.Bytes = if ($item.Size) { & $item.Size } else { $null }
     $shown = if ($null -eq $item.Bytes) { '?' } else { Format-Size $item.Bytes }
     Write-Host ('  {0,-44} {1,10}' -f $item.Name, $shown)

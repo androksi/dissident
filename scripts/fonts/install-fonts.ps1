@@ -59,6 +59,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -463,6 +470,7 @@ function Save-State([object[]]$State) {
 
 # The fonts TidyWin installed, nothing selected; only the ones picked are removed.
 function Invoke-Revert {
+    Write-Loading 'Reading the fonts TidyWin installed' 50
     $state = @(Get-State)
     if ($Describe) {
         $field = if ($state) {
@@ -526,6 +534,7 @@ function Invoke-Revert {
 
 #region ==================== 5. EXECUTION ====================
 
+Write-Loading 'Preparing the font tools' 10
 Initialize-FontApi
 if ($Revert) { Invoke-Revert; return }
 
@@ -534,6 +543,7 @@ Write-Host '  Installed for every user of this PC, from each font''s official so
 
 # --- For the panel: every font, nothing selected, the installed ones marked; then stop
 if ($Describe) {
+    Write-Loading 'Checking which fonts are already installed' 50
     $groupNames = @{ Code = 'Code'; Icons = 'Code with terminal icons (Nerd Fonts)'; Text = 'Text' }
     $field = [ordered]@{
         tab = 'Fonts'; id = 'fonts'; kind = 'checklist'; label = ''; desc = ''; default = @()

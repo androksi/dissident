@@ -61,6 +61,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -364,6 +371,7 @@ function Get-UndoFields([string]$Root, [object[]]$Groups, [string]$Browser) {
 function Invoke-Undo([string]$Root, [object[]]$Groups, [string]$Browser) {
     $fields = Get-UndoFields $Root $Groups $Browser
     # The panel's Undo → Browsers page: a switch for this browser and, under it, what can be undone
+    Write-Loading 'Reading what TidyWin set in Chrome' 50
     if ($Describe) {
         $page = if ($script:UndoGroups) { Get-BrowserFields $fields $Browser 'Only the TidyWin settings on this PC show up.' }
                 else { @(New-Field 'Browsers' $Browser.ToLower() 'info' $Browser 'No settings from TidyWin on this PC.' $null) }
@@ -463,6 +471,7 @@ $fields = @(
     New-Field $T 'Cookies' 'toggle' 'Block third-party cookies' 'Sites can''t follow you across other sites. "Sign in with Google" keeps working.' $false
     New-Field $T 'Extras' 'toggle' 'Turn off sync and extras' 'No sync, no running in the background after closing, no shopping list and no "not your default browser" prompt. Safe Browsing stays on Standard.' $false
 )
+Write-Loading 'Reading the Chrome settings' 50
 if ($Describe) { Write-OptionsPage $Describe (Get-BrowserFields $fields 'Chrome' 'Make Chrome more private, without breaking the Google sign-in.'); return }
 if (-not $script:Panel) { Write-Host "`nConfigure-Chrome" -ForegroundColor Green }   # in the panel the page already has the title
 $v = Read-Options $fields $Answers

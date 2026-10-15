@@ -57,6 +57,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -262,7 +269,9 @@ function Get-BackupIndex([object[]]$Found, [string]$Root) { [array]::IndexOf(@($
 #region ==================== 2. BACK UP ====================
 
 function Invoke-Export {
+    Write-Loading 'Reading the Wi-Fi networks on this PC' 10
     $networks = @(Get-WifiNetworks)
+    Write-Loading 'Looking for drives to save to' 70
     $fields = @(Get-PlaceFields)
     if ($networks) {
         $fields += New-SwitchField 'Create' 'WiFi' 'Wi-Fi networks' 'The saved networks and their passwords. Pick the ones to save.' $true @{
@@ -304,7 +313,9 @@ function Get-SavedNetworks([string]$Root) {
 }
 
 function Invoke-Import {
+    Write-Loading 'Looking for backups on your drives' 5
     $found = @(Find-Backups)
+    Write-Loading 'Reading the Wi-Fi networks on this PC' 40
     $here = @(Get-WifiNetworks)
     $fields = @(Get-RestoreFields) + @(
         New-SwitchField 'Restore' 'WiFi' 'Wi-Fi networks' 'Pick the ones to add, with their passwords, so the PC connects by itself. The ones marked Saved are already on this PC.' ($found.Count -gt 0)

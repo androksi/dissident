@@ -66,6 +66,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -448,6 +455,7 @@ function Get-UndoFields([string]$Root, [object[]]$Groups, [string]$Browser) {
 function Invoke-Undo([string]$Root, [object[]]$Groups, [string]$Browser) {
     $fields = Get-UndoFields $Root $Groups $Browser
     # The panel's Undo → Browsers page: a switch for this browser and, under it, what can be undone
+    Write-Loading 'Reading what TidyWin set in Firefox' 50
     if ($Describe) {
         $page = if ($script:UndoGroups) { Get-BrowserFields $fields $Browser 'Only the TidyWin settings on this PC show up.' }
                 else { @(New-Field 'Browsers' $Browser.ToLower() 'info' $Browser 'No settings from TidyWin on this PC.' $null) }
@@ -561,6 +569,7 @@ $fields = @(
     New-Field $T 'NoPrefetch' 'toggle' 'Turn off page preloading' 'Sites stop learning about links you never opened.' $false
     New-Field $T 'HttpsOnly' 'toggle' 'Turn on HTTPS-Only Mode' 'Firefox warns before opening a site without a secure connection.' $false
 )
+Write-Loading 'Reading the Firefox settings' 50
 if ($Describe) { Write-OptionsPage $Describe (Get-BrowserFields $fields 'Firefox' 'Turn off telemetry, sponsored content and AI, and add uBlock Origin.'); return }
 $v = Read-Options $fields $Answers
 if (-not @($v.Keys | Where-Object { $v[$_] })) { Write-Host 'Nothing was selected, so nothing was changed.'; return }

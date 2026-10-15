@@ -59,6 +59,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -330,9 +337,11 @@ function Get-DriverRow($Driver, [string]$Value, [string]$Status) {
 }
 
 function Invoke-Export {
+    Write-Loading 'Reading the drivers on this PC' 5
     # In use first in each type; old versions and drivers of unplugged devices last
     try { $drivers = @(Get-DriverList | Sort-Object Class, @{ Expression = { $_.Devices.Count -eq 0 -and $_.ClassName -ne 'Extension' } }, @{ Expression = { Get-DriverLabel $_ } }) }
     catch { $drivers = @(); $listError = $_.Exception.Message }
+    Write-Loading 'Looking for drives to save to' 85
     $fields = @(Get-PlaceFields)
     if ($drivers) {
         $fields += New-SwitchField 'Create' 'Drivers' 'Drivers' 'The ones Windows doesn''t bring by itself: video, network, audio and others. Pick the ones to save.' $true @{ badge = "$($drivers.Count)" }
@@ -419,10 +428,12 @@ function Get-SavedDrivers([string]$Root) {
 
 function Invoke-Import {
     # Restore runs drivers first, then Wi-Fi (its adapter may need a driver), then apps (they need the internet)
+    Write-Loading 'Looking for backups on your drives' 5
     $found = @(Find-Backups)
     $fields = @(Get-RestoreFields) + @(
         New-SwitchField 'Restore' 'Drivers' 'Drivers' 'Pick the ones to install. The ones marked Installed are already on this PC. Some only work after restarting.' ($found.Count -gt 0)
     )
+    Write-Loading 'Reading the saved drivers' 30
     for ($i = 0; $i -lt $found.Count; $i++) {
         $saved = Get-SavedDrivers $found[$i].FullName
         if (-not $saved -or -not $saved.Drivers) { continue }

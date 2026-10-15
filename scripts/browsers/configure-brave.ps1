@@ -58,6 +58,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -354,6 +361,7 @@ function Get-UndoFields([string]$Root, [object[]]$Groups, [string]$Browser) {
 function Invoke-Undo([string]$Root, [object[]]$Groups, [string]$Browser) {
     $fields = Get-UndoFields $Root $Groups $Browser
     # The panel's Undo → Browsers page: a switch for this browser and, under it, what can be undone
+    Write-Loading 'Reading what TidyWin set in Brave' 50
     if ($Describe) {
         $page = if ($script:UndoGroups) { Get-BrowserFields $fields $Browser 'Only the TidyWin settings on this PC show up.' }
                 else { @(New-Field 'Browsers' $Browser.ToLower() 'info' $Browser 'No settings from TidyWin on this PC.' $null) }
@@ -459,6 +467,7 @@ $fields = @(
     New-Field $T 'Autofill' 'toggle' 'Turn off saving passwords and cards' 'For when you use a password manager, like Bitwarden. Brave also stops offering to install sites as apps.' $false
     New-Field $T 'Cast' 'choice' 'Cast to TV' 'Keep: Brave finds TVs without a firewall prompt. Turn off: Brave stops looking for TVs on the network.' '' @{ options = @((Opt 'Keep' 'Keep'), (Opt 'Off' 'Turn off')) }
 )
+Write-Loading 'Reading the Brave settings' 50
 if ($Describe) { Write-OptionsPage $Describe (Get-BrowserFields $fields 'Brave' 'Turn off the extras and the telemetry Brave adds.'); return }
 if (-not $script:Panel) { Write-Host "`nConfigure-Brave" -ForegroundColor Green }   # in the panel the page already has the title
 $v = Read-Options $fields $Answers

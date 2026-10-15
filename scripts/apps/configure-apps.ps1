@@ -61,6 +61,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -580,6 +587,7 @@ function Install-Apps {
 if (-not $script:Panel) { Write-Host "`nConfigure-Apps" -ForegroundColor Green }   # in the panel the page already has the title
 
 # --- WinGet first (only if missing). The panel's page reads the list without it; Apply installs it.
+Write-Loading 'Looking for WinGet' 5
 $hasWinGet = Test-WinGet
 if (-not $hasWinGet -and -not $Describe) {
     Write-Host "`n  WinGet, the official Microsoft app installer, is not on this PC." -ForegroundColor Yellow
@@ -600,6 +608,7 @@ if (-not $hasWinGet -and -not $Describe) {
 # --- Mark the apps that are already installed
 if ($hasWinGet) {
     if (-not $Describe) { Write-Host '  Checking which apps are already installed...' -ForegroundColor DarkGray }
+    Write-Loading 'Checking which apps are already installed' 15
     $installedIds = Get-InstalledAppIds
     foreach ($app in $Apps) {
         $app.Installed = @($app.Id | Where-Object { $installedIds -notcontains $_ }).Count -eq 0   # every package of the entry

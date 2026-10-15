@@ -57,6 +57,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -309,6 +316,7 @@ if (-not $script:Panel) { Write-Host "`nReset-Network" -ForegroundColor Green } 
 Write-Host '  Fixes common internet problems with Windows'' own commands. Your DNS is kept.' -ForegroundColor DarkGray
 
 # --- What is on this PC
+Write-Loading 'Reading the network adapters and their DNS'
 $dns = @(Get-ManualDns)
 $adapters = @(Get-AdapterInfo $dns)
 $hasManualIp = [bool]($adapters | Where-Object ManualIp)

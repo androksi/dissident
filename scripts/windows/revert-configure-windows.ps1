@@ -59,6 +59,13 @@ function Request-Panel([hashtable]$Request) {
     return (ConvertFrom-Json $line.Trim([char]0xFEFF)).value
 }
 
+# While the panel reads the page (-Describe): what is being read now and how far (0-100; none = unknown),
+# shown in the bar under its loading ring. Does nothing otherwise.
+function Write-Loading([string]$Text, $Percent) {
+    if (-not $script:Panel -or -not $Describe) { return }
+    [Console]::Out.WriteLine('##TIDYWIN ' + (ConvertTo-Json @{ type = 'progress'; text = $Text; value = $Percent } -Compress))
+}
+
 if ($script:Panel) {
     function Write-Host {
         param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Object, [switch]$NoNewline,
@@ -404,6 +411,7 @@ function Remove-EdgePolicies {
 #region ==================== 3. EXECUTION ====================
 
 # --- Options: the panel's page, or asked here. Nothing comes selected: only what is turned on is undone.
+Write-Loading 'Reading what TidyWin changed'
 $tidyDir = Join-Path $env:ProgramData 'TidyWin'
 $Pv = 'Privacy'; $Ap = 'Apps'; $Fe = 'File Explorer'; $Lk = 'Appearance'; $Sy = 'System'; $Nw = 'Network'
 $fields = @(
