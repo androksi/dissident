@@ -29,7 +29,7 @@ It asks for administrator rights, then opens the TidyWin window: pick an option 
 
 - Needs Windows 10 or 11 and Administrator rights (requested automatically). Windows PowerShell 5.1 comes with Windows.
 - Nothing comes selected: only what you turn on is changed. Windows creates a restore point first.
-- Windows Defender, Firewall, Windows Update and Safe Browsing are never touched.
+- Windows Defender, Firewall and Safe Browsing are never touched. Windows Update only changes from its own Updates page.
 - Everything can be run again safely.
 - Nothing stays on the PC: the scripts are downloaded to `%TEMP%\tidywin` and deleted when TidyWin closes.
 

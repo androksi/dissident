@@ -74,6 +74,12 @@ function Get-Menu {
             'Creates a restore point first and saves a log on your Desktop.'
         ) 'Start' @(New-Step 'windows/configure-windows.ps1') -Form
 
+        New-MenuEntry $setup 'updates' 'E895' 'Updates' 'Updates' 'Choose how Windows Update works.' @(
+            'Normal: the Windows default.'
+            'Security only: monthly security fixes; new Windows versions wait 365 days.'
+            'Off: no updates at all. Not safe.'
+        ) 'Start' @(New-Step 'windows/configure-updates.ps1') -Form
+
         New-MenuEntry $setup 'apps' 'E71D' 'Apps' 'Apps' 'Install the apps you use, all at once.' @(
             'Pick from 105 apps: browsers, games, media, development and more.'
             'Installs them from their official sources with WinGet.'
@@ -1545,7 +1551,8 @@ function New-FieldRow($Form, $F) {
         $name.Inlines.Add($badge)
     }
     $text.Children.Add($name) | Out-Null
-    foreach ($part in @(@("$($F.desc)", 'Fg2'), @("$($F.warn)", 'Warn'))) {
+    # danger: a warning about something unsafe (Updates: Off), in red instead of yellow
+    foreach ($part in @(@("$($F.desc)", 'Fg2'), @("$($F.warn)", $(if ($F.danger) { 'Err' } else { 'Warn' })))) {
         if (-not $part[0]) { continue }
         $t = New-Text $part[0] 13 'Normal' $part[1]
         $t.Margin = New-Object Windows.Thickness 0, 2, 0, 0

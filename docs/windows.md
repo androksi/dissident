@@ -86,6 +86,21 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 | Num Lock | Num Lock on when Windows starts, sign-in screen included. It is also turned on right away: Windows saves your Num Lock state when you sign out or shut down, so it has to be on then. |
 | Sudo | Turns on `sudo` in the terminal. |
 
+## Updates
+
+In the [TidyWin panel](../README.md#quick-start): **Set up → Updates**. From a local copy:
+
+```powershell
+.\scripts\windows\configure-updates.ps1
+```
+
+The page shows how Windows Update is set up now and three modes, nothing picked:
+
+| Mode | What it does |
+|---|---|
+| Normal | The Windows default: removes what the other two modes set and turns the services back on. |
+| Security only | Security and quality fixes keep coming every month. The yearly feature update (a new version of Windows, like 24H2 → 25H2) waits 365 days, the most Windows allows. Windows Update for Business policy (`DeferFeatureUpdates`): Pro, Enterprise and Education; Windows Home ignores it. |
+| Off | **Not safe**, shown in red on the page. Sets the `NoAutoUpdate` policy and disables and stops the Windows Update, Update Orchestrator and Windows Update Medic services (Windows may protect the last one). Their startup types are saved first to `%ProgramData%\TidyWin\updates.json`, and Normal puts them back. Microsoft Store downloads can fail while it is off. |
 ## Cleanup
 
 In the [TidyWin panel](../README.md#quick-start): **Maintenance → Disk space**. From a local copy:
