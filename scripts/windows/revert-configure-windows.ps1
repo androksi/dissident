@@ -444,6 +444,7 @@ $fields += @(
     New-Field $Fe 'HomeGallery' 'toggle' 'Bring Home and Gallery back' 'They return to the sidebar, File Explorer opens in Home again and Music goes back to Quick access.' $false
     New-Field $Fe 'ContextMenu' 'toggle' 'Bring the new right-click menu back' 'Windows 11 shows its own right-click menu again, with "Show more options".' $false
     New-Field $Fe 'FolderTypes' 'toggle' 'Let each folder pick its view' 'File Explorer chooses the view of each folder from what is in it again.' $false
+    New-Field $Fe 'NewAppAlert' 'toggle' 'Ask which app to use after installing one' 'Windows asks "How do you want to open this file?" again when a new app can open it.' $false
     New-Field $Fe 'Inetpub' 'toggle' 'Show the inetpub folder' 'The folder on drive C: becomes visible again.' $false
     New-Field $Lk 'Border' 'toggle' 'Bring the window border back' 'The default border around windows comes back after signing out.' $false
     New-Field $Lk 'Snap' 'toggle' 'Turn Snap windows back on' 'Dragging a window to the edge of the screen arranges it again, after signing out.' $false
@@ -481,6 +482,7 @@ if ($v.StartPins)            { Write-Step 'Ad shortcuts back in Start';         
 if ($v.HomeGallery)          { Write-Step 'Home and Gallery back in File Explorer'; Restore-HomeAndGallery }
 if ($v.ContextMenu)          { Write-Step 'New right-click menu back';              Restore-ContextMenu }
 if ($v.FolderTypes)          { Write-Step 'Folder views back to default';           Restore-FolderTypes; Write-Done 'Back to the Windows default' }
+if ($v.NewAppAlert)          { Write-Step '"New app installed" prompt back';        Remove-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'NoNewAppAlert'; Write-Done 'Back to the Windows default' }
 if ($v.Inetpub)              { Write-Step 'Inetpub folder visible again';           Show-Inetpub }
 if ($v.Border)               { Write-Step 'Window border back to default';          Restore-Border }
 if ($v.Snap)                 { Write-Step 'Snap windows back on';                   Restore-SnapWindows }

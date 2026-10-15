@@ -48,6 +48,7 @@ Every option shows on one page, in tabs. **Nothing comes selected**: only what y
 | No frequent folders | Hides frequent folders in Quick access. |
 | No recent files | Hides recent files in File Explorer. |
 | Hidden files | Shows hidden files and folders. |
+| No "new app" prompt | After installing an app, Windows no longer asks "How do you want to open this file?": files keep opening with the app you use now. Open with still changes it. Group Policy `NoNewAppAlert`. |
 | No folder discovery | Large folders open faster. Resets custom folder views. |
 | No Home/Gallery | Removes Home and Gallery from File Explorer, which then opens in "This PC". |
 | Classic menu | Windows 11: the full right-click menu, without "Show more options". |
@@ -140,5 +141,5 @@ In the [TidyWin panel](../README.md#quick-start): **Undo → Windows**. From a l
 
 | Feature | What it does |
 |---|---|
-| Revert | A page with one switch per subject, all off: only what you turn on is undone. Covers telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, hibernation (when it is off), Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, devices, blue screen, `inetpub` and update sharing. |
+| Revert | A page with one switch per subject, all off: only what you turn on is undone. Covers telemetry, policies, suggestions, border, Snap windows, DNS, Game DVR, the Print Screen key, the Start ad shortcuts (when the app is installed), Recall, Edge (including the shortcut policy), Windows Security areas, WPBT, hibernation (when it is off), Fast Startup, Num Lock, Home/Gallery, Music in Quick access, classic right-click menu, folder discovery, the "new app installed" prompt, devices, blue screen, `inetpub` and update sharing. |
 | Not reverted | Removed apps (Xbox and Snipping Tool included; reinstall from the Microsoft Store), OneDrive, screen resolution, refresh rate and scale, screen and sleep times, theme, taskbar, extensions, hidden files and battery (undo through Settings). |

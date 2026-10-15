@@ -995,6 +995,14 @@ function Disable-FolderDiscovery {
     $script:RestartExplorer = $true
 }
 
+# After installing an app that opens a file type, Windows asks "How do you want to open this file?" the
+# next time you open one, to pick the new app. Group Policy "Do not show the 'new application installed'
+# notification": the files keep opening with the app you already use; Open with still changes it.
+function Disable-NewAppAlert {
+    Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'NoNewAppAlert' 1
+    Write-Done '"New app installed" prompt: off'; Write-Host '  To use another app for a file type: right-click the file → Open with.' -ForegroundColor DarkGray
+}
+
 # Battery percentage next to the taskbar battery icon (Windows 11 24H2/25H2, builds from late 2025 on).
 # On older builds the value is simply ignored.
 function Enable-BatteryPercentage {
@@ -1660,6 +1668,7 @@ function Get-Fields {
     New-Field $E 'ShowHidden' 'toggle' 'Show hidden files' 'Hidden files and folders show up. Protected system files stay hidden.' $false
     New-Field $E 'HideFrequent' 'toggle' 'Hide frequent folders' 'Quick access stops listing the folders you open most.' $false
     New-Field $E 'HideRecent' 'toggle' 'Hide recent files' 'File Explorer stops listing the files you opened recently.' $false
+    New-Field $E 'NoNewAppAlert' 'toggle' 'Don''t ask which app to use after installing one' 'No "How do you want to open this file?" after an install: files keep opening with the app you use now. Open with still lets you change it.' $false
     New-Field $E 'NoFolderSniff' 'toggle' 'Open large folders faster' 'File Explorer stops guessing each folder''s type. The views you saved for each folder are reset.' $false
     if ($isWin11) { New-Field $E 'HideHomeGallery' 'toggle' 'Remove Home and Gallery' 'File Explorer opens in This PC.' $false }
 
@@ -1804,6 +1813,7 @@ $opt = [ordered]@{
     ClearPins = & $flag 'ClearPins'; NoStartAds = & $flag 'NoStartAds'; BatteryPercent = & $flag 'BatteryPercent'
     ShowExtensions = & $flag 'ShowExtensions'; HideFrequent = & $flag 'HideFrequent'; UnpinMusic = & $flag 'UnpinMusic'
     HideRecent = & $flag 'HideRecent'; ShowHidden = & $flag 'ShowHidden'; NoFolderSniff = & $flag 'NoFolderSniff'
+    NoNewAppAlert = & $flag 'NoNewAppAlert'
     HideHomeGallery = & $flag 'HideHomeGallery'; ClassicMenu = & $flag 'ClassicMenu'; NoSnap = & $flag 'NoSnap'; ThinBorder = & $flag 'ThinBorder'
     LongPaths = & $flag 'LongPaths'; EndTask = & $flag 'EndTask'; Sudo = & $flag 'Sudo'; ClipboardHistory = & $flag 'ClipboardHistory'
     NoMouseAccel = & $flag 'NoMouseAccel'; NoStickyKeys = & $flag 'NoStickyKeys'; NumLock = & $flag 'NumLock'
@@ -1828,7 +1838,7 @@ $labels = @{
     LongPaths = 'Long paths'; EndTask = 'End task'; Sudo = 'Sudo'; ClipboardHistory = 'Win+V history'
     NoMouseAccel = 'No acceleration'; NoStickyKeys = 'No Sticky Keys'; DNS = 'DNS'
     NoDeviceApps = 'No device apps'; NoWpbt = 'No WPBT'; NoRecall = 'No Recall'; NoEdgeShortcut = 'No Edge shortcut'; NumLock = 'Num Lock'; NoFastStartup = 'No Fast Startup'; BatteryPercent = 'Battery %'; ShowHidden = 'Hidden files'
-    NoFolderSniff = 'No folder discovery'; VerboseBsod = 'Detailed blue screen'; NoHibernate = 'No hibernation'; Power = 'Power'
+    NoFolderSniff = 'No folder discovery'; VerboseBsod = 'Detailed blue screen'; NoHibernate = 'No hibernation'; NoNewAppAlert = 'No "new app" prompt'; Power = 'Power'
 }
 $answerLines = @()      # also written to the log file
 if ($chosen) {
@@ -1933,6 +1943,7 @@ if ($opt.ShowExtensions -or $opt.HideFrequent -or $opt.HideRecent) {
 }
 if ($opt.ShowHidden)    { Invoke-Step 'File Explorer: hidden files'               { Show-HiddenFiles } }
 if ($opt.NoFolderSniff) { Invoke-Step 'File Explorer: automatic folder discovery' { Disable-FolderDiscovery } }
+if ($opt.NoNewAppAlert) { Invoke-Step 'File Explorer: "new app installed" prompt' { Disable-NewAppAlert } }
 if ($opt.HideHomeGallery) { Invoke-Step 'File Explorer: removing Home and Gallery' { Hide-HomeAndGallery } }
 if ($opt.UnpinMusic) { Invoke-Step 'Quick access: Music' { Unpin-QuickAccessMusic } }
 if ($opt.ClassicMenu) { Invoke-Step 'Classic context menu' { Enable-ClassicContextMenu } }
