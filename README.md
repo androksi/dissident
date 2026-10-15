@@ -1,18 +1,27 @@
-# TidyWin Windows Utility
+<div align="center">
+
+<img src="assets/logo.svg" width="96" alt="TidyWin logo">
+
+# TidyWin
 
 **Set up and look after your Windows PC from one window.**
 
-Clean up telemetry and bloat, install your apps and fonts, diagnose and fix problems, and back up your apps and drivers before formatting. Nothing changes until you pick it.
+Turn off telemetry and bloat, install your apps and fonts, fix common problems<br>
+and back up what matters before formatting. Nothing changes until you pick it.
 
 [![Lint](https://img.shields.io/github/actions/workflow/status/androksi/tidywin/lint.yml?branch=main&label=lint&style=for-the-badge)](https://github.com/androksi/tidywin/actions/workflows/lint.yml)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=for-the-badge)](#good-to-know)
 [![License](https://img.shields.io/github/license/androksi/tidywin?style=for-the-badge)](LICENSE)
 
----
+<br>
 
-![The TidyWin panel on the Windows page](assets/banner.png)
+<img src="assets/banner.png" width="900" alt="The TidyWin panel on the Windows page">
 
-## Quick Start
+</div>
+
+<br>
+
+## Quick start
 
 Right-click the Start button, choose **Terminal** (or PowerShell) and run:
 
@@ -20,21 +29,45 @@ Right-click the Start button, choose **Terminal** (or PowerShell) and run:
 irm androksi.github.io/tidywin/run | iex
 ```
 
-It asks for administrator rights, then opens the TidyWin window: pick an option in the sidebar and its options show up right away, nothing selected. Turn on what you want, review and apply; the progress shows in the same window.
+It asks for administrator rights and opens the TidyWin window. Pick a page in the sidebar: its options show up right away, nothing selected. Turn on what you want, **Review** and **Apply**; the progress shows in the same window.
+
+> [!CAUTION]
+> **Disclaimer.** TidyWin changes system settings, removes apps and turns Windows features off. Parts of it are best used on a **fresh Windows installation**, where there is nothing to lose. On a PC you already use, read what each option does, change only what you understand and go one step at a time. TidyWin is provided as is, without warranty: you use it at your own risk.
+
+## What's inside
+
+<div align="center">
+
+| | Pages | |
+|:---|:---|:---|
+| **Set up** | Windows · Updates · Apps · Fonts · Browsers | Privacy, appearance, File Explorer, power and network; how Windows Update works; 105 apps and 19 fonts from their official sources; a more private Chrome, Brave and Firefox |
+| **Maintenance** | Remove apps · Disk space · Fix Windows · Internet connection | Official uninstallers plus leftovers, temporary files, DISM and `sfc`, network resets that keep your DNS |
+| **Back up** | Create · Restore | Drivers, apps and Wi-Fi networks in one folder, before and after formatting |
+| **Undo** | Windows · Browsers · Fonts | Put back what TidyWin changed, one item at a time |
+
+</div>
+
+<div align="center">
+
+[Windows](docs/windows.md) · [Updates](docs/windows.md#updates) · [Apps](docs/apps.md) · [Fonts](docs/fonts.md) · [Browsers](docs/browsers.md) · [Back up](docs/backup.md) · [Drivers](docs/drivers.md) · [Reinstalling Windows](docs/reinstall.md)
+
+</div>
 
 > [!TIP]
-> Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the options in the right order. Your drivers, apps and Wi-Fi networks go with [Back up and Restore](docs/backup.md).
+> Formatting the PC? Follow [Reinstalling Windows, step by step](docs/reinstall.md): it lists the pages in the right order. Your drivers, apps and Wi-Fi networks go with [Back up and Restore](docs/backup.md).
 
 ## Good to know
 
-- Needs Windows 10 or 11 and Administrator rights (requested automatically). Windows PowerShell 5.1 comes with Windows.
-- Nothing comes selected: only what you turn on is changed. Windows creates a restore point first.
-- Windows Defender, Firewall and Safe Browsing are never touched. Windows Update only changes from its own Updates page.
-- Everything can be run again safely.
-- Nothing stays on the PC: the scripts are downloaded to `%TEMP%\tidywin` and deleted when TidyWin closes.
+- **Nothing comes selected.** Only what you turn on is changed, and Review lists it before anything happens.
+- **Restore points.** The Windows, Remove apps and Fix Windows pages create one first; the Windows page also saves a log on your Desktop.
+- **Untouched.** Windows Defender, the Firewall and Safe Browsing are never changed. Windows Update only changes from its own Updates page.
+- **Runs again safely.** Every page can be applied more than once.
+- **Leaves nothing behind.** The scripts are downloaded to `%TEMP%\tidywin` and deleted when TidyWin closes.
+- **Requirements.** Windows 10 or 11 and administrator rights (asked for automatically). Windows PowerShell 5.1 comes with Windows.
 
 <details>
-<summary>Run from a local copy</summary>
+<summary><b>Run from a local copy</b></summary>
+<br>
 
 ```powershell
 git clone https://github.com/androksi/tidywin
@@ -43,10 +76,14 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scripts\TidyWin.ps1
 ```
 
-Run as Administrator. The panel uses the scripts next to it instead of downloading them. Each script also runs on its own (for example `.\scripts\windows\Clean-Windows.ps1`); the browser and `fonts` scripts accept `-Revert`, and `windows` is undone by `Revert-Configure-Windows.ps1`.
+Run it as administrator. The panel uses the scripts next to it instead of downloading them. Each script also runs on its own, for example `.\scripts\windows\clean-windows.ps1`. The browser and font scripts accept `-Revert`, and the Windows page is undone by `revert-configure-windows.ps1`.
 
 </details>
 
 ---
 
-[Report an issue](https://github.com/androksi/tidywin/issues) · [GPL-3.0](LICENSE), provided as is, without warranty.
+<div align="center">
+
+[Report an issue](https://github.com/androksi/tidywin/issues) · [GPL-3.0](LICENSE)
+
+</div>
