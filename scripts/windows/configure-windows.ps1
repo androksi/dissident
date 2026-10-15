@@ -1496,12 +1496,14 @@ function Set-DohTemplate([string[]]$Servers, [string]$Template) {
     Write-Done "DNS over HTTPS: $Template"
 }
 
-function Set-DNS([string[]]$V4, [string[]]$V6, [string]$Template) {
+# $Adapters: the InterfaceGuid of each adapter to change; none = every one.
+function Set-DNS([string[]]$V4, [string[]]$V6, [string]$Template, [string[]]$Adapters) {
     $base = 'HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\InterfaceSpecificParameters'
     $all = @($V4) + @($V6)
-    if ($isWin11 -and $Template) { Set-DohTemplate $all $Template }
     $adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -ne 'Disabled')
-    if (-not $adapters) { throw 'no physical network adapter found' }
+    if ($Adapters) { $adapters = @($adapters | Where-Object { $Adapters -contains "$($_.InterfaceGuid)" }) }
+    if (-not $adapters) { throw $(if ($Adapters) { 'the adapters picked are no longer on this PC' } else { 'no physical network adapter found' }) }
+    if ($isWin11 -and $Template) { Set-DohTemplate $all $Template }
     foreach ($adapter in $adapters) {
         Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses $all -ErrorAction Stop
         if ($isWin11) {
@@ -1653,6 +1655,10 @@ function Get-MinuteOptions([int[]]$Choices, $Current) {
     @($values | ForEach-Object { Opt $_ ((Format-Minutes $_) + $(if ($_ -eq $Current) { ' · current' } else { '' })) })
 }
 
+# The network adapters DNS can go on (Wi-Fi and Ethernet; no VPNs or virtual ones), for the list on the page
+Write-Loading 'Reading the network adapters' 60
+$dnsAdapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -ne 'Disabled' | Sort-Object Name)
+
 Write-Loading 'Reading the power settings' 65
 $canHibernate = Test-HibernateEnabled
 $powerModes = @(@{ Key = 'ac'; Battery = $false; Label = 'Plugged in' })
@@ -1744,6 +1750,12 @@ function Get-Fields {
         New-Field $N 'DohTemplate' 'text' 'DNS over HTTPS address' 'Leave it empty for Cloudflare, Google and Quad9: Windows already knows them. For another server, like NextDNS, AdGuard or Control D, paste its https:// address so it is encrypted too.' '' @{
             placeholder = 'https://dns.example.com/dns-query'; validate = 'url'; optional = $true; when = $dns }
     }
+    # Where: every adapter (on by default), or only the ones checked in the list below it
+    New-Field $N 'DnsAllAdapters' 'toggle' 'Every network adapter' 'Every Wi-Fi and Ethernet adapter, connected or not. Turn it off to pick them.' $true @{ when = $dns; setting = $true }
+    if ($dnsAdapters) {
+        New-Field $N 'DnsAdapters' 'checklist' 'Adapters' 'The DNS servers go only on the adapters you check.' @() @{ when = @($dns, @{ field = 'DnsAllAdapters'; is = $false }); setting = $true
+            items = @($dnsAdapters | ForEach-Object { [ordered]@{ value = "$($_.InterfaceGuid)"; label = $_.Name; note = "$($_.InterfaceDescription) · $(if ($_.Status -eq 'Up') { 'connected' } else { 'not connected' })"; group = ''; status = '' } }) }
+    }
 
     if ($isWin11 -and $hasBattery) { New-Field $M 'BatteryPercent' 'toggle' 'Show the battery percentage' 'Next to the battery icon on the taskbar.' $false }
     New-Field $M 'ThinBorder' 'toggle' 'Thinner resize border' 'The invisible edge used to resize windows gets smaller, so you resize less by accident. Applies after signing out.' $false
@@ -1753,9 +1765,10 @@ function Get-Fields {
     if ($hasSudo) { New-Field $M 'Sudo' 'toggle' 'Turn on sudo' 'Run a command as administrator from a normal terminal.' $false }
 }
 
+# "when" is one condition or a list of them, all needed (the same as the panel)
 function Test-FieldShown($Field, $Values) {
-    if (-not $Field.when) { return $true }
-    return "$($Values[$Field.when.field])" -eq "$($Field.when.is)"
+    foreach ($w in @($Field.when | Where-Object { $_ })) { if ("$($Values[$w.field])" -ne "$($w.is)") { return $false } }
+    return $true
 }
 
 # A typed IP address checked and written the standard way; $null when empty or wrong.
@@ -1854,6 +1867,14 @@ if ($values.Dns) {
     foreach ($id in 'Dns4a', 'Dns4b') { $ip = ConvertTo-IPText $values[$id] 'InterNetwork'; if ($ip) { $dnsV4 += $ip } }
     if ($dnsV4) { foreach ($id in 'Dns6a', 'Dns6b') { $ip = ConvertTo-IPText $values[$id] 'InterNetworkV6'; if ($ip) { $dnsV6 += $ip } } }
 }
+# Every adapter (the switch, on unless turned off), or the ones checked; none checked = DNS is left alone
+$dnsTargets = @()
+$dnsTargetNames = ''
+if ($dnsV4 -and "$($values.DnsAllAdapters)" -eq 'False') {
+    $dnsTargets = @(@($values.DnsAdapters) | Where-Object { $_ })
+    $dnsTargetNames = (@($dnsAdapters | Where-Object { $dnsTargets -contains "$($_.InterfaceGuid)" } | ForEach-Object { $_.Name }) -join ', ')
+    if (-not $dnsTargets) { Write-Host '  DNS: no network adapter was picked, so the DNS servers stay as they are.' -ForegroundColor DarkYellow; $dnsV4 = @(); $dnsV6 = @() }
+}
 $dohTemplate = "$($values.DohTemplate)".Trim()
 if ($dohTemplate -and ($dohTemplate -notmatch $UrlPattern -or -not $isWin11)) { $dohTemplate = '' }
 $flag = { param($id) [bool]$values[$id] }
@@ -1878,7 +1899,7 @@ $opt = [ordered]@{
     NoFastStartup = & $flag 'NoFastStartup'; VerboseBsod = & $flag 'VerboseBsod'
     NoHibernate = & $flag 'NoHibernate'
     Power = $powerText
-    DNS = $(if ($dnsV4) { (($dnsV4 + $dnsV6) -join ', ') + $(if ($dohTemplate) { " (DNS over HTTPS: $dohTemplate)" }) } else { 'Keep' })
+    DNS = $(if ($dnsV4) { (($dnsV4 + $dnsV6) -join ', ') + $(if ($dohTemplate) { " (DNS over HTTPS: $dohTemplate)" }) + $(if ($dnsTargetNames) { " on $dnsTargetNames" }) } else { 'Keep' })
 }
 
 $chosen = @($opt.Keys | Where-Object {
@@ -2037,7 +2058,7 @@ if ($dnsV4) {
                 }
             }
         }
-        Set-DNS $dnsV4 $dnsV6 $dohTemplate
+        Set-DNS $dnsV4 $dnsV6 $dohTemplate $dnsTargets
     }
 }
 
