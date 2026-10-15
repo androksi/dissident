@@ -320,18 +320,29 @@ function Remove-ReaderViewButton([string]$Dir) {
     }
 }
 
-# Installed automatically from Mozilla's official store and kept up to date.
-# "normal_installed" = you can disable them, but they can't be removed. Also allowed in private windows.
-function Set-Extensions {
-    $extensions = [ordered]@{
-        'uBlock0@raymondhill.net'                = 'uBlock Origin'
-        '{446900e4-71c2-419f-a6a7-df9c091e268b}' = 'Bitwarden'
+# Installed automatically from Mozilla's official store and kept up to date, each one its own entry of
+# ExtensionSettings (the other entries stay). "normal_installed" = you can disable it, but it can't be
+# removed. Also allowed in private windows.
+$UBlockId    = 'uBlock0@raymondhill.net'
+$BitwardenId = '{446900e4-71c2-419f-a6a7-df9c091e268b}'
+$Extras      = 'Extensions and passwords'      # their title in the panel's list
+
+function Set-Extension([string]$Id, [string]$Name) {
+    if ($null -ne $script:Collect) { [void]$script:Collect.Add("ext:$Id"); return }   # -Revert: only the names
+    try {
+        $all = Get-PolicyJson $F 'ExtensionSettings'
+        if (-not $all) { $all = New-Object psobject }
+        $entry = [pscustomobject]@{ installation_mode = 'normal_installed'; install_url = "https://addons.mozilla.org/firefox/downloads/latest/$Id/latest.xpi"; private_browsing = $true }
+        $all | Add-Member -NotePropertyName $Id -NotePropertyValue $entry -Force
+        Save-PolicyJson $F 'ExtensionSettings' $all 'MultiString'
+        Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
+        Write-Host ("{0,-46}" -f "Installed: $Name") -NoNewline
+        Write-Host "ExtensionSettings = $Id" -ForegroundColor DarkGray
+    } catch {
+        $script:Failures++
+        Write-Host '  [ERROR] ' -ForegroundColor Red -NoNewline
+        Write-Host "$Name (ExtensionSettings): $($_.Exception.Message)"
     }
-    $entries = foreach ($id in $extensions.Keys) {
-        '"{0}":{{"installation_mode":"normal_installed","install_url":"https://addons.mozilla.org/firefox/downloads/latest/{0}/latest.xpi","private_browsing":true}}' -f $id
-    }
-    $json = '{' + ($entries -join ',') + '}'
-    Set-Policy '' 'ExtensionSettings' @($json) "Installed: $($extensions.Values -join ', ')" 'MultiString'
 }
 
 # Before turning it off: warns if Firefox itself has saved passwords (they are hidden, not deleted).
@@ -383,14 +394,29 @@ function Split-PolicyName([string]$Root, [string]$Name) {
     return $r
 }
 
-function Get-PolicyPrefs([string]$Root) {
-    $raw = (Get-ItemProperty $Root -Name Preferences -ErrorAction SilentlyContinue).Preferences
+# Policies that hold a JSON object, one entry per name: "pref:name" is an entry of Preferences,
+# "ext:id" an extension of ExtensionSettings. Each entry is added and undone on its own.
+$JsonPolicies = @{ pref = 'Preferences'; ext = 'ExtensionSettings' }
+
+function Get-PolicyJson([string]$Root, [string]$Value) {
+    $raw = (Get-ItemProperty $Root -Name $Value -ErrorAction SilentlyContinue).$Value
     if (-not $raw) { return $null }
     try { return (@($raw) -join '') | ConvertFrom-Json } catch { return $null }
 }
 
+# Writes the object back as $Kind (MultiString or String), or removes the value when nothing is left in it.
+function Save-PolicyJson([string]$Root, [string]$Value, $Object, [string]$Kind) {
+    if ($Object -and @($Object.PSObject.Properties).Count) {
+        if (-not (Test-Path $Root)) { New-Item -Path $Root -Force -ErrorAction Stop | Out-Null }
+        $json = $Object | ConvertTo-Json -Compress -Depth 5
+        New-ItemProperty $Root -Name $Value -Value $(if ($Kind -eq 'MultiString') { @($json) } else { $json }) -PropertyType $Kind -Force -ErrorAction Stop | Out-Null
+    } else {
+        Remove-ItemProperty $Root -Name $Value -ErrorAction SilentlyContinue
+    }
+}
+
 function Test-PolicyName([string]$Root, [string]$Name) {
-    if ($Name -like 'pref:*') { $prefs = Get-PolicyPrefs $Root; return [bool]($prefs -and $prefs.PSObject.Properties[$Name.Substring(5)]) }
+    if ($Name -match '^(pref|ext):(.+)$') { $obj = Get-PolicyJson $Root $JsonPolicies[$Matches[1]]; return [bool]($obj -and $obj.PSObject.Properties[$Matches[2]]) }
     $p = Split-PolicyName $Root $Name
     if ($null -eq $p.Data -and (Test-Path "$($p.Key)\$($p.Value)")) { return $true }
     $item = Get-ItemProperty $p.Key -Name $p.Value -ErrorAction SilentlyContinue
@@ -399,26 +425,24 @@ function Test-PolicyName([string]$Root, [string]$Name) {
 
 function Remove-PolicyName([string]$Root, [string]$Name) {
     if (-not (Test-PolicyName $Root $Name)) { return }
-    if ($Name -like 'pref:*') {
-        $prefs = Get-PolicyPrefs $Root
-        $prefs.PSObject.Properties.Remove($Name.Substring(5))
-        if (@($prefs.PSObject.Properties).Count) {
-            New-ItemProperty $Root -Name Preferences -Value @($prefs | ConvertTo-Json -Compress -Depth 5) -PropertyType MultiString -Force | Out-Null
-        } else {
-            Remove-ItemProperty $Root -Name Preferences -ErrorAction SilentlyContinue
-        }
+    if ($Name -match '^(pref|ext):(.+)$') {
+        $value = $JsonPolicies[$Matches[1]]; $entry = $Matches[2]
+        $kind = try { "$((Get-Item $Root).GetValueKind($value))" } catch { 'MultiString' }      # kept as it was
+        $obj = Get-PolicyJson $Root $value
+        $obj.PSObject.Properties.Remove($entry)
+        Save-PolicyJson $Root $value $obj $kind
     } else {
         $p = Split-PolicyName $Root $Name
         if ($null -eq $p.Data -and (Test-Path "$($p.Key)\$($p.Value)")) { Remove-Item "$($p.Key)\$($p.Value)" -Recurse -Force -ErrorAction SilentlyContinue }
         Remove-ItemProperty $p.Key -Name $p.Value -ErrorAction SilentlyContinue
     }
-    Write-Host "  [removed] $($Name -replace '^pref:', 'Preferences: ' -replace '=.*$', '')" -ForegroundColor DarkGray
+    Write-Host "  [removed] $($Name -replace '^pref:', 'Preferences: ' -replace '^ext:', 'ExtensionSettings: ' -replace '=.*$', '')" -ForegroundColor DarkGray
 }
 
 # Every value under the policies key that no group knows about ("Subkey\Value").
 function Get-OtherPolicies([string]$Root, [object[]]$Groups) {
     if (-not (Test-Path $Root)) { return @() }
-    $known = @($Groups | ForEach-Object { $_.Names } | ForEach-Object { if ($_ -like 'pref:*') { 'Preferences' } else { $_ -replace '=.*$', '' } })
+    $known = @($Groups | ForEach-Object { $_.Names } | ForEach-Object { if ($_ -match '^(pref|ext):') { $JsonPolicies[$Matches[1]] } else { $_ -replace '=.*$', '' } })
     $keys = @(Get-Item $Root) + @(Get-ChildItem $Root -Recurse)
     $prefix = (Get-Item $Root).Name
     @(foreach ($key in $keys) {
@@ -448,8 +472,9 @@ function Get-UndoFields([string]$Root, [object[]]$Groups, [string]$Browser) {
         if ($other.Count -gt 4) { $shown += " and $($other.Count - 4) more" }
         $script:UndoGroups += @{ Id = 'Other'; Label = 'Remove the other policies'; Desc = "Set by an older TidyWin or another program: $shown."; Names = $other }
     }
+    $script:UndoGroups = @($script:UndoGroups | Where-Object { -not $_.Section }) + @($script:UndoGroups | Where-Object { $_.Section })   # the extensions last, under their title
     if (-not $script:UndoGroups) { return @(New-Field $Browser 'Nothing' 'header' 'Nothing to undo' "$Browser has no settings from TidyWin on this PC." $null) }
-    return @($script:UndoGroups | ForEach-Object { New-Field $Browser $_.Id 'toggle' $_.Label $_.Desc $false })
+    return @($script:UndoGroups | ForEach-Object { New-Field $Browser $_.Id 'toggle' $_.Label $_.Desc $false @{ section = "$($_.Section)" } })
 }
 
 function Invoke-Undo([string]$Root, [object[]]$Groups, [string]$Browser) {
@@ -489,8 +514,9 @@ function Get-UndoGroups {
         @{ Id = 'NoReaderView'; Label = 'Bring the Reader View icon back'; Desc = 'The book icon shows up on articles again.'; Names = @()
            Test = { $dir = Get-FirefoxDir; if ($dir) { $p = Get-AutoConfigPaths $dir; (Test-Path $p.Loader) -and (Select-String -Path $p.Loader -Pattern 'tidywin.cfg' -SimpleMatch -Quiet) } }
            Undo = { Remove-ReaderViewButton (Get-FirefoxDir) } }
-        @{ Id = 'Extensions'; Label = 'Stop managing uBlock Origin and Bitwarden'; Desc = 'They stay installed, and can then be removed in about:addons.'; Names = Get-PolicyNames { Set-Extensions } }
-        @{ Id = 'Bitwarden'; Label = 'Save passwords in Firefox again'; Desc = 'Firefox can save passwords, addresses and cards again, and shows the passwords it already had.'; Names = Get-PolicyNames { Set-BitwardenOnly } }
+        @{ Id = 'UBlock'; Label = 'Stop managing uBlock Origin'; Desc = 'It stays installed, and can then be removed in about:addons.'; Names = @("ext:$UBlockId"); Section = $Extras }
+        @{ Id = 'BitwardenExtension'; Label = 'Stop managing Bitwarden'; Desc = 'It stays installed, and can then be removed in about:addons.'; Names = @("ext:$BitwardenId"); Section = $Extras }
+        @{ Id = 'Bitwarden'; Label = 'Save passwords in Firefox again'; Desc = 'Firefox can save passwords, addresses and cards again, and shows the passwords it already had.'; Names = Get-PolicyNames { Set-BitwardenOnly }; Section = $Extras }
         @{ Id = 'NoSearchSuggestions'; Label = 'Turn search suggestions back on'; Desc = 'What you type in the address bar goes to the search engine while you type again.'; Names = @('SearchSuggestEnabled') }
         @{ Id = 'NoPrefetch'; Label = 'Turn page preloading back on'; Desc = 'Firefox preloads the pages it thinks you will open again.'; Names = @('NetworkPrediction') }
         @{ Id = 'HttpsOnly'; Label = 'Turn HTTPS-Only Mode off'; Desc = 'Firefox opens sites without a secure connection without warning again.'; Names = @('HttpsOnlyMode') }
@@ -512,7 +538,7 @@ function Get-BrowserFields([object[]]$Fields, [string]$Browser, [string]$Desc) {
     $toggles = @($Fields | Where-Object { $_.kind -eq 'toggle' })
     $list = if ($toggles) {
         New-Field 'Browsers' "$key.items" 'checklist' '' '' @() @{ items = @($toggles | ForEach-Object {
-            [ordered]@{ value = $_.id; label = $_.label; note = $_.desc; warn = "$($_.warn)"; group = '' } }) }
+            [ordered]@{ value = $_.id; label = $_.label; note = $_.desc; warn = "$($_.warn)"; group = "$($_.section)" } }) }
     }
     @(New-Field 'Browsers' $key 'toggle' $Browser $Desc $false @{ quiet = $true }) + @(@($list) + @($Fields | Where-Object { $_.kind -ne 'toggle' }) | Where-Object { $_ } | ForEach-Object {
         $f = [ordered]@{}
@@ -563,11 +589,13 @@ $fields = @(
     New-Field $T 'NoTranslation' 'toggle' 'Turn off page translation' 'Translation runs on your PC. Turning it off also removes its icon from the address bar.' $false
     New-Field $T 'Buttons' 'toggle' 'Remove extra address bar buttons' '"Add to taskbar" and the Picture-in-Picture button go away. Picture-in-Picture still works from the video.' $false
     New-Field $T 'NoReaderView' 'toggle' 'Remove the Reader View icon' 'The book icon that shows up on articles goes away.' $false
-    New-Field $T 'Extensions' 'toggle' 'Add uBlock Origin and Bitwarden' 'From Mozilla''s add-on store, kept up to date. They can be turned off, not removed.' $false
-    New-Field $T 'Bitwarden' 'toggle' 'Use Bitwarden for passwords' 'Firefox stops saving passwords, addresses and cards. Saved passwords are hidden, not deleted.' $false @{ warn = $(if ($saved) { "Firefox has $saved saved password(s). Export them to Bitwarden first: about:logins, menu, Export passwords." } else { '' }) }
     New-Field $T 'NoSearchSuggestions' 'toggle' 'Turn off search suggestions' 'What you type in the address bar stops going to the search engine while you type.' $false
     New-Field $T 'NoPrefetch' 'toggle' 'Turn off page preloading' 'Sites stop learning about links you never opened.' $false
     New-Field $T 'HttpsOnly' 'toggle' 'Turn on HTTPS-Only Mode' 'Firefox warns before opening a site without a secure connection.' $false
+    # Last, under their own title
+    New-Field $T 'UBlock' 'toggle' 'Add uBlock Origin' 'Blocks ads and trackers. From Mozilla''s add-on store, kept up to date. It can be turned off, not removed.' $false @{ section = $Extras }
+    New-Field $T 'BitwardenExtension' 'toggle' 'Add Bitwarden' 'The password manager. From Mozilla''s add-on store, kept up to date. It can be turned off, not removed.' $false @{ section = $Extras }
+    New-Field $T 'Bitwarden' 'toggle' 'Use Bitwarden for passwords' 'Firefox stops saving passwords, addresses and cards. Saved passwords are hidden, not deleted.' $false @{ section = $Extras; warn = $(if ($saved) { "Firefox has $saved saved password(s). Export them to Bitwarden first: about:logins, menu, Export passwords." } else { '' }) }
 )
 Write-Loading 'Reading the Firefox settings' 50
 if ($Describe) { Write-OptionsPage $Describe (Get-BrowserFields $fields 'Firefox' 'Turn off telemetry, sponsored content and AI, and add uBlock Origin.'); return }
@@ -583,7 +611,11 @@ if ($v.NoTranslation -or $v.Buttons) {
     Set-AddressBarButtons ([bool]$v.Buttons) ([bool]$v.NoTranslation)
 }
 if ($v.NoReaderView) { Write-Step 'Reader View icon'; Set-ReaderViewButton $ffDir }
-if ($v.Extensions)   { Write-Step 'Extensions';             Set-Extensions }
+if ($v.UBlock -or $v.BitwardenExtension) {
+    Write-Step 'Extensions'
+    if ($v.UBlock)             { Set-Extension $UBlockId 'uBlock Origin' }
+    if ($v.BitwardenExtension) { Set-Extension $BitwardenId 'Bitwarden' }
+}
 if ($v.Bitwarden)    { Write-Step 'Passwords: Bitwarden only'; Set-BitwardenOnly }
 if ($v.NoSearchSuggestions -or $v.NoPrefetch -or $v.HttpsOnly) {
     Write-Step 'Privacy'; Set-OptionalPrivacy ([bool]$v.NoSearchSuggestions) ([bool]$v.NoPrefetch) ([bool]$v.HttpsOnly)

@@ -4,7 +4,7 @@
 
 All three use each browser's official policies: they apply to every profile, even if the browser is installed later. Close and reopen the browser to apply them (it will show "Managed by your organization" — that's normal with policies). Check them at `brave://policy`, `chrome://policy` or `about:policies`.
 
-In the panel: **Set up → Browsers**, one page for the three. Turn on a browser and its options show up under it, each row below as a box in one list with "Select all", none checked at first: only what you check is applied. Review lists the changes by browser.
+In the panel: **Set up → Browsers**, one page for the three. Turn on a browser and its options show up under it, each row below as a box in one list with "Select all", none checked at first: only what you check is applied. Extensions and the password options come last, under their own title. Each extension can be added or undone without touching the other; they install from the official store, stay up to date and can be turned off, not removed. Review lists the changes by browser.
 
 To undo: panel → **Undo → Browsers**, or run the same script with `-Revert`. Turn on a browser and it lists a box for each group above that is on this PC, none checked, with "Select all", and one more for policies TidyWin doesn't know about (from an older version or another program); only what you check is removed.
 
@@ -21,6 +21,7 @@ From a local copy:
 | Brave features | Turns off Wallet, VPN, Rewards, Leo, News, Talk, Playlist, Wayback, Tor and Speedreader. |
 | Telemetry | Turns off P3A, the daily ping and Web Discovery. |
 | Chromium policies | Turns off reports, surveys, promotional tabs, background mode, shopping list and the "not your default browser" prompt. |
+| Bitwarden | Installs Bitwarden from the Chrome Web Store. No uBlock Origin: Brave already blocks ads. |
 | Apps, passwords and cards | Blocks installing sites as apps, the password manager and saved cards. |
 | Cast to TV | Keep (creates the firewall rule) or turn off. Either way, no firewall prompt. |
 
@@ -40,6 +41,9 @@ From a local copy:
 | AI | Turns off Gemini, AI Mode and every AI feature. |
 | Cookies | Blocks third-party cookies, allowing Google's domains. |
 | Extras | Blocks sync, background mode, shopping list and the "not your default browser" prompt. Safe Browsing in Standard mode. |
+| uBlock Origin Lite | Installs uBlock Origin Lite from the Chrome Web Store (the full uBlock Origin no longer runs in Chrome). |
+| Bitwarden | Installs Bitwarden from the Chrome Web Store. |
+| Passwords and cards | Turns off Chrome's password manager and saved cards. Passwords already saved stay in the Google account. |
 
 ## Firefox
 
@@ -54,7 +58,8 @@ From a local copy:
 | Telemetry | Turns off telemetry, studies, the default browser agent and the "not your default browser" prompt. |
 | Sponsored and recommendations | Removes sponsored content and recommendations from the new tab and the address bar. |
 | AI | Turns off AI features. Local translation keeps working unless you turn it off. |
-| Extensions | Installs uBlock Origin and Bitwarden. |
+| uBlock Origin | Installs uBlock Origin from Mozilla's add-on store. |
+| Bitwarden | Installs Bitwarden from Mozilla's add-on store. |
 | Bitwarden only | Turns off Firefox's password manager and address and card autofill (warns if there are saved passwords). |
 | No nags | Removes address bar tips, invitations to experimental features and the default bookmarks. |
 | Search suggestions | Stops sending what you type to the search engine in real time. |

@@ -14,7 +14,7 @@
     Works on Windows 10 and 11. Safe to run more than once.
 
     Does NOT touch: Google account sign-in, Safe Browsing (stays on Standard),
-    leaked password checks, password manager and updates.
+    leaked password checks and updates. The password manager only if you turn it off.
 
     FILE LAYOUT
         1. Helpers
@@ -275,6 +275,32 @@ function Set-Extras {
     Set-Policy 'DefaultBrowserSettingEnabled'            0 '"Not your default browser" prompt: off'
 }
 
+# For when Bitwarden keeps the passwords: Chrome stops offering to save passwords and cards.
+# The ones already saved stay in the Google account.
+function Set-Passwords {
+    Set-Policy 'PasswordManagerEnabled'                  0 'Chrome password manager: off'
+    Set-Policy 'AutofillCreditCardEnabled'               0 'Save/fill payment cards: off'
+}
+
+# Installed from the Chrome Web Store and kept up to date, each one its own entry of ExtensionSettings
+# (the other entries stay). "normal_installed" = you can turn it off, but not remove it.
+# uBlock Origin Lite: the full uBlock Origin no longer runs in Chrome (Manifest V2 was removed).
+$UBlockLiteId = 'ddkjiahejlhfcafbddmgiahcphecmpfh'
+$BitwardenId  = 'nngceckbapebfimnlniiiahkandclblb'
+$Extras       = 'Extensions and passwords'      # their title in the panel's list
+
+function Set-Extension([string]$Id, [string]$Name) {
+    if ($null -ne $script:Collect) { [void]$script:Collect.Add("ext:$Id"); return }   # -Revert: only the names
+    try {
+        $all = Get-PolicyJson $C 'ExtensionSettings'
+        if (-not $all) { $all = New-Object psobject }
+        $entry = [pscustomobject]@{ installation_mode = 'normal_installed'; update_url = 'https://clients2.google.com/service/update2/crx' }
+        $all | Add-Member -NotePropertyName $Id -NotePropertyValue $entry -Force
+        Save-PolicyJson $C 'ExtensionSettings' $all 'String'
+        Write-Ok "Installed: $Name" "ExtensionSettings = $Id"
+    } catch { Write-Fail $Name 'ExtensionSettings' $_ }
+}
+
 #endregion
 
 
@@ -299,14 +325,29 @@ function Split-PolicyName([string]$Root, [string]$Name) {
     return $r
 }
 
-function Get-PolicyPrefs([string]$Root) {
-    $raw = (Get-ItemProperty $Root -Name Preferences -ErrorAction SilentlyContinue).Preferences
+# Policies that hold a JSON object, one entry per name: "pref:name" is an entry of Preferences,
+# "ext:id" an extension of ExtensionSettings. Each entry is added and undone on its own.
+$JsonPolicies = @{ pref = 'Preferences'; ext = 'ExtensionSettings' }
+
+function Get-PolicyJson([string]$Root, [string]$Value) {
+    $raw = (Get-ItemProperty $Root -Name $Value -ErrorAction SilentlyContinue).$Value
     if (-not $raw) { return $null }
     try { return (@($raw) -join '') | ConvertFrom-Json } catch { return $null }
 }
 
+# Writes the object back as $Kind (MultiString or String), or removes the value when nothing is left in it.
+function Save-PolicyJson([string]$Root, [string]$Value, $Object, [string]$Kind) {
+    if ($Object -and @($Object.PSObject.Properties).Count) {
+        if (-not (Test-Path $Root)) { New-Item -Path $Root -Force -ErrorAction Stop | Out-Null }
+        $json = $Object | ConvertTo-Json -Compress -Depth 5
+        New-ItemProperty $Root -Name $Value -Value $(if ($Kind -eq 'MultiString') { @($json) } else { $json }) -PropertyType $Kind -Force -ErrorAction Stop | Out-Null
+    } else {
+        Remove-ItemProperty $Root -Name $Value -ErrorAction SilentlyContinue
+    }
+}
+
 function Test-PolicyName([string]$Root, [string]$Name) {
-    if ($Name -like 'pref:*') { $prefs = Get-PolicyPrefs $Root; return [bool]($prefs -and $prefs.PSObject.Properties[$Name.Substring(5)]) }
+    if ($Name -match '^(pref|ext):(.+)$') { $obj = Get-PolicyJson $Root $JsonPolicies[$Matches[1]]; return [bool]($obj -and $obj.PSObject.Properties[$Matches[2]]) }
     $p = Split-PolicyName $Root $Name
     if ($null -eq $p.Data -and (Test-Path "$($p.Key)\$($p.Value)")) { return $true }
     $item = Get-ItemProperty $p.Key -Name $p.Value -ErrorAction SilentlyContinue
@@ -315,26 +356,24 @@ function Test-PolicyName([string]$Root, [string]$Name) {
 
 function Remove-PolicyName([string]$Root, [string]$Name) {
     if (-not (Test-PolicyName $Root $Name)) { return }
-    if ($Name -like 'pref:*') {
-        $prefs = Get-PolicyPrefs $Root
-        $prefs.PSObject.Properties.Remove($Name.Substring(5))
-        if (@($prefs.PSObject.Properties).Count) {
-            New-ItemProperty $Root -Name Preferences -Value @($prefs | ConvertTo-Json -Compress -Depth 5) -PropertyType MultiString -Force | Out-Null
-        } else {
-            Remove-ItemProperty $Root -Name Preferences -ErrorAction SilentlyContinue
-        }
+    if ($Name -match '^(pref|ext):(.+)$') {
+        $value = $JsonPolicies[$Matches[1]]; $entry = $Matches[2]
+        $kind = try { "$((Get-Item $Root).GetValueKind($value))" } catch { 'MultiString' }      # kept as it was
+        $obj = Get-PolicyJson $Root $value
+        $obj.PSObject.Properties.Remove($entry)
+        Save-PolicyJson $Root $value $obj $kind
     } else {
         $p = Split-PolicyName $Root $Name
         if ($null -eq $p.Data -and (Test-Path "$($p.Key)\$($p.Value)")) { Remove-Item "$($p.Key)\$($p.Value)" -Recurse -Force -ErrorAction SilentlyContinue }
         Remove-ItemProperty $p.Key -Name $p.Value -ErrorAction SilentlyContinue
     }
-    Write-Host "  [removed] $($Name -replace '^pref:', 'Preferences: ' -replace '=.*$', '')" -ForegroundColor DarkGray
+    Write-Host "  [removed] $($Name -replace '^pref:', 'Preferences: ' -replace '^ext:', 'ExtensionSettings: ' -replace '=.*$', '')" -ForegroundColor DarkGray
 }
 
 # Every value under the policies key that no group knows about ("Subkey\Value").
 function Get-OtherPolicies([string]$Root, [object[]]$Groups) {
     if (-not (Test-Path $Root)) { return @() }
-    $known = @($Groups | ForEach-Object { $_.Names } | ForEach-Object { if ($_ -like 'pref:*') { 'Preferences' } else { $_ -replace '=.*$', '' } })
+    $known = @($Groups | ForEach-Object { $_.Names } | ForEach-Object { if ($_ -match '^(pref|ext):') { $JsonPolicies[$Matches[1]] } else { $_ -replace '=.*$', '' } })
     $keys = @(Get-Item $Root) + @(Get-ChildItem $Root -Recurse)
     $prefix = (Get-Item $Root).Name
     @(foreach ($key in $keys) {
@@ -364,8 +403,9 @@ function Get-UndoFields([string]$Root, [object[]]$Groups, [string]$Browser) {
         if ($other.Count -gt 4) { $shown += " and $($other.Count - 4) more" }
         $script:UndoGroups += @{ Id = 'Other'; Label = 'Remove the other policies'; Desc = "Set by an older TidyWin or another program: $shown."; Names = $other }
     }
+    $script:UndoGroups = @($script:UndoGroups | Where-Object { -not $_.Section }) + @($script:UndoGroups | Where-Object { $_.Section })   # the extensions last, under their title
     if (-not $script:UndoGroups) { return @(New-Field $Browser 'Nothing' 'header' 'Nothing to undo' "$Browser has no settings from TidyWin on this PC." $null) }
-    return @($script:UndoGroups | ForEach-Object { New-Field $Browser $_.Id 'toggle' $_.Label $_.Desc $false })
+    return @($script:UndoGroups | ForEach-Object { New-Field $Browser $_.Id 'toggle' $_.Label $_.Desc $false @{ section = "$($_.Section)" } })
 }
 
 function Invoke-Undo([string]$Root, [object[]]$Groups, [string]$Browser) {
@@ -403,6 +443,9 @@ function Get-UndoGroups {
         @{ Id = 'AI'; Label = 'Turn AI features back on'; Desc = 'Gemini, AI Mode, "Help me write" and the other AI features come back.'; Names = Get-PolicyNames { Set-AI } }
         @{ Id = 'Cookies'; Label = 'Allow third-party cookies again'; Desc = 'Chrome goes back to its own cookie settings.'; Names = Get-PolicyNames { Set-Cookies } }
         @{ Id = 'Extras'; Label = 'Turn sync and extras back on'; Desc = 'Sync, running in the background, the shopping list and the "not your default browser" prompt come back.'; Names = Get-PolicyNames { Set-Extras } }
+        @{ Id = 'UBlockLite'; Label = 'Stop managing uBlock Origin Lite'; Desc = 'It stays installed, and can then be removed in chrome://extensions.'; Names = @("ext:$UBlockLiteId"); Section = $Extras }
+        @{ Id = 'BitwardenExtension'; Label = 'Stop managing Bitwarden'; Desc = 'It stays installed, and can then be removed in chrome://extensions.'; Names = @("ext:$BitwardenId"); Section = $Extras }
+        @{ Id = 'Passwords'; Label = 'Save passwords and cards in Chrome again'; Desc = 'Chrome offers to save passwords and payment cards again.'; Names = Get-PolicyNames { Set-Passwords }; Section = $Extras }
     )
 }
 
@@ -421,7 +464,7 @@ function Get-BrowserFields([object[]]$Fields, [string]$Browser, [string]$Desc) {
     $toggles = @($Fields | Where-Object { $_.kind -eq 'toggle' })
     $list = if ($toggles) {
         New-Field 'Browsers' "$key.items" 'checklist' '' '' @() @{ items = @($toggles | ForEach-Object {
-            [ordered]@{ value = $_.id; label = $_.label; note = $_.desc; warn = "$($_.warn)"; group = '' } }) }
+            [ordered]@{ value = $_.id; label = $_.label; note = $_.desc; warn = "$($_.warn)"; group = "$($_.section)" } }) }
     }
     @(New-Field 'Browsers' $key 'toggle' $Browser $Desc $false @{ quiet = $true }) + @(@($list) + @($Fields | Where-Object { $_.kind -ne 'toggle' }) | Where-Object { $_ } | ForEach-Object {
         $f = [ordered]@{}
@@ -470,6 +513,10 @@ $fields = @(
     New-Field $T 'AI' 'toggle' 'Turn off AI features' 'Gemini, AI Mode, "Help me write" and the other AI features go away.' $false
     New-Field $T 'Cookies' 'toggle' 'Block third-party cookies' 'Sites can''t follow you across other sites. "Sign in with Google" keeps working.' $false
     New-Field $T 'Extras' 'toggle' 'Turn off sync and extras' 'No sync, no running in the background after closing, no shopping list and no "not your default browser" prompt. Safe Browsing stays on Standard.' $false
+    # Last, under their own title
+    New-Field $T 'UBlockLite' 'toggle' 'Add uBlock Origin Lite' 'Blocks ads and trackers. The full uBlock Origin no longer runs in Chrome. From the Chrome Web Store, kept up to date; it can be turned off, not removed.' $false @{ section = $Extras }
+    New-Field $T 'BitwardenExtension' 'toggle' 'Add Bitwarden' 'The password manager. From the Chrome Web Store, kept up to date; it can be turned off, not removed.' $false @{ section = $Extras }
+    New-Field $T 'Passwords' 'toggle' 'Turn off saving passwords and cards' 'For when you use Bitwarden. The passwords already saved stay in your Google account.' $false @{ section = $Extras }
 )
 Write-Loading 'Reading the Chrome settings' 50
 if ($Describe) { Write-OptionsPage $Describe (Get-BrowserFields $fields 'Chrome' 'Make Chrome more private, without breaking the Google sign-in.'); return }
@@ -486,6 +533,12 @@ if ($v.NoSearchSuggestions -or $v.NoPrefetch) {
 if ($v.AI)      { Write-Step 'Artificial intelligence'; Set-AI }
 if ($v.Cookies) { Write-Step 'Third-party cookies';     Set-Cookies }
 if ($v.Extras)  { Write-Step 'Sync, background and extras'; Set-Extras }
+if ($v.UBlockLite -or $v.BitwardenExtension) {
+    Write-Step 'Extensions'
+    if ($v.UBlockLite)         { Set-Extension $UBlockLiteId 'uBlock Origin Lite' }
+    if ($v.BitwardenExtension) { Set-Extension $BitwardenId 'Bitwarden' }
+}
+if ($v.Passwords) { Write-Step 'Passwords and cards'; Set-Passwords }
 
 # --- Done
 if ($script:Failures) { Write-Host "`n$($script:Failures) policy(ies) failed — see the [ERROR] lines above." -ForegroundColor Yellow }

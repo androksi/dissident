@@ -236,6 +236,30 @@ function Set-AppsAndAutofill {
     Set-Policy 'AutofillCreditCardEnabled'               0 'Save/fill payment cards: off'
 }
 
+# Bitwarden from the Chrome Web Store (Brave installs from it), kept up to date, as its own entry of
+# ExtensionSettings (the other entries stay). "normal_installed" = you can turn it off, but not remove it.
+# No uBlock Origin: Brave blocks ads and trackers by itself.
+$BitwardenId = 'nngceckbapebfimnlniiiahkandclblb'
+$Extras      = 'Extensions and passwords'      # their title in the panel's list
+
+function Set-Extension([string]$Id, [string]$Name) {
+    if ($null -ne $script:Collect) { [void]$script:Collect.Add("ext:$Id"); return }   # -Revert: only the names
+    try {
+        $all = Get-PolicyJson $B 'ExtensionSettings'
+        if (-not $all) { $all = New-Object psobject }
+        $entry = [pscustomobject]@{ installation_mode = 'normal_installed'; update_url = 'https://clients2.google.com/service/update2/crx' }
+        $all | Add-Member -NotePropertyName $Id -NotePropertyValue $entry -Force
+        Save-PolicyJson $B 'ExtensionSettings' $all 'String'
+        Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
+        Write-Host ("{0,-42}" -f "Installed: $Name") -NoNewline
+        Write-Host "ExtensionSettings = $Id" -ForegroundColor DarkGray
+    } catch {
+        $script:Failures++
+        Write-Host '  [ERROR] ' -ForegroundColor Red -NoNewline
+        Write-Host "$Name (ExtensionSettings): $($_.Exception.Message)"
+    }
+}
+
 # "Cast" to TV (Chromecast). To find TVs, Brave listens on the local network (mDNS, UDP 5353) the first
 # time a page with video opens, and Windows Firewall asks for permission. Chrome's installer adds a firewall
 # rule for this ("Google Chrome (mDNS-In)"); Brave's does not. Either choice below avoids the prompt:
@@ -289,14 +313,29 @@ function Split-PolicyName([string]$Root, [string]$Name) {
     return $r
 }
 
-function Get-PolicyPrefs([string]$Root) {
-    $raw = (Get-ItemProperty $Root -Name Preferences -ErrorAction SilentlyContinue).Preferences
+# Policies that hold a JSON object, one entry per name: "pref:name" is an entry of Preferences,
+# "ext:id" an extension of ExtensionSettings. Each entry is added and undone on its own.
+$JsonPolicies = @{ pref = 'Preferences'; ext = 'ExtensionSettings' }
+
+function Get-PolicyJson([string]$Root, [string]$Value) {
+    $raw = (Get-ItemProperty $Root -Name $Value -ErrorAction SilentlyContinue).$Value
     if (-not $raw) { return $null }
     try { return (@($raw) -join '') | ConvertFrom-Json } catch { return $null }
 }
 
+# Writes the object back as $Kind (MultiString or String), or removes the value when nothing is left in it.
+function Save-PolicyJson([string]$Root, [string]$Value, $Object, [string]$Kind) {
+    if ($Object -and @($Object.PSObject.Properties).Count) {
+        if (-not (Test-Path $Root)) { New-Item -Path $Root -Force -ErrorAction Stop | Out-Null }
+        $json = $Object | ConvertTo-Json -Compress -Depth 5
+        New-ItemProperty $Root -Name $Value -Value $(if ($Kind -eq 'MultiString') { @($json) } else { $json }) -PropertyType $Kind -Force -ErrorAction Stop | Out-Null
+    } else {
+        Remove-ItemProperty $Root -Name $Value -ErrorAction SilentlyContinue
+    }
+}
+
 function Test-PolicyName([string]$Root, [string]$Name) {
-    if ($Name -like 'pref:*') { $prefs = Get-PolicyPrefs $Root; return [bool]($prefs -and $prefs.PSObject.Properties[$Name.Substring(5)]) }
+    if ($Name -match '^(pref|ext):(.+)$') { $obj = Get-PolicyJson $Root $JsonPolicies[$Matches[1]]; return [bool]($obj -and $obj.PSObject.Properties[$Matches[2]]) }
     $p = Split-PolicyName $Root $Name
     if ($null -eq $p.Data -and (Test-Path "$($p.Key)\$($p.Value)")) { return $true }
     $item = Get-ItemProperty $p.Key -Name $p.Value -ErrorAction SilentlyContinue
@@ -305,26 +344,24 @@ function Test-PolicyName([string]$Root, [string]$Name) {
 
 function Remove-PolicyName([string]$Root, [string]$Name) {
     if (-not (Test-PolicyName $Root $Name)) { return }
-    if ($Name -like 'pref:*') {
-        $prefs = Get-PolicyPrefs $Root
-        $prefs.PSObject.Properties.Remove($Name.Substring(5))
-        if (@($prefs.PSObject.Properties).Count) {
-            New-ItemProperty $Root -Name Preferences -Value @($prefs | ConvertTo-Json -Compress -Depth 5) -PropertyType MultiString -Force | Out-Null
-        } else {
-            Remove-ItemProperty $Root -Name Preferences -ErrorAction SilentlyContinue
-        }
+    if ($Name -match '^(pref|ext):(.+)$') {
+        $value = $JsonPolicies[$Matches[1]]; $entry = $Matches[2]
+        $kind = try { "$((Get-Item $Root).GetValueKind($value))" } catch { 'MultiString' }      # kept as it was
+        $obj = Get-PolicyJson $Root $value
+        $obj.PSObject.Properties.Remove($entry)
+        Save-PolicyJson $Root $value $obj $kind
     } else {
         $p = Split-PolicyName $Root $Name
         if ($null -eq $p.Data -and (Test-Path "$($p.Key)\$($p.Value)")) { Remove-Item "$($p.Key)\$($p.Value)" -Recurse -Force -ErrorAction SilentlyContinue }
         Remove-ItemProperty $p.Key -Name $p.Value -ErrorAction SilentlyContinue
     }
-    Write-Host "  [removed] $($Name -replace '^pref:', 'Preferences: ' -replace '=.*$', '')" -ForegroundColor DarkGray
+    Write-Host "  [removed] $($Name -replace '^pref:', 'Preferences: ' -replace '^ext:', 'ExtensionSettings: ' -replace '=.*$', '')" -ForegroundColor DarkGray
 }
 
 # Every value under the policies key that no group knows about ("Subkey\Value").
 function Get-OtherPolicies([string]$Root, [object[]]$Groups) {
     if (-not (Test-Path $Root)) { return @() }
-    $known = @($Groups | ForEach-Object { $_.Names } | ForEach-Object { if ($_ -like 'pref:*') { 'Preferences' } else { $_ -replace '=.*$', '' } })
+    $known = @($Groups | ForEach-Object { $_.Names } | ForEach-Object { if ($_ -match '^(pref|ext):') { $JsonPolicies[$Matches[1]] } else { $_ -replace '=.*$', '' } })
     $keys = @(Get-Item $Root) + @(Get-ChildItem $Root -Recurse)
     $prefix = (Get-Item $Root).Name
     @(foreach ($key in $keys) {
@@ -354,8 +391,9 @@ function Get-UndoFields([string]$Root, [object[]]$Groups, [string]$Browser) {
         if ($other.Count -gt 4) { $shown += " and $($other.Count - 4) more" }
         $script:UndoGroups += @{ Id = 'Other'; Label = 'Remove the other policies'; Desc = "Set by an older TidyWin or another program: $shown."; Names = $other }
     }
+    $script:UndoGroups = @($script:UndoGroups | Where-Object { -not $_.Section }) + @($script:UndoGroups | Where-Object { $_.Section })   # the extensions last, under their title
     if (-not $script:UndoGroups) { return @(New-Field $Browser 'Nothing' 'header' 'Nothing to undo' "$Browser has no settings from TidyWin on this PC." $null) }
-    return @($script:UndoGroups | ForEach-Object { New-Field $Browser $_.Id 'toggle' $_.Label $_.Desc $false })
+    return @($script:UndoGroups | ForEach-Object { New-Field $Browser $_.Id 'toggle' $_.Label $_.Desc $false @{ section = "$($_.Section)" } })
 }
 
 function Invoke-Undo([string]$Root, [object[]]$Groups, [string]$Browser) {
@@ -390,7 +428,8 @@ function Get-UndoGroups {
         @{ Id = 'Features'; Label = 'Bring Brave extras back'; Desc = 'Wallet, VPN, Rewards, Leo, News, Talk, Playlist, private windows with Tor and Speedreader come back.'; Names = Get-PolicyNames { Set-BraveFeatures } }
         @{ Id = 'Telemetry'; Label = 'Turn telemetry back on'; Desc = 'Brave can send usage analytics, the daily usage ping and Web Discovery data again.'; Names = Get-PolicyNames { Set-BraveTelemetry } }
         @{ Id = 'Chromium'; Label = 'Turn reports and prompts back on'; Desc = 'Crash reports, surveys, welcome tabs, running in the background, the shopping list and the "not your default browser" prompt come back.'; Names = Get-PolicyNames { Set-ChromiumPolicies } }
-        @{ Id = 'Autofill'; Label = 'Save passwords and cards again'; Desc = 'Brave can save passwords and cards and install sites as apps again.'; Names = Get-PolicyNames { Set-AppsAndAutofill } }
+        @{ Id = 'BitwardenExtension'; Label = 'Stop managing Bitwarden'; Desc = 'It stays installed, and can then be removed in brave://extensions.'; Names = @("ext:$BitwardenId"); Section = $Extras }
+        @{ Id = 'Autofill'; Label = 'Save passwords and cards again'; Desc = 'Brave can save passwords and cards and install sites as apps again.'; Names = Get-PolicyNames { Set-AppsAndAutofill }; Section = $Extras }
         @{ Id = 'Cast'; Label = 'Cast to TV back to default'; Desc = 'The Cast setting and its firewall rule go away. Windows may ask about the firewall the first time Brave looks for TVs.'; Names = @('EnableMediaRouter')
            Test = { [bool](Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue) }
            Undo = {
@@ -417,7 +456,7 @@ function Get-BrowserFields([object[]]$Fields, [string]$Browser, [string]$Desc) {
     $toggles = @($Fields | Where-Object { $_.kind -eq 'toggle' })
     $list = if ($toggles) {
         New-Field 'Browsers' "$key.items" 'checklist' '' '' @() @{ items = @($toggles | ForEach-Object {
-            [ordered]@{ value = $_.id; label = $_.label; note = $_.desc; warn = "$($_.warn)"; group = '' } }) }
+            [ordered]@{ value = $_.id; label = $_.label; note = $_.desc; warn = "$($_.warn)"; group = "$($_.section)" } }) }
     }
     @(New-Field 'Browsers' $key 'toggle' $Browser $Desc $false @{ quiet = $true }) + @(@($list) + @($Fields | Where-Object { $_.kind -ne 'toggle' }) | Where-Object { $_ } | ForEach-Object {
         $f = [ordered]@{}
@@ -464,7 +503,9 @@ $fields = @(
     New-Field $T 'Features' 'toggle' 'Turn off Brave extras' 'Wallet, VPN, Rewards, the Leo AI assistant, News, Talk, Playlist, private windows with Tor and Speedreader go away. Ad blocking stays on.' $false
     New-Field $T 'Telemetry' 'toggle' 'Turn off telemetry' 'Brave stops sending usage analytics, the daily usage ping and Web Discovery data.' $false
     New-Field $T 'Chromium' 'toggle' 'Turn off reports and prompts' 'No crash reports, surveys or welcome tabs, no running in the background after closing, no shopping list and no "not your default browser" prompt.' $false
-    New-Field $T 'Autofill' 'toggle' 'Turn off saving passwords and cards' 'For when you use a password manager, like Bitwarden. Brave also stops offering to install sites as apps.' $false
+    # Last in the list, under their own title
+    New-Field $T 'BitwardenExtension' 'toggle' 'Add Bitwarden' 'The password manager. From the Chrome Web Store, kept up to date; it can be turned off, not removed. No uBlock Origin needed: Brave already blocks ads.' $false @{ section = $Extras }
+    New-Field $T 'Autofill' 'toggle' 'Turn off saving passwords and cards' 'For when you use Bitwarden. Brave also stops offering to install sites as apps.' $false @{ section = $Extras }
     New-Field $T 'Cast' 'choice' 'Cast to TV' 'Keep: Brave finds TVs without a firewall prompt. Turn off: Brave stops looking for TVs on the network.' '' @{ options = @((Opt 'Keep' 'Keep'), (Opt 'Off' 'Turn off')) }
 )
 Write-Loading 'Reading the Brave settings' 50
@@ -476,6 +517,7 @@ if (-not @($v.Keys | Where-Object { $v[$_] })) { Write-Host 'Nothing was selecte
 if ($v.Features)  { Write-Step 'Brave features';            Set-BraveFeatures }
 if ($v.Telemetry) { Write-Step 'Brave telemetry';           Set-BraveTelemetry }
 if ($v.Chromium)  { Write-Step 'Reports and prompts';       Set-ChromiumPolicies }
+if ($v.BitwardenExtension) { Write-Step 'Extensions'; Set-Extension $BitwardenId 'Bitwarden' }
 if ($v.Autofill)  { Write-Step 'Apps, passwords and cards'; Set-AppsAndAutofill }
 if ($v.Cast)      { Write-Step 'Cast to TV';                Set-CastToTv ($v.Cast -eq 'Off') $installed }
 
