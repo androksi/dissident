@@ -188,7 +188,8 @@ if ($Host.Name -ne 'ConsoleHost') {
 
 #region ==================== 2. APP LIST ====================
 
-# Category, display name, WinGet ID, source ('winget' or 'msstore'), interactive by default, short description.
+# Category, display name, WinGet ID, source ('winget' or 'msstore'; 'feature' for a Windows feature, like .NET
+# Framework 3.5, turned on instead of downloaded), interactive by default (WinGet apps only), short description.
 # The list is shown in this order. Interactive = the app's own installer window opens so you can pick options
 # (e.g. VS Code: "Open with Code" in the context menu). Microsoft Store apps can't be interactive.
 function New-App($Category, $Name, $Id, $Source, $Interactive, $Description) {
@@ -336,6 +337,7 @@ $Apps = @(
     New-App 'Utilities'   'Lenovo Vantage'        '9WZDNCRFJ4MV'                      'msstore' $false 'Updates and settings for Lenovo PCs'
     New-App 'Utilities'   'Visual C++ 2015-2022'  $VcRedist                           'winget'  $false 'Needed by most programs and games'
     New-App 'Utilities'   'Visual C++ 2005-2013'  $VcRedistOld                        'winget'  $false 'Needed by older programs and games'
+    New-App 'Utilities'   '.NET Framework 3.5'    'NetFx3'                            'feature' $false 'Needed by older programs and games'
 )
 
 #endregion
@@ -478,6 +480,39 @@ function Find-TrustedApps([string]$Query) {
         Select-Object -First 12 | ForEach-Object { $_.App })
 }
 
+# --- Windows features (source 'feature'): .NET Framework 3.5 --------------------------------------------
+# Not a WinGet package: a part of Windows that is turned on, and Windows downloads its files from Windows
+# Update. Whether it is on: the key .NET 3.5 writes (no admin needed, and much faster than DISM).
+$FeatureKeys = @{ NetFx3 = @{ Key = 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5'; Value = 'Install' } }
+
+function Test-WindowsFeature([string]$Name) {
+    $k = $FeatureKeys[$Name]
+    if ($k) { return (Get-ItemProperty -Path $k.Key -Name $k.Value -ErrorAction SilentlyContinue).($k.Value) -eq 1 }
+    return "$((Get-WindowsOptionalFeature -Online -FeatureName $Name -ErrorAction SilentlyContinue).State)" -eq 'Enabled'
+}
+
+# Windows Update turned off (TidyWin → Updates → Off disables its service): features can't download
+function Test-UpdatesOff { (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\wuauserv' -Name Start -ErrorAction SilentlyContinue).Start -eq 4 }
+
+# Returns ok, already or failed, like a WinGet install
+function Install-WindowsFeatureApp([string]$Name) {
+    if (Test-WindowsFeature $Name) { return 'already' }
+    if (Test-UpdatesOff) {
+        Write-Host '  Windows Update is off (TidyWin → Updates), and Windows downloads this from it.' -ForegroundColor Yellow
+        Write-Host '  Turn Windows Update back to Normal, then try again.' -ForegroundColor Yellow
+        return 'failed'
+    }
+    Write-Host '  Turning it on: Windows downloads its files from Windows Update, it can take a few minutes.' -ForegroundColor DarkGray
+    try {
+        $r = Enable-WindowsOptionalFeature -Online -FeatureName $Name -All -NoRestart -ErrorAction Stop
+        if ($r.RestartNeeded) { Write-Host '  Restart the PC to finish.' -ForegroundColor Yellow }
+        return 'ok'
+    } catch {
+        Write-Host "  $($_.Exception.Message.Trim())" -ForegroundColor Red
+        return 'failed'
+    }
+}
+
 # IDs of the packages WinGet sees as installed (WinGet and Microsoft Store sources), via "winget export".
 # One call for the whole list. If it fails, nothing is marked as installed.
 function Get-InstalledAppIds {
@@ -507,11 +542,11 @@ function Show-AppSelection {
             items = @($Apps | ForEach-Object {
                 @{ label = $_.Name; group = $_.Category; checked = $_.Selected
                    note = $(if ($_.Installed) { "installed · $($_.Description)" } else { $_.Description })
-                   flag = $(if ($_.Source -eq 'msstore') { $null } else { $_.Interactive }) } }) }
+                   flag = $(if ($_.Source -ne 'winget') { $null } else { $_.Interactive }) } }) }
         if ($null -eq $answer) { return $false }
         for ($i = 0; $i -lt $Apps.Count; $i++) {
             $Apps[$i].Selected = @($answer.checked) -contains $i
-            if ($Apps[$i].Source -ne 'msstore') { $Apps[$i].Interactive = @($answer.flags) -contains $i }
+            if ($Apps[$i].Source -eq 'winget') { $Apps[$i].Interactive = @($answer.flags) -contains $i }
         }
         return $true
     }
@@ -557,7 +592,7 @@ function Show-AppSelection {
                 if ($rows[$r].IsHeader) { & $line "  $($rows[$r].Text)" 'Yellow'; continue }
                 $app = $rows[$r].App
                 $check  = if ($app.Selected) { '[x]' } else { '[ ]' }
-                $interactive = if ($app.Source -eq 'msstore') { '   ' } elseif ($app.Interactive) { '[I]' } else { '[ ]' }
+                $interactive = if ($app.Source -ne 'winget') { '   ' } elseif ($app.Interactive) { '[I]' } else { '[ ]' }
                 $marker = if ($r -eq $row) { '>' } else { ' ' }
                 $installedTag = if ($app.Installed) { 'installed · ' } else { '' }
                 $text = "  $marker $check $interactive  $($app.Name.PadRight(24)) $installedTag$($app.Description)"
@@ -614,7 +649,7 @@ function Show-AppSelection {
                 }
                 'I' {
                     $app = $rows[$appRows[$cursor]].App
-                    if ($app.Source -ne 'msstore') {
+                    if ($app.Source -eq 'winget') {
                         $app.Interactive = -not $app.Interactive
                         if ($app.Interactive) { $app.Selected = $true }   # turning interactive on also selects it
                     }
@@ -666,11 +701,16 @@ function Install-Apps {
         Write-Step "[$($i + 1)/$($chosen.Count)] $($app.Name)"
         # An entry may have several packages (Visual C++): failed if any failed, OK if any was installed
         $statuses = @(); $code = 0
+        if ($app.Source -eq 'feature') {                          # a Windows feature, not WinGet
+            $status = Install-WindowsFeatureApp $app.Id
+            $results += [pscustomobject]@{ Name = $app.Name; Status = $status; Code = $null }
+            continue
+        }
         foreach ($id in @($app.Id)) {
             if (@($app.Id).Count -gt 1) { Write-Host "  $id" -ForegroundColor DarkGray }
             $wingetArgs = @('install', '--id', $id, '--exact', '--source', $app.Source,
                             '--accept-package-agreements', '--accept-source-agreements')
-            if ($app.Interactive -and $app.Source -ne 'msstore') { $wingetArgs += '--interactive' }
+            if ($app.Interactive -and $app.Source -eq 'winget') { $wingetArgs += '--interactive' }
             & winget @wingetArgs
             if ($LASTEXITCODE -eq 0) { $statuses += 'ok' }
             elseif ($LASTEXITCODE -in $AlreadyInstalledCodes) { $statuses += 'already' }
@@ -685,7 +725,7 @@ function Install-Apps {
         switch ($r.Status) {
             'ok'      { Write-Host "  [OK]       $($r.Name)" -ForegroundColor Green }
             'already' { Write-Host "  [ALREADY]  $($r.Name)" -ForegroundColor DarkGray }
-            'failed'  { Write-Host ("  [ERROR]    {0} (code 0x{1:X8})" -f $r.Name, $r.Code) -ForegroundColor Red }
+            'failed'  { Write-Host ("  [ERROR]    {0}{1}" -f $r.Name, $(if ($null -ne $r.Code) { ' (code 0x{0:X8})' -f $r.Code })) -ForegroundColor Red }
         }
     }
     if ($results.Status -contains 'failed') {
@@ -742,12 +782,15 @@ if (-not $hasWinGet -and -not $Describe) {
     $hasWinGet = $true
 }
 
-# --- Mark the apps that are already installed
+# --- Mark the apps that are already installed (Windows features don't need WinGet for it)
+foreach ($app in @($Apps | Where-Object Source -eq 'feature')) { $app.Installed = Test-WindowsFeature $app.Id }
+$updatesOff = Test-UpdatesOff
 if ($hasWinGet) {
     if (-not $Describe) { Write-Host '  Checking which apps are already installed...' -ForegroundColor DarkGray }
     Write-Loading 'Checking which apps are already installed' 15
     $installedIds = Get-InstalledAppIds
     foreach ($app in $Apps) {
+        if ($app.Source -eq 'feature') { continue }
         $app.Installed = @($app.Id | Where-Object { $installedIds -notcontains $_ }).Count -eq 0   # every package of the entry
         # Firefox/Thunderbird in any language counts as installed (ESR, Beta and MSIX are other packages)
         if (-not $app.Installed -and $app.Id -match '^Mozilla\.(Firefox|Thunderbird)') {
@@ -767,7 +810,9 @@ if ($Describe) {
                 [ordered]@{
                     value = @($_.Id)[0]; label = $_.Name; note = $_.Description; group = ''
                     status = $(if ($_.Installed) { 'Installed' } else { '' })
-                    flag = $(if ($_.Source -eq 'msstore') { $null } else { $false })
+                    flag = $(if ($_.Source -ne 'winget') { $null } else { $false })
+                    # A Windows feature comes from Windows Update: say so when it is off
+                    warn = $(if ($_.Source -eq 'feature' -and -not $_.Installed -and $updatesOff) { 'Windows Update is off (Updates page), and Windows downloads this from it. Turn it back to Normal first.' } else { '' })
                 }
             })
         }
@@ -797,7 +842,7 @@ if ($Answers) {
     foreach ($app in $Apps) {
         $key = @($app.Id)[0]
         $app.Selected = $picked -contains $key
-        $app.Interactive = $app.Source -ne 'msstore' -and $interactive -contains $key
+        $app.Interactive = $app.Source -eq 'winget' -and $interactive -contains $key
     }
     # What was found with Search: an app of the list is just checked there; the others join the list
     foreach ($f in $found) {

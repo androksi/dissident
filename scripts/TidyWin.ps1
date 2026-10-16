@@ -81,7 +81,7 @@ function Get-Menu {
         ) 'Start' @(New-Step 'windows/configure-updates.ps1') -Form
 
         New-MenuEntry $setup 'apps' 'E71D' 'Apps' 'Apps' 'Install the apps you use, all at once.' @(
-            'Pick from 105 apps: browsers, games, media, development and more.'
+            'Pick from 106 apps: browsers, games, media, development and more.'
             'Installs them from their official sources with WinGet.'
             'Apps you already have are marked.'
         ) 'Choose apps' @(New-Step 'apps/configure-apps.ps1') -Form

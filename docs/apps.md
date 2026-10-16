@@ -10,7 +10,7 @@ In the [TidyWin panel](../README.md#quick-start): **Set up → Apps**. From a lo
 
 | Feature | What it does |
 |---|---|
-| App list | 105 apps, a tab per category. Nothing comes selected. |
+| App list | 106 apps, a tab per category. Nothing comes selected. |
 | Already installed | Marked **Installed** in green. Choosing one updates it if there is a newer version. |
 | Interactive | Next to each app (not the Microsoft Store ones): opens the app's own installer, so you choose its options, like VS Code's "Open with Code". |
 | Review | Lists the chosen apps before you install them. |
@@ -51,7 +51,7 @@ Language packages (`Mozilla.Firefox.pt-BR`) are hidden when the main package is 
 ## Full list
 
 <details>
-<summary>See all 105 apps</summary>
+<summary>See all 106 apps</summary>
 
 ### Communication (8)
 
@@ -179,7 +179,7 @@ Language packages (`Mozilla.Firefox.pt-BR`) are hidden when the main package is 
 | Cloudflare One | Cloudflare's WARP and 1.1.1.1 client; free VPN and Zero Trust access | `Cloudflare.Warp` |
 | Malwarebytes | anti-malware (second opinion to Defender) | `Malwarebytes.Malwarebytes` |
 
-### Utilities (19)
+### Utilities (20)
 
 | App | What it is | ID |
 |---|---|---|
@@ -202,6 +202,7 @@ Language packages (`Mozilla.Firefox.pt-BR`) are hidden when the main package is 
 | Lenovo Vantage | updates and settings for Lenovo PCs (Microsoft Store) | `9WZDNCRFJ4MV` |
 | Visual C++ 2015-2022 | runtime most programs and games need (x64 + x86; also arm64 on ARM PCs) | `Microsoft.VCRedist.2015+.x86`, `.x64`, `.arm64` |
 | Visual C++ 2005-2013 | older runtimes, for older games and programs (x64 + x86) | `Microsoft.VCRedist.<2005, 2008, 2010, 2012, 2013>.x86` and `.x64` |
+| .NET Framework 3.5 | runtime older programs and games need. A Windows feature, not a WinGet package: turned on with `Enable-WindowsOptionalFeature`, and Windows downloads it from Windows Update (it warns when Windows Update is off on the Updates page) | `NetFx3` (Windows feature) |
 
 </details>
 
