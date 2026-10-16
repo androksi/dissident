@@ -233,6 +233,15 @@ function Get-AppRules {
         if (-not $byProgram.Contains($key)) { $byProgram[$key] = [pscustomobject]@{ Key = $key; Path = $path; Rules = New-Object Collections.Generic.List[object] } }
         $byProgram[$key].Rules.Add($r)
     }
+    # The protocol of each of these rules (TCP, UDP...), for the details next to the count. Asked for these
+    # rules only: "Get-NetFirewallPortFilter -All" can come back empty.
+    $script:Protocols = @{}
+    $chosen = @($byProgram.Values | ForEach-Object { $_.Rules.ToArray() })
+    if ($chosen) {
+        foreach ($f in @($chosen | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue)) {
+            $script:Protocols[$f.InstanceID] = @{ Protocol = "$($f.Protocol)"; Local = "$(@($f.LocalPort) -join ',')"; Remote = "$(@($f.RemotePort) -join ',')" }
+        }
+    }
     $list = foreach ($p in $byProgram.Values) {
         $rules = $p.Rules.ToArray()          # (@() on a List of these objects fails: "argument types do not match")
         $exists = Test-Path -LiteralPath $p.Path
@@ -267,6 +276,31 @@ function Get-ProgramName([string]$Path, $Rules) {
 }
 
 # What the rules let the app do, in a few words: "Open to other devices, even on public Wi-Fi"
+# For the info icon next to the count: the app's full path, then one line per rule
+#   C:\Program Files\qBittorrent\qbittorrent.exe
+#   qBittorrent (TCP): lets connections in, Public
+function Get-RuleDetails($App) {
+    $where = { param([int]$p)
+        if ($p -eq 0 -or $p -eq 7) { return 'every network' }
+        @(if ($p -band 2) { 'Home' }; if ($p -band 4) { 'Public' }; if ($p -band 1) { 'work domain' }) -join ', ' }
+    $lines = foreach ($r in @($App.Rules)) {
+        $name = ("$($r.DisplayName)" -replace '\s*\([A-Za-z]:\\[^)]*\)\s*$', '').Trim()     # without a path in parentheses
+        if (-not $name -or $name -like 'ms-resource:*' -or $name -like '{*') { $name = $App.Name }
+        # Its protocol and port, when the rule has them: "Spotify (TCP 57621)"
+        $pf = $script:Protocols[$r.Name]
+        if ($pf -and $pf.Protocol -and $pf.Protocol -ne 'Any') {
+            $port = if ($r.Direction -eq 'Inbound') { $pf.Local } else { $pf.Remote }
+            $name += " ($($pf.Protocol)$(if ($port -and $port -ne 'Any') { " $port" }))"
+        }
+        $what = if ($r.Direction -eq 'Inbound') { if ($r.Action -eq 'Allow') { 'lets connections in' } else { 'blocks connections in' } }
+                else { if ($r.Action -eq 'Allow') { 'lets it use the internet' } else { 'blocks the internet' } }
+        "${name}: $what, $(& $where ([int]$r.Profile))$(if ($r.Enabled -ne 'True') { ' (turned off)' })"
+    }
+    # Rules that read the same are one line: "Spotify (TCP): lets connections in, every network (×6)"
+    $grouped = @($lines | Group-Object | Sort-Object Name | ForEach-Object { if ($_.Count -gt 1) { "$($_.Name) (×$($_.Count))" } else { $_.Name } })
+    (@($App.Path, '') + $grouped) -join "`n"
+}
+
 function Get-RuleDescription($App) {
     $rules = @($App.Rules)
     if ($App.Blocked) { return 'Blocked from the internet by TidyWin' }
@@ -348,7 +382,7 @@ $fields = @(
             items = @($apps | ForEach-Object {
                 $n = @($_.Rules).Count
                 [ordered]@{ value = $_.Key; label = $_.Name; group = ''; note = Get-RuleDescription $_
-                            status = "$n rule$(if ($n -ne 1) { 's' })"; statusBrush = 'Warn'
+                            status = "$n rule$(if ($n -ne 1) { 's' })"; statusBrush = 'Warn'; statusTip = Get-RuleDetails $_
                             warn = $(if (-not $_.Exists) { 'No longer installed. Safe to delete.' } else { '' }) }
             }); search = $apps.Count -gt 15 }
     } else {

@@ -1759,6 +1759,40 @@ function New-FieldRow($Form, $F) {
                 $tag = New-Object Windows.Documents.Run "  •  $($item.status)"
                 $tag.Foreground = $W.Resources[$(if ($item.statusBrush) { "$($item.statusBrush)" } else { 'Ok' })]; $tag.FontSize = 12
                 $name.Inlines.Add($tag)
+                # statusTip: an info icon after it, and the details when the mouse is over it (Firewall: the
+                # app's path and each of its rules)
+                if ("$($item.statusTip)") {
+                    $icon = New-Object Windows.Controls.TextBlock
+                    $icon.Text = [string][char]0xE946
+                    $icon.FontFamily = New-Object Windows.Media.FontFamily 'Segoe Fluent Icons, Segoe MDL2 Assets'
+                    $icon.FontSize = 12
+                    $icon.Foreground = $tag.Foreground
+                    $icon.Margin = New-Object Windows.Thickness 6, 0, 0, 0
+                    $icon.Cursor = [Windows.Input.Cursors]::Help
+                    # In the panel's colors; the first line (the path) in bold
+                    $tip = New-Object Windows.Controls.ToolTip
+                    $tip.Background = $W.Resources['Card']; $tip.Foreground = $W.Resources['Fg']
+                    $tip.BorderBrush = $W.Resources['Line']; $tip.Padding = New-Object Windows.Thickness 12, 10, 12, 10
+                    $tipText = New-Object Windows.Controls.TextBlock
+                    $tipText.TextWrapping = 'Wrap'; $tipText.MaxWidth = 560
+                    $tipLines = @("$($item.statusTip)" -split "`n")
+                    $first = New-Object Windows.Documents.Run $tipLines[0]
+                    $first.FontWeight = 'SemiBold'
+                    $tipText.Inlines.Add($first)
+                    if ($tipLines.Count -gt 1) {
+                        $rest = New-Object Windows.Documents.Run ("`n" + (($tipLines | Select-Object -Skip 1) -join "`n"))
+                        $rest.Foreground = $W.Resources['Fg2']
+                        $tipText.Inlines.Add($rest)
+                    }
+                    $tip.Content = $tipText
+                    $icon.ToolTip = $tip
+                    $tag.ToolTip = $tip
+                    [Windows.Controls.ToolTipService]::SetShowDuration($icon, 60000)
+                    [Windows.Controls.ToolTipService]::SetInitialShowDelay($icon, 150)
+                    $container = New-Object Windows.Documents.InlineUIContainer $icon
+                    $container.BaselineAlignment = 'Center'
+                    $name.Inlines.Add($container)
+                }
             }
             $content = New-Object Windows.Controls.StackPanel
             $content.Children.Add($name) | Out-Null
