@@ -263,15 +263,30 @@ function Set-NoTranslation {
 #                                                                 keeps working from the video and right-click)
 #   browser.translations.enable                                   translation icon, only if translation is off
 function Set-AddressBarButtons([bool]$Buttons, [bool]$NoTranslation) {
-    $prefs = [ordered]@{}
     if ($Buttons) {
-        $prefs['browser.taskbarTabs.enabled']                                  = '"Add to taskbar": off'
-        $prefs['media.videocontrols.picture-in-picture.urlbar-button.enabled'] = 'Picture-in-Picture button: off'
+        Set-PrefPolicy 'browser.taskbarTabs.enabled' $false 'locked' '"Add to taskbar": off'
+        Set-PrefPolicy 'media.videocontrols.picture-in-picture.urlbar-button.enabled' $false 'locked' 'Picture-in-Picture button: off'
     }
-    if ($NoTranslation) { $prefs['browser.translations.enable'] = 'Translation icon: off' }
-    $entries = foreach ($name in $prefs.Keys) { '"{0}":{{"Value":false,"Status":"locked"}}' -f $name }
-    $json = '{' + ($entries -join ',') + '}'
-    Set-Policy '' 'Preferences' @($json) ($prefs.Values -join '; ') 'MultiString'
+    if ($NoTranslation) { Set-PrefPolicy 'browser.translations.enable' $false 'locked' 'Translation icon: off' }
+}
+
+# One entry of the "Preferences" policy (a JSON object, one entry per preference). Added to the ones already
+# there, so one option doesn't wipe another's. Status: locked (Firefox can't change it) or default.
+function Set-PrefPolicy([string]$Name, $Value, [string]$Status, [string]$Description) {
+    if ($null -ne $script:Collect) { [void]$script:Collect.Add("pref:$Name"); return }   # -Revert: only the names
+    try {
+        $all = Get-PolicyJson $F 'Preferences'
+        if (-not $all) { $all = New-Object psobject }
+        $all | Add-Member -NotePropertyName $Name -NotePropertyValue ([pscustomobject]@{ Value = $Value; Status = $Status }) -Force
+        Save-PolicyJson $F 'Preferences' $all 'MultiString'
+        Write-Host '  [OK] ' -ForegroundColor Green -NoNewline
+        Write-Host ("{0,-46}" -f $Description) -NoNewline
+        Write-Host "Preferences: $Name = $Value" -ForegroundColor DarkGray
+    } catch {
+        $script:Failures++
+        Write-Host '  [ERROR] ' -ForegroundColor Red -NoNewline
+        Write-Host "$Description (Preferences: $Name): $($_.Exception.Message)"
+    }
 }
 
 # Reader View icon ("book" in the address bar). Its preference (reader.parse-on-load.enabled) is not
@@ -317,6 +332,99 @@ function Remove-ReaderViewButton([string]$Dir) {
     if ((Test-Path $p.Loader) -and (Select-String -Path $p.Loader -Pattern 'tidywin.cfg' -SimpleMatch -Quiet)) {
         Remove-Item $p.Loader, $p.Config -Force -ErrorAction SilentlyContinue
         Write-Host '  [removed] AutoConfig'; Write-Host '            The Reader View icon is back.' -ForegroundColor DarkGray
+    }
+}
+
+# --- Right-click menu ---------------------------------------------------------------------------------
+# Lines of Firefox's right-click menu, hidden with userChrome.css: a block between two TidyWin markers in
+# chrome\userChrome.css of every profile (whatever else the file has stays). Firefox only reads that file
+# with toolkit.legacyUserProfileCustomizations.stylesheets on, set through the Preferences policy as a
+# default. The features stay; only their menu lines go. Each option: its id, its name and the menu ids.
+$MenuItems = @(
+    [pscustomobject]@{ Id = 'MenuSource';     Name = 'View Page Source';                  Css = '#context-viewsource', '#context-viewpartialsource-selection' }
+    [pscustomobject]@{ Id = 'MenuSendTo';     Name = 'Send to Device';                    Css = '#context-sendpagetodevice', '#context-sep-sendpagetodevice', '#context-sendlinktodevice', '#context-sep-sendlinktodevice' }
+    [pscustomobject]@{ Id = 'MenuScreenshot'; Name = 'Take Screenshot';                   Css = '#context-take-screenshot', '#context-sep-screenshots' }
+    [pscustomobject]@{ Id = 'MenuA11y';       Name = 'Inspect Accessibility Properties';  Css = '#context-inspect-a11y' }
+    [pscustomobject]@{ Id = 'MenuTranslate';  Name = 'Translate Selection';               Css = '#context-translate-selection' }
+    [pscustomobject]@{ Id = 'MenuAskAI';      Name = 'Ask an AI Chatbot';                 Css = '#context-ask-chat' }
+)
+$MenuSection = 'Right-click menu'
+$CssStart = '/* TidyWin: right-click menu (start) */'
+$CssEnd   = '/* TidyWin: right-click menu (end) */'
+
+# Every Firefox profile folder, from profiles.ini (a profile can live outside the usual folder)
+function Get-FirefoxProfiles {
+    $root = Join-Path $env:APPDATA 'Mozilla\Firefox'
+    $ini = Join-Path $root 'profiles.ini'
+    $paths = @()
+    if (Test-Path $ini) {
+        $relative = $true; $path = $null
+        foreach ($line in (Get-Content $ini -ErrorAction SilentlyContinue) + '[end]') {
+            if ($line -match '^\s*\[') {
+                if ($path) { $paths += $(if ($relative) { Join-Path $root ($path -replace '/', '\') } else { $path }) }
+                $relative = $true; $path = $null
+            }
+            elseif ($line -match '^\s*Path\s*=\s*(.+?)\s*$') { $path = $Matches[1] }
+            elseif ($line -match '^\s*IsRelative\s*=\s*0') { $relative = $false }
+        }
+    }
+    $paths += @(Get-ChildItem (Join-Path $root 'Profiles') -Directory -ErrorAction SilentlyContinue | ForEach-Object FullName)
+    @($paths | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object { (Resolve-Path -LiteralPath $_).Path } | Select-Object -Unique)
+}
+
+# The menu ids TidyWin hides now in one userChrome.css (inside its block)
+function Get-HiddenMenuIds([string]$File) {
+    if (-not (Test-Path -LiteralPath $File)) { return @() }
+    $text = [IO.File]::ReadAllText($File)
+    $m = [regex]::Match($text, [regex]::Escape($CssStart) + '(.*?)' + [regex]::Escape($CssEnd), 'Singleline')
+    if (-not $m.Success) { return @() }
+    @([regex]::Matches($m.Groups[1].Value, '#[\w-]+') | ForEach-Object Value)
+}
+
+# Writes TidyWin's block (or removes it, with no ids) and keeps the rest of the file as it was
+function Set-MenuBlock([string]$Folder, [string[]]$Ids) {
+    $dir = Join-Path $Folder 'chrome'
+    $file = Join-Path $dir 'userChrome.css'
+    $text = if (Test-Path -LiteralPath $file) { [IO.File]::ReadAllText($file) } else { '' }
+    $text = [regex]::Replace($text, '\r?\n?' + [regex]::Escape($CssStart) + '.*?' + [regex]::Escape($CssEnd) + '\r?\n?', "`r`n", 'Singleline').Trim()
+    if ($Ids) {
+        $block = "$CssStart`r`n" + (($Ids | Select-Object -Unique) -join ",`r`n") + "`r`n{ display: none !important; }`r`n$CssEnd"
+        $text = if ($text) { "$text`r`n`r`n$block" } else { $block }
+    }
+    if (-not $text -and -not (Test-Path -LiteralPath $file)) { return }
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    if ($text) { [IO.File]::WriteAllText($file, "$text`r`n", (New-Object Text.UTF8Encoding $false)) }
+    else { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }      # it only had TidyWin's block
+}
+
+# Hides the chosen lines in every profile, on top of the ones hidden before
+function Hide-MenuItems([object[]]$Items) {
+    $profiles = @(Get-FirefoxProfiles)
+    if (-not $profiles) { Write-Host '  [skipped] No Firefox profile yet: open Firefox once and run this again.' -ForegroundColor DarkYellow; return }
+    Set-PrefPolicy 'toolkit.legacyUserProfileCustomizations.stylesheets' $true 'default' 'Firefox reads userChrome.css'
+    $new = @($Items | ForEach-Object { $_.Css })
+    foreach ($p in $profiles) {
+        try {
+            $ids = @(Get-HiddenMenuIds (Join-Path $p 'chrome\userChrome.css')) + $new
+            Set-MenuBlock $p $ids
+        } catch {
+            $script:Failures++
+            Write-Host "  [ERROR] $(Split-Path $p -Leaf): $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+    foreach ($i in $Items) { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "Right-click menu: ""$($i.Name)"" hidden" }
+    Write-Host "  In $($profiles.Count) profile(s). Close and reopen Firefox to see it." -ForegroundColor DarkGray
+}
+
+function Test-MenuItemsHidden { [bool](@(Get-FirefoxProfiles | Where-Object { Get-HiddenMenuIds (Join-Path $_ 'chrome\userChrome.css') })) }
+
+# Undo: TidyWin's block leaves every profile (the preference goes through its policy name)
+function Show-MenuItems {
+    foreach ($p in @(Get-FirefoxProfiles)) {
+        if (Get-HiddenMenuIds (Join-Path $p 'chrome\userChrome.css')) {
+            Set-MenuBlock $p @()
+            Write-Host "  [removed] userChrome.css: TidyWin's block ($(Split-Path $p -Leaf))" -ForegroundColor DarkGray
+        }
     }
 }
 
@@ -520,6 +628,8 @@ function Get-UndoGroups {
         @{ Id = 'NoSearchSuggestions'; Label = 'Turn search suggestions back on'; Desc = 'What you type in the address bar goes to the search engine while you type again.'; Names = @('SearchSuggestEnabled') }
         @{ Id = 'NoPrefetch'; Label = 'Turn page preloading back on'; Desc = 'Firefox preloads the pages it thinks you will open again.'; Names = @('NetworkPrediction') }
         @{ Id = 'HttpsOnly'; Label = 'Turn HTTPS-Only Mode off'; Desc = 'Firefox opens sites without a secure connection without warning again.'; Names = @('HttpsOnlyMode') }
+        @{ Id = 'Menu'; Label = 'Bring the right-click menu lines back'; Desc = 'The lines TidyWin hid come back. The rest of your userChrome.css stays.'; Section = $MenuSection
+           Names = @('pref:toolkit.legacyUserProfileCustomizations.stylesheets'); Test = { Test-MenuItemsHidden }; Undo = { Show-MenuItems } }
     )
 }
 
@@ -596,6 +706,10 @@ $fields = @(
     New-Field $T 'UBlock' 'toggle' 'Add uBlock Origin' 'Blocks ads and trackers. From Mozilla''s add-on store, kept up to date. It can be turned off, not removed.' $false @{ section = $Extras }
     New-Field $T 'BitwardenExtension' 'toggle' 'Add Bitwarden' 'The password manager. From Mozilla''s add-on store, kept up to date. It can be turned off, not removed.' $false @{ section = $Extras }
     New-Field $T 'Bitwarden' 'toggle' 'Use Bitwarden for passwords' 'Firefox stops saving passwords, addresses and cards. Saved passwords are hidden, not deleted.' $false @{ section = $Extras; warn = $(if ($saved) { "Firefox has $saved saved password(s). Export them to Bitwarden first: about:logins, menu, Export passwords." } else { '' }) }
+    # The right-click menu, under its own title: one line each
+    foreach ($m in $MenuItems) {
+        New-Field $T $m.Id 'toggle' "Remove ""$($m.Name)""" 'Only the menu line goes; the feature stays.' $false @{ section = $MenuSection }
+    }
 )
 Write-Loading 'Reading the Firefox settings' 50
 if ($Describe) { Write-OptionsPage $Describe (Get-BrowserFields $fields 'Firefox' 'Turn off telemetry, sponsored content and AI, and add uBlock Origin.'); return }
@@ -617,6 +731,8 @@ if ($v.UBlock -or $v.BitwardenExtension) {
     if ($v.BitwardenExtension) { Set-Extension $BitwardenId 'Bitwarden' }
 }
 if ($v.Bitwarden)    { Write-Step 'Passwords: Bitwarden only'; Set-BitwardenOnly }
+$menuPicked = @($MenuItems | Where-Object { $v[$_.Id] })
+if ($menuPicked) { Write-Step 'Right-click menu'; Hide-MenuItems $menuPicked }
 if ($v.NoSearchSuggestions -or $v.NoPrefetch -or $v.HttpsOnly) {
     Write-Step 'Privacy'; Set-OptionalPrivacy ([bool]$v.NoSearchSuggestions) ([bool]$v.NoPrefetch) ([bool]$v.HttpsOnly)
 }
