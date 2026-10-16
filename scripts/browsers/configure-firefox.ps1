@@ -335,22 +335,34 @@ function Remove-ReaderViewButton([string]$Dir) {
     }
 }
 
-# --- Right-click menu ---------------------------------------------------------------------------------
-# Lines of Firefox's right-click menu, hidden with userChrome.css: a block between two TidyWin markers in
-# chrome\userChrome.css of every profile (whatever else the file has stays). Firefox only reads that file
-# with toolkit.legacyUserProfileCustomizations.stylesheets on, set through the Preferences policy as a
-# default. The features stay; only their menu lines go. Each option: its id, its name and the menu ids.
+# --- Menus ------------------------------------------------------------------------------------------------
+# Lines of Firefox's right-click menu and of its main menu (☰), hidden with userChrome.css: a block between
+# two TidyWin markers in chrome\userChrome.css of every profile (whatever else the file has stays). Firefox
+# only reads that file with toolkit.legacyUserProfileCustomizations.stylesheets on, set through the
+# Preferences policy as a default. The features and their keyboard shortcuts stay; only the menu lines go.
+# Each option: its id, its name, the menu it is in (its title on the page) and the ids of its lines.
+$MenuSection    = 'Right-click menu'
+$AppMenuSection = 'Main menu'
 $MenuItems = @(
-    [pscustomobject]@{ Id = 'MenuSource';     Name = 'View Page Source';                  Css = '#context-viewsource', '#context-viewpartialsource-selection' }
-    [pscustomobject]@{ Id = 'MenuSendTo';     Name = 'Send to Device';                    Css = '#context-sendpagetodevice', '#context-sep-sendpagetodevice', '#context-sendlinktodevice', '#context-sep-sendlinktodevice' }
-    [pscustomobject]@{ Id = 'MenuScreenshot'; Name = 'Take Screenshot';                   Css = '#context-take-screenshot', '#context-sep-screenshots' }
-    [pscustomobject]@{ Id = 'MenuA11y';       Name = 'Inspect Accessibility Properties';  Css = '#context-inspect-a11y' }
-    [pscustomobject]@{ Id = 'MenuTranslate';  Name = 'Translate Selection';               Css = '#context-translate-selection' }
-    [pscustomobject]@{ Id = 'MenuAskAI';      Name = 'Ask an AI Chatbot';                 Css = '#context-ask-chat' }
+    [pscustomobject]@{ Id = 'MenuSource';     Name = 'View Page Source';                  Menu = $MenuSection; Css = '#context-viewsource', '#context-viewpartialsource-selection' }
+    [pscustomobject]@{ Id = 'MenuSendTo';     Name = 'Send to Device';                    Menu = $MenuSection; Css = '#context-sendpagetodevice', '#context-sep-sendpagetodevice', '#context-sendlinktodevice', '#context-sep-sendlinktodevice' }
+    [pscustomobject]@{ Id = 'MenuScreenshot'; Name = 'Take Screenshot';                   Menu = $MenuSection; Css = '#context-take-screenshot', '#context-sep-screenshots' }
+    [pscustomobject]@{ Id = 'MenuA11y';       Name = 'Inspect Accessibility Properties';  Menu = $MenuSection; Css = '#context-inspect-a11y' }
+    [pscustomobject]@{ Id = 'MenuTranslate';  Name = 'Translate Selection';               Menu = $MenuSection; Css = '#context-translate-selection' }
+    [pscustomobject]@{ Id = 'MenuAskAI';      Name = 'Ask an AI Chatbot';                 Menu = $MenuSection; Css = '#context-ask-chat' }
+    # The main menu (☰): the sign-in row goes with the line under it
+    [pscustomobject]@{ Id = 'AppMenuSync';     Name = 'Sync and save data';  Menu = $AppMenuSection; Css = '#appMenu-fxa-status2', '#appMenu-fxa-separator'
+                       Note = 'For when you don''t use a Firefox account.' }
+    [pscustomobject]@{ Id = 'AppMenuProfiles'; Name = 'Create new profile';  Menu = $AppMenuSection; Css = '#appMenu-profiles-button', '#appMenu-create-profile-button' }
+    [pscustomobject]@{ Id = 'AppMenuPasswords'; Name = 'Passwords';          Menu = $AppMenuSection; Css = '#appMenu-passwords-button'
+                       Note = 'For when Bitwarden keeps your passwords.' }
+    [pscustomobject]@{ Id = 'AppMenuPrint';    Name = 'Print';               Menu = $AppMenuSection; Css = '#appMenu-print-button2'; Note = 'Ctrl+P still prints.' }
+    [pscustomobject]@{ Id = 'AppMenuSave';     Name = 'Save page as';        Menu = $AppMenuSection; Css = '#appMenu-save-file-button2'; Note = 'Ctrl+S still saves.' }
+    [pscustomobject]@{ Id = 'AppMenuMore';     Name = 'More tools';          Menu = $AppMenuSection; Css = '#appMenu-more-button2' }
+    [pscustomobject]@{ Id = 'AppMenuHelp';     Name = 'Help';                Menu = $AppMenuSection; Css = '#appMenu-help-button2' }
 )
-$MenuSection = 'Right-click menu'
-$CssStart = '/* TidyWin: right-click menu (start) */'
-$CssEnd   = '/* TidyWin: right-click menu (end) */'
+$CssStart = '/* TidyWin: hidden menu lines (start) */'
+$CssEnd   = '/* TidyWin: hidden menu lines (end) */'
 
 # Every Firefox profile folder, from profiles.ini (a profile can live outside the usual folder)
 function Get-FirefoxProfiles {
@@ -412,7 +424,7 @@ function Hide-MenuItems([object[]]$Items) {
             Write-Host "  [ERROR] $(Split-Path $p -Leaf): $($_.Exception.Message)" -ForegroundColor Red
         }
     }
-    foreach ($i in $Items) { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "Right-click menu: ""$($i.Name)"" hidden" }
+    foreach ($i in $Items) { Write-Host '  [OK] ' -ForegroundColor Green -NoNewline; Write-Host "$($i.Menu): ""$($i.Name)"" hidden" }
     Write-Host "  In $($profiles.Count) profile(s). Close and reopen Firefox to see it." -ForegroundColor DarkGray
 }
 
@@ -628,7 +640,7 @@ function Get-UndoGroups {
         @{ Id = 'NoSearchSuggestions'; Label = 'Turn search suggestions back on'; Desc = 'What you type in the address bar goes to the search engine while you type again.'; Names = @('SearchSuggestEnabled') }
         @{ Id = 'NoPrefetch'; Label = 'Turn page preloading back on'; Desc = 'Firefox preloads the pages it thinks you will open again.'; Names = @('NetworkPrediction') }
         @{ Id = 'HttpsOnly'; Label = 'Turn HTTPS-Only Mode off'; Desc = 'Firefox opens sites without a secure connection without warning again.'; Names = @('HttpsOnlyMode') }
-        @{ Id = 'Menu'; Label = 'Bring the right-click menu lines back'; Desc = 'The lines TidyWin hid come back. The rest of your userChrome.css stays.'; Section = $MenuSection
+        @{ Id = 'Menu'; Label = 'Bring the hidden menu lines back'; Desc = 'The lines TidyWin hid in the right-click menu and the main menu come back. The rest of your userChrome.css stays.'; Section = 'Menus'
            Names = @('pref:toolkit.legacyUserProfileCustomizations.stylesheets'); Test = { Test-MenuItemsHidden }; Undo = { Show-MenuItems } }
     )
 }
@@ -706,9 +718,10 @@ $fields = @(
     New-Field $T 'UBlock' 'toggle' 'Add uBlock Origin' 'Blocks ads and trackers. From Mozilla''s add-on store, kept up to date. It can be turned off, not removed.' $false @{ section = $Extras }
     New-Field $T 'BitwardenExtension' 'toggle' 'Add Bitwarden' 'The password manager. From Mozilla''s add-on store, kept up to date. It can be turned off, not removed.' $false @{ section = $Extras }
     New-Field $T 'Bitwarden' 'toggle' 'Use Bitwarden for passwords' 'Firefox stops saving passwords, addresses and cards. Saved passwords are hidden, not deleted.' $false @{ section = $Extras; warn = $(if ($saved) { "Firefox has $saved saved password(s). Export them to Bitwarden first: about:logins, menu, Export passwords." } else { '' }) }
-    # The right-click menu, under its own title: one line each
+    # The right-click menu and the main menu, each under its own title: one line each
     foreach ($m in $MenuItems) {
-        New-Field $T $m.Id 'toggle' "Remove ""$($m.Name)""" 'Only the menu line goes; the feature stays.' $false @{ section = $MenuSection }
+        $note = if ($m.Note) { "Only the menu line goes. $($m.Note)" } else { 'Only the menu line goes; the feature stays.' }
+        New-Field $T $m.Id 'toggle' "Remove ""$($m.Name)""" $note $false @{ section = $m.Menu }
     }
 )
 Write-Loading 'Reading the Firefox settings' 50
@@ -732,7 +745,7 @@ if ($v.UBlock -or $v.BitwardenExtension) {
 }
 if ($v.Bitwarden)    { Write-Step 'Passwords: Bitwarden only'; Set-BitwardenOnly }
 $menuPicked = @($MenuItems | Where-Object { $v[$_.Id] })
-if ($menuPicked) { Write-Step 'Right-click menu'; Hide-MenuItems $menuPicked }
+if ($menuPicked) { Write-Step 'Menus'; Hide-MenuItems $menuPicked }
 if ($v.NoSearchSuggestions -or $v.NoPrefetch -or $v.HttpsOnly) {
     Write-Step 'Privacy'; Set-OptionalPrivacy ([bool]$v.NoSearchSuggestions) ([bool]$v.NoPrefetch) ([bool]$v.HttpsOnly)
 }
